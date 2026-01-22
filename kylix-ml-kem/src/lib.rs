@@ -31,18 +31,18 @@
 
 mod params;
 
+#[cfg(feature = "ml-kem-1024")]
+mod ml_kem_1024;
 #[cfg(feature = "ml-kem-512")]
 mod ml_kem_512;
 #[cfg(feature = "ml-kem-768")]
 mod ml_kem_768;
-#[cfg(feature = "ml-kem-1024")]
-mod ml_kem_1024;
 
 pub use kylix_core::Kem;
 
+#[cfg(feature = "ml-kem-1024")]
+pub use ml_kem_1024::MlKem1024;
 #[cfg(feature = "ml-kem-512")]
 pub use ml_kem_512::MlKem512;
 #[cfg(feature = "ml-kem-768")]
 pub use ml_kem_768::MlKem768;
-#[cfg(feature = "ml-kem-1024")]
-pub use ml_kem_1024::MlKem1024;

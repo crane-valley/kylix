@@ -21,12 +21,12 @@ keywords = ["post-quantum", "ml-kem", "pqc", "cryptography"]
 [workspace.dependencies]
 # Internal crates
 kylix = { path = "kylix", version = "0.1.0" }
-kylix-core = { path = "kylix-core", version = "0.1.0" }
-kylix-ml-kem = { path = "kylix-ml-kem", version = "0.1.0" }
+kylix-core = { path = "kylix-core", version = "0.1.0", default-features = false }
+kylix-ml-kem = { path = "kylix-ml-kem", version = "0.1.0", default-features = false }
 
 # External dependencies
 thiserror = "1.0"
-zeroize = { version = "1.8", features = ["derive"] }
+zeroize = { version = "1.8", default-features = false, features = ["derive"] }
 rand_core = { version = "0.6", default-features = false }
 subtle = { version = "2.5", default-features = false }
 clap = { version = "4.5", features = ["derive"] }

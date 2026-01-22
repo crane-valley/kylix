@@ -126,10 +126,7 @@ impl Kem for MlKem768 {
         unimplemented!("ML-KEM-768 encapsulation not yet implemented")
     }
 
-    fn decaps(
-        _dk: &Self::DecapsulationKey,
-        _ct: &Self::Ciphertext,
-    ) -> Result<Self::SharedSecret> {
+    fn decaps(_dk: &Self::DecapsulationKey, _ct: &Self::Ciphertext) -> Result<Self::SharedSecret> {
         // TODO: Implement ML-KEM-768.Decaps() as per FIPS 203 Algorithm 18
         unimplemented!("ML-KEM-768 decapsulation not yet implemented")
     }
