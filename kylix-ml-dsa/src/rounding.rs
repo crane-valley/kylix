@@ -24,25 +24,40 @@ pub fn power2round(r: i32) -> (i32, i32) {
 ///
 /// Input: r in [0, q-1], alpha = 2*gamma2
 /// Output: (r1, r0)
+///
+/// Per FIPS 204 Section 8.4, Algorithm 35 (Decompose).
+/// Magic constants are derived from the modular arithmetic optimization:
+/// - For gamma2 = (q-1)/32 = 261888: alpha = 523776, m = 16
+///   - 1025 = ceil(2^22 / 4096) for division approximation
+///   - 22-bit shift and mask by 15 (= m-1) for mod m
+/// - For gamma2 = (q-1)/88 = 95232: alpha = 190464, m = 44
+///   - 11275 = ceil(2^24 / 1488) for division approximation
+///   - 43 = m-1, XOR trick handles the m=44 boundary case
 #[inline]
 pub fn decompose(r: i32, gamma2: i32) -> (i32, i32) {
     let alpha = 2 * gamma2;
 
-    // r1 = ceil((r + 127) / alpha)
+    // r1 = ceil((r + 127) / alpha), computed via multiplication by inverse
+    // 127 = 2^7 - 1 is the rounding term for ceiling division
     let mut r1 = (r + 127) >> 7;
     if gamma2 == 261888 {
-        // gamma2 = (q-1)/32
+        // gamma2 = (q-1)/32, m = 16
+        // Approximate division by 4096 using multiply-shift: x/4096 ≈ (x*1025) >> 22
         r1 = (r1 * 1025 + (1 << 21)) >> 22;
-        r1 &= 15;
+        r1 &= 15; // mod 16
     } else {
-        // gamma2 = (q-1)/88
+        // gamma2 = (q-1)/88, m = 44
+        // Approximate division by 1488 using multiply-shift: x/1488 ≈ (x*11275) >> 24
         r1 = (r1 * 11275 + (1 << 23)) >> 24;
+        // Handle r1 = 44 case: if r1 == 44, set to 0 (wrap around)
+        // XOR trick: if r1 > 43, the sign bit is 0, so r1 ^= r1 = 0
         r1 ^= ((43 - r1) >> 31) & r1;
     }
 
     let mut r0 = r - r1 * alpha;
 
-    // Center r0
+    // Center r0 into (-alpha/2, alpha/2] using branchless conditional subtraction
+    // If r0 > (q-1)/2, subtract q to get negative centered value
     r0 -= (((Q - 1) / 2 - r0) >> 31) & Q;
 
     (r1, r0)
@@ -64,24 +79,29 @@ pub fn lowbits(r: i32, gamma2: i32) -> i32 {
 ///
 /// Returns 1 if HighBits(r) ≠ HighBits(r + z), else 0.
 /// This indicates whether adding z to r would change the high bits.
+///
+/// This function is constant-time to prevent timing side-channels.
 #[inline]
 pub fn make_hint(z: i32, r: i32, gamma2: i32) -> i32 {
     use crate::reduce::freeze;
+    use subtle::{ConditionallySelectable, ConstantTimeEq};
 
     let h0 = highbits(r, gamma2);
     // Need to reduce r + z to [0, q-1] before computing highbits
     let h1 = highbits(freeze(r + z), gamma2);
-    if h0 != h1 {
-        1
-    } else {
-        0
-    }
+
+    // Constant-time comparison: return 1 if h0 != h1, else 0
+    let equal = (h0 as u32).ct_eq(&(h1 as u32));
+    let result = u32::conditional_select(&1u32, &0u32, equal);
+    result as i32
 }
 
 /// UseHint: recover high bits using hint.
 ///
 /// If hint = 0, return highbits(r).
 /// If hint = 1, return highbits(r) +/- 1 depending on lowbits sign.
+///
+/// Per FIPS 204 Section 8.4, Algorithm 37 (UseHint).
 #[inline]
 pub fn use_hint(hint: i32, r: i32, gamma2: i32) -> i32 {
     let (r1, r0) = decompose(r, gamma2);
@@ -90,7 +110,9 @@ pub fn use_hint(hint: i32, r: i32, gamma2: i32) -> i32 {
         return r1;
     }
 
-    let _alpha = 2 * gamma2; // Computed for reference but not used in this implementation
+    // m = number of possible high-bits values = (q-1) / (2*gamma2)
+    // For gamma2 = (q-1)/32: m = 16
+    // For gamma2 = (q-1)/88: m = 44
     let m = if gamma2 == 261888 { 16 } else { 44 };
 
     if r0 > 0 {

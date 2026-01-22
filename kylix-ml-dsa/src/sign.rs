@@ -68,7 +68,7 @@ pub fn ml_dsa_keygen<const K: usize, const L: usize, const ETA: usize>(
     let a = expand_a::<K, L>(&rho);
 
     // 3. Sample secret vectors s1, s2
-    let (mut s1, s2) = expand_s::<K, L, ETA>(&rho_prime);
+    let (mut s1, mut s2) = expand_s::<K, L, ETA>(&rho_prime);
 
     // 4. Compute t = A * s1 + s2
     let mut s1_ntt = s1.clone();
@@ -144,9 +144,12 @@ pub fn ml_dsa_keygen<const K: usize, const L: usize, const ETA: usize>(
     }
 
     // Zeroize sensitive data
+    expanded.zeroize();
     rho_prime.zeroize();
     key_k.zeroize();
     s1.zeroize();
+    s2.zeroize();
+    t0.zeroize();
 
     (sk, pk)
 }
@@ -220,11 +223,9 @@ pub fn ml_dsa_sign<
     let mu = hash_message(tr, message);
 
     // Compute rho' = H(K || rnd || mu)
+    // Use h3 directly to avoid heap allocation with secret key material
     let mut rho_prime = [0u8; 64];
-    let mut key_k_arr = [0u8; 32];
-    key_k_arr.copy_from_slice(key_k);
-    crate::hash::derive_rho_prime(&key_k_arr, rnd, &mu);
-    h2(&[key_k, rnd, &mu].concat(), &[], &mut rho_prime);
+    crate::hash::h3(key_k, rnd, &mu, &mut rho_prime);
 
     // NTT of s1, s2, t0
     let mut s1_hat = s1.clone();
@@ -397,7 +398,8 @@ pub fn ml_dsa_sign<
         #[cfg(test)]
         let mut wcs2ct0_vec = PolyVecK::<K>::zero();
 
-        for i in 0..K {
+        let mut hint_overflow = false;
+        'hint_loop: for i in 0..K {
             for j in 0..N {
                 // w' = w - cs2 + ct0 (what verify will compute)
                 let w_prime = w.polys[i].coeffs[j] - cs2.polys[i].coeffs[j] + ct0.polys[i].coeffs[j];
@@ -410,18 +412,24 @@ pub fn ml_dsa_sign<
                 // FIPS 204: MakeHint(z, r) returns 1 if HighBits(r) ≠ HighBits(r+z)
                 // We want hint=1 when HighBits(w') ≠ HighBits(w)
                 // With r = w', r + z = w, so z = w - w' = cs2 - ct0
-                let z = cs2.polys[i].coeffs[j] - ct0.polys[i].coeffs[j];
-                let hint = make_hint(freeze(z), freeze(w_prime), GAMMA2);
+                let hint_z = cs2.polys[i].coeffs[j] - ct0.polys[i].coeffs[j];
+                let hint = make_hint(freeze(hint_z), freeze(w_prime), GAMMA2);
                 if hint != 0 {
                     if hint_count >= OMEGA {
-                        kappa += 1;
-                        break;
+                        // Too many hints - need to restart rejection sampling
+                        hint_overflow = true;
+                        break 'hint_loop;
                     }
                     h[hint_count] = j as u8;
                     hint_count += 1;
                 }
             }
             h[OMEGA + i] = hint_count as u8;
+        }
+
+        if hint_overflow {
+            kappa += 1;
+            continue;
         }
 
         // Compute what verify would see in NTT domain: (A*y - c*s2 + c*t0) in NTT
@@ -551,6 +559,15 @@ pub fn ml_dsa_sign<
 
         sig.extend_from_slice(&h[..OMEGA + K]);
 
+        // Zeroize sensitive intermediate values before returning
+        rho_prime.zeroize();
+        s1.zeroize();
+        s2.zeroize();
+        t0.zeroize();
+        s1_hat.zeroize();
+        s2_hat.zeroize();
+        t0_hat.zeroize();
+
         return Some(sig);
     }
 }
@@ -614,13 +631,35 @@ pub fn ml_dsa_verify<
         return false;
     }
 
-    // Check hint count
+    // Check hint count and validate hint positions are strictly increasing
+    // per FIPS 204 canonical encoding requirements
     let mut hint_count = 0;
     for i in 0..K {
+        let start = if i == 0 { 0 } else { h[OMEGA + i - 1] as usize };
         let end = h[OMEGA + i] as usize;
-        if end > OMEGA || (i > 0 && end < h[OMEGA + i - 1] as usize) {
+
+        // End must be within bounds and monotonically increasing
+        if end > OMEGA || end < start {
             return false;
         }
+
+        // Validate hint positions are strictly increasing within this polynomial
+        let mut prev_pos: Option<u8> = None;
+        for idx in start..end {
+            let pos = h[idx];
+            // Position must be < N (256)
+            if pos as usize >= N {
+                return false;
+            }
+            // Positions must be strictly increasing (canonical encoding)
+            if let Some(p) = prev_pos {
+                if pos <= p {
+                    return false;
+                }
+            }
+            prev_pos = Some(pos);
+        }
+
         hint_count = end;
     }
     if hint_count > OMEGA {

@@ -29,6 +29,13 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![deny(unsafe_code)]
 #![warn(missing_docs, clippy::pedantic)]
+// Clippy allowances for cryptographic code patterns:
+// - many_single_char_names: Mathematical notation (a, b, c, t, r, z, etc.)
+// - similar_names: Intentional for related variables (s1/s2, t0/t1)
+// - too_many_arguments: Generic const parameters for security levels
+// - cast_possible_truncation/sign_loss/wrap: Intentional for modular arithmetic
+//   All casts are verified to be within bounds for q=8380417 (23-bit)
+// - module_name_repetitions: MlDsa65 in ml_dsa_65 module is acceptable
 #![allow(
     clippy::many_single_char_names,
     clippy::similar_names,
