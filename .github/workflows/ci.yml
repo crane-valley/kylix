@@ -48,7 +48,11 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
       - uses: Swatinem/rust-cache@v2
+      # Exclude kylix-bench on MSRV (1.80) - criterion's transitive dep (half) requires Rust 1.81+
+      - run: cargo test --workspace --exclude kylix-bench --all-features
+        if: matrix.rust == '1.80'
       - run: cargo test --all-features
+        if: matrix.rust != '1.80'
 
   test-no-std:
     name: Test (no_std)
@@ -91,7 +95,8 @@ jobs:
         with:
           toolchain: "1.80"
       - uses: Swatinem/rust-cache@v2
-      - run: cargo check --all-features
+      # Exclude kylix-bench - criterion's transitive dep (half) requires Rust 1.81+
+      - run: cargo check --workspace --exclude kylix-bench --all-features
 
   coverage:
     name: Coverage
