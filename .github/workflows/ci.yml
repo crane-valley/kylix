@@ -48,7 +48,11 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
       - uses: Swatinem/rust-cache@v2
+      # Exclude kylix-bench on MSRV (1.75) - criterion requires Rust 1.80+
+      - run: cargo test --workspace --exclude kylix-bench --all-features
+        if: matrix.rust == '1.75'
       - run: cargo test --all-features
+        if: matrix.rust != '1.75'
 
   test-no-std:
     name: Test (no_std)
