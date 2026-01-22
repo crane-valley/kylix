@@ -238,7 +238,19 @@ pub fn ml_dsa_sign<
     // Rejection sampling loop
     // Use u32 for kappa to avoid overflow with larger L values
     let mut kappa: u32 = 0;
-    const MAX_ATTEMPTS: u32 = 10000; // Safety limit for rejection sampling
+    // Safety limit for rejection sampling.
+    //
+    // For the ML-DSA parameter sets we target, the expected number of
+    // rejection-sampling iterations is very small (typically 1–2 attempts,
+    // and only rarely more than a handful). Setting MAX_ATTEMPTS to 10,000
+    // therefore gives an extremely conservative upper bound: under normal
+    // operation this limit is never reached, while still providing a hard
+    // cap to prevent an unbounded loop in the presence of malformed inputs,
+    // implementation bugs, or hardware faults. In other words, 10,000 is
+    // chosen to be orders of magnitude larger than any realistic number of
+    // attempts, making the probability of hitting this limit negligibly
+    // small while retaining a clear safety guard.
+    const MAX_ATTEMPTS: u32 = 10000;
     loop {
         if kappa >= MAX_ATTEMPTS {
             return None; // Signing failed after too many attempts
@@ -246,8 +258,9 @@ pub fn ml_dsa_sign<
 
         // Sample y
         let mut y = PolyVecL::<L>::zero();
+        let base_nonce = kappa * (L as u32);
         for i in 0..L {
-            let nonce = kappa * (L as u32) + (i as u32);
+            let nonce = base_nonce + (i as u32);
             y.polys[i] = sample_mask(&rho_prime, nonce as u16, gamma1_bits);
         }
 
