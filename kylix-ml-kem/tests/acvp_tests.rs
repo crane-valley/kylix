@@ -164,7 +164,7 @@ mod keygen_512 {
             );
             passed += 1;
         }
-        eprintln!("ML-KEM-512 KeyGen: {} ACVP tests passed", passed);
+        println!("ML-KEM-512 KeyGen: {} ACVP tests passed", passed);
     }
 }
 
@@ -220,7 +220,7 @@ mod keygen_768 {
             );
             passed += 1;
         }
-        eprintln!("ML-KEM-768 KeyGen: {} ACVP tests passed", passed);
+        println!("ML-KEM-768 KeyGen: {} ACVP tests passed", passed);
     }
 }
 
@@ -276,7 +276,7 @@ mod keygen_1024 {
             );
             passed += 1;
         }
-        eprintln!("ML-KEM-1024 KeyGen: {} ACVP tests passed", passed);
+        println!("ML-KEM-1024 KeyGen: {} ACVP tests passed", passed);
     }
 }
 
@@ -339,7 +339,7 @@ mod encaps_512 {
             );
             passed += 1;
         }
-        eprintln!("ML-KEM-512 Encaps: {} ACVP tests passed", passed);
+        println!("ML-KEM-512 Encaps: {} ACVP tests passed", passed);
     }
 }
 
@@ -398,7 +398,7 @@ mod encaps_768 {
             );
             passed += 1;
         }
-        eprintln!("ML-KEM-768 Encaps: {} ACVP tests passed", passed);
+        println!("ML-KEM-768 Encaps: {} ACVP tests passed", passed);
     }
 }
 
@@ -457,7 +457,7 @@ mod encaps_1024 {
             );
             passed += 1;
         }
-        eprintln!("ML-KEM-1024 Encaps: {} ACVP tests passed", passed);
+        println!("ML-KEM-1024 Encaps: {} ACVP tests passed", passed);
     }
 }
 
@@ -514,7 +514,7 @@ mod decaps_512 {
             );
             passed += 1;
         }
-        eprintln!("ML-KEM-512 Decaps: {} ACVP tests passed", passed);
+        println!("ML-KEM-512 Decaps: {} ACVP tests passed", passed);
     }
 }
 
@@ -567,7 +567,7 @@ mod decaps_768 {
             );
             passed += 1;
         }
-        eprintln!("ML-KEM-768 Decaps: {} ACVP tests passed", passed);
+        println!("ML-KEM-768 Decaps: {} ACVP tests passed", passed);
     }
 }
 
@@ -620,6 +620,6 @@ mod decaps_1024 {
             );
             passed += 1;
         }
-        eprintln!("ML-KEM-1024 Decaps: {} ACVP tests passed", passed);
+        println!("ML-KEM-1024 Decaps: {} ACVP tests passed", passed);
     }
 }

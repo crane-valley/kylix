@@ -45,6 +45,12 @@ use crate::polyvec::PolyVec;
 /// 6. dk_pke = encode(s)
 pub fn k_pke_keygen<const K: usize, const ETA1: usize>(d: &[u8; 32]) -> (Vec<u8>, Vec<u8>) {
     // 1. (rho, sigma) = G(d || k) with domain separation
+    // FIPS 203 Algorithm 13 specifies G(d || k) where:
+    // - d is the 32-byte seed
+    // - k is a single byte equal to K (module rank: 2, 3, or 4)
+    // This 33-byte input provides domain separation between parameter sets,
+    // ensuring different key pairs are generated for ML-KEM-512/768/1024
+    // even with the same seed d.
     let mut g_input = [0u8; 33];
     g_input[..32].copy_from_slice(d);
     g_input[32] = K as u8;
