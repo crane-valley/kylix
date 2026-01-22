@@ -1,0 +1,29 @@
+[package]
+name = "kylix-ml-kem"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+categories.workspace = true
+keywords.workspace = true
+description = "ML-KEM (FIPS 203) implementation for the Kylix post-quantum cryptography library"
+
+[features]
+default = ["std", "ml-kem-768"]
+std = ["kylix-core/std"]
+ml-kem-512 = []
+ml-kem-768 = []
+ml-kem-1024 = []
+
+[dependencies]
+kylix-core.workspace = true
+zeroize.workspace = true
+rand_core.workspace = true
+subtle.workspace = true
+
+[dev-dependencies]
+rand = "0.8"
+hex = "0.4"

@@ -1,0 +1,20 @@
+[package]
+name = "kylix-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Command-line interface for Kylix post-quantum cryptography operations"
+
+[[bin]]
+name = "kylix"
+path = "src/main.rs"
+
+[dependencies]
+kylix.workspace = true
+clap.workspace = true
+hex.workspace = true
+rand = "0.8"

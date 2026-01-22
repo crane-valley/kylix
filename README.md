@@ -1,1 +1,85 @@
-# kylix
+# Kylix
+
+[![CI](https://github.com/crane-valley/kylix/actions/workflows/ci.yml/badge.svg)](https://github.com/crane-valley/kylix/actions/workflows/ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/kylix.svg)](https://crates.io/crates/kylix)
+[![Documentation](https://docs.rs/kylix/badge.svg)](https://docs.rs/kylix)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![MSRV](https://img.shields.io/badge/MSRV-1.75-blue.svg)](https://blog.rust-lang.org/2023/12/28/Rust-1.75.0.html)
+
+A post-quantum cryptography library implementing NIST FIPS standards in pure Rust.
+
+## Features
+
+- **ML-KEM** (FIPS 203): Module-Lattice-Based Key Encapsulation Mechanism
+  - ML-KEM-512 (Security Level 1)
+  - ML-KEM-768 (Security Level 3)
+  - ML-KEM-1024 (Security Level 5)
+- `no_std` compatible for embedded systems
+- Constant-time implementations to prevent timing attacks
+- Secure memory handling with automatic zeroization
+- Comprehensive test coverage including known-answer tests
+
+## Installation
+
+Add to your `Cargo.toml`:
+
+```toml
+[dependencies]
+kylix = "0.1"
+```
+
+## Usage
+
+```rust
+use kylix::ml_kem::{MlKem768, Kem};
+use rand::rngs::OsRng;
+
+fn main() -> kylix::Result<()> {
+    // Generate a key pair
+    let (decapsulation_key, encapsulation_key) = MlKem768::keygen(&mut OsRng)?;
+
+    // Sender: Encapsulate a shared secret
+    let (ciphertext, shared_secret_sender) = MlKem768::encaps(&encapsulation_key, &mut OsRng)?;
+
+    // Receiver: Decapsulate the shared secret
+    let shared_secret_receiver = MlKem768::decaps(&decapsulation_key, &ciphertext)?;
+
+    // Both parties now have the same shared secret
+    assert_eq!(shared_secret_sender.as_ref(), shared_secret_receiver.as_ref());
+
+    Ok(())
+}
+```
+
+## Crate Structure
+
+| Crate | Description |
+|-------|-------------|
+| `kylix` | Main crate with re-exports |
+| `kylix-core` | Core traits and utilities |
+| `kylix-ml-kem` | ML-KEM (FIPS 203) implementation |
+| `kylix-cli` | Command-line interface |
+
+## Security
+
+**WARNING**: This library has not been audited. Use at your own risk.
+
+See [SECURITY.md](SECURITY.md) for security policy and reporting vulnerabilities.
+
+## Minimum Supported Rust Version
+
+This crate requires Rust 1.75 or later.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
+## Contributing
+
+Contributions are welcome! Please read our contributing guidelines before submitting PRs.
+
+## References
+
+- [FIPS 203: Module-Lattice-Based Key-Encapsulation Mechanism Standard](https://csrc.nist.gov/pubs/fips/203/final)
+- [FIPS 204: Module-Lattice-Based Digital Signature Standard](https://csrc.nist.gov/pubs/fips/204/final)
+- [FIPS 205: Stateless Hash-Based Digital Signature Standard](https://csrc.nist.gov/pubs/fips/205/final)

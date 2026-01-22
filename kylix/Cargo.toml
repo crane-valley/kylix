@@ -1,0 +1,22 @@
+[package]
+name = "kylix"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+categories.workspace = true
+keywords.workspace = true
+description = "Post-quantum cryptography library implementing NIST FIPS standards"
+readme = "../README.md"
+
+[features]
+default = ["std", "ml-kem"]
+std = ["kylix-core/std", "kylix-ml-kem/std"]
+ml-kem = ["dep:kylix-ml-kem"]
+
+[dependencies]
+kylix-core.workspace = true
+kylix-ml-kem = { workspace = true, optional = true }
