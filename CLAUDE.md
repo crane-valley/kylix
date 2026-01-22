@@ -11,3 +11,13 @@
 - CI uses `-Dwarnings` so all warnings are treated as errors
 - For WIP modules, add `#![allow(dead_code)]` at module top
 - Doc comments: `[X]` is interpreted as a link reference by rustdoc; escape as `\[X\]`
+
+## Pre-push Checklist
+
+Run these commands before pushing (same as CI):
+
+```bash
+cargo fmt --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --all-features
+```
