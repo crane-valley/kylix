@@ -123,16 +123,6 @@ pub fn basemul(r: &mut [i16], a: &[i16], b: &[i16], zeta: i16) {
     r[1] = r[1] + montgomery_mul(a[1], b[0]);
 }
 
-/// Reduce all coefficients of a polynomial using Barrett reduction.
-///
-/// # Arguments
-/// * `poly` - Polynomial to reduce (modified in-place)
-pub fn poly_reduce(poly: &mut Poly) {
-    for i in 0..256 {
-        poly.coeffs[i] = barrett_reduce(poly.coeffs[i]);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

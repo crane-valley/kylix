@@ -253,7 +253,10 @@ pub fn poly_compress(poly: &Poly, d: u32, out: &mut [u8]) {
         5 => poly_compress_5(poly, out),
         10 => poly_compress_10(poly, out),
         11 => poly_compress_11(poly, out),
-        _ => panic!("Unsupported compression parameter d={}", d),
+        _ => panic!(
+            "Unsupported compression parameter d={} (supported: 4, 5, 10, 11)",
+            d
+        ),
     }
 }
 
@@ -271,7 +274,10 @@ pub fn poly_decompress(bytes: &[u8], d: u32) -> Poly {
         5 => poly_decompress_5(bytes),
         10 => poly_decompress_10(bytes),
         11 => poly_decompress_11(bytes),
-        _ => panic!("Unsupported decompression parameter d={}", d),
+        _ => panic!(
+            "Unsupported decompression parameter d={} (supported: 4, 5, 10, 11)",
+            d
+        ),
     }
 }
 
@@ -418,7 +424,7 @@ pub fn poly_cbd(eta: usize, bytes: &[u8]) -> Poly {
     match eta {
         2 => poly_cbd2(&mut poly, bytes),
         3 => poly_cbd3(&mut poly, bytes),
-        _ => panic!("Unsupported eta value: {}", eta),
+        _ => panic!("Unsupported eta value: {} (supported: 2, 3)", eta),
     }
     poly
 }
