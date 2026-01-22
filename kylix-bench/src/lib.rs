@@ -110,7 +110,7 @@ impl BenchmarkReport {
     pub fn new(library: &str) -> Self {
         Self {
             library: library.to_string(),
-            timestamp: chrono_lite_timestamp(),
+            timestamp: unix_timestamp(),
             system: SystemInfo::current(),
             results: Vec::new(),
         }
@@ -159,8 +159,12 @@ impl BenchmarkReport {
     }
 }
 
-/// Simple timestamp without external dependencies.
-fn chrono_lite_timestamp() -> String {
+/// Returns the current Unix timestamp (seconds since epoch).
+///
+/// Uses only std::time to avoid external dependencies like chrono.
+/// The Unix timestamp is sufficient for benchmark comparison and can be
+/// converted to human-readable format when needed.
+fn unix_timestamp() -> String {
     use std::time::SystemTime;
     let duration = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
