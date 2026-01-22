@@ -29,10 +29,10 @@
 #![warn(clippy::all)]
 #![deny(unsafe_code)]
 
-mod params;
-mod reduce;
 mod ntt;
+mod params;
 mod poly;
+mod reduce;
 
 #[cfg(feature = "ml-kem-1024")]
 mod ml_kem_1024;

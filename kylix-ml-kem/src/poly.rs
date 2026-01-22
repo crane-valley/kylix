@@ -6,6 +6,9 @@
 //!
 //! All operations are designed to be constant-time where necessary for security.
 
+#![allow(dead_code)]
+#![allow(clippy::needless_range_loop)]
+
 use crate::ntt::{basemul, ZETAS};
 use crate::params::common::{N, Q};
 use crate::reduce::{barrett_reduce, barrett_reduce_full};
@@ -378,10 +381,16 @@ fn poly_decompress_11(bytes: &[u8]) -> Poly {
         let b = &bytes[11 * i..11 * i + 11];
         poly.coeffs[8 * i] = decompress((b[0] as u16) | ((b[1] as u16 & 0x07) << 8), 11);
         poly.coeffs[8 * i + 1] = decompress(((b[1] >> 3) as u16) | ((b[2] as u16 & 0x3F) << 5), 11);
-        poly.coeffs[8 * i + 2] = decompress(((b[2] >> 6) as u16) | ((b[3] as u16) << 2) | ((b[4] as u16 & 0x01) << 10), 11);
+        poly.coeffs[8 * i + 2] = decompress(
+            ((b[2] >> 6) as u16) | ((b[3] as u16) << 2) | ((b[4] as u16 & 0x01) << 10),
+            11,
+        );
         poly.coeffs[8 * i + 3] = decompress(((b[4] >> 1) as u16) | ((b[5] as u16 & 0x0F) << 7), 11);
         poly.coeffs[8 * i + 4] = decompress(((b[5] >> 4) as u16) | ((b[6] as u16 & 0x7F) << 4), 11);
-        poly.coeffs[8 * i + 5] = decompress(((b[6] >> 7) as u16) | ((b[7] as u16) << 1) | ((b[8] as u16 & 0x03) << 9), 11);
+        poly.coeffs[8 * i + 5] = decompress(
+            ((b[6] >> 7) as u16) | ((b[7] as u16) << 1) | ((b[8] as u16 & 0x03) << 9),
+            11,
+        );
         poly.coeffs[8 * i + 6] = decompress(((b[8] >> 2) as u16) | ((b[9] as u16 & 0x1F) << 6), 11);
         poly.coeffs[8 * i + 7] = decompress(((b[9] >> 5) as u16) | ((b[10] as u16) << 3), 11);
     }
@@ -602,7 +611,10 @@ mod tests {
         let poly = poly_cbd(2, &bytes);
 
         for i in 0..N {
-            assert_eq!(poly.coeffs[i], 0, "CBD2 with zero input should give zero polynomial");
+            assert_eq!(
+                poly.coeffs[i], 0,
+                "CBD2 with zero input should give zero polynomial"
+            );
         }
     }
 
@@ -645,7 +657,11 @@ mod tests {
         // With all bits = 1: each group of 2 bits sums to 2
         // So a = 2, b = 2, coefficient = 0
         for i in 0..N {
-            assert_eq!(poly.coeffs[i], 0, "CBD2 with all-ones should give zero at index {}", i);
+            assert_eq!(
+                poly.coeffs[i], 0,
+                "CBD2 with all-ones should give zero at index {}",
+                i
+            );
         }
     }
 

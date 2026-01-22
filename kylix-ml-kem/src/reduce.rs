@@ -3,6 +3,9 @@
 //! This module provides constant-time Barrett and Montgomery reduction
 //! for efficient modular arithmetic in the polynomial ring Z_q[X]/(X^256 + 1).
 
+#![allow(dead_code)]
+#![allow(clippy::let_and_return)]
+
 use crate::params::common::Q;
 
 /// Q inverse mod 2^16: q^(-1) mod 2^16 = -3327
@@ -48,7 +51,11 @@ pub const fn cond_reduce(r: i16) -> i16 {
     let diff = r - Q as i16;
     // If diff >= 0, use diff; otherwise use r
     // Since r is result of barrett_reduce, r is in [0, 2q-1]
-    if diff >= 0 { diff } else { r }
+    if diff >= 0 {
+        diff
+    } else {
+        r
+    }
 }
 
 /// Full Barrett reduction to canonical form [0, q-1]
@@ -133,7 +140,12 @@ mod tests {
         // Values already in range should remain unchanged or be equivalent mod q
         for a in 0..Q as i16 {
             let r = barrett_reduce_full(a);
-            assert!(r >= 0 && r < Q as i16, "barrett_reduce_full({}) = {} not in [0, q)", a, r);
+            assert!(
+                r >= 0 && r < Q as i16,
+                "barrett_reduce_full({}) = {} not in [0, q)",
+                a,
+                r
+            );
             assert_eq!(r, a, "barrett_reduce_full({}) = {} (expected {})", a, r, a);
         }
     }
@@ -157,7 +169,11 @@ mod tests {
         // R = 2^16, so montgomery_reduce(R) = R * R^(-1) mod q = 1
         let r = montgomery_reduce(1 << 16);
         let r_normalized = barrett_reduce_full(r);
-        assert_eq!(r_normalized, 1, "montgomery_reduce(2^16) should be 1, got {}", r_normalized);
+        assert_eq!(
+            r_normalized, 1,
+            "montgomery_reduce(2^16) should be 1, got {}",
+            r_normalized
+        );
     }
 
     #[test]
@@ -166,8 +182,11 @@ mod tests {
             let mont = to_mont(a);
             let back = from_mont(mont);
             let normalized = barrett_reduce_full(back);
-            assert_eq!(normalized, a, "Montgomery roundtrip failed for {}: to_mont={}, back={}, normalized={}",
-                       a, mont, back, normalized);
+            assert_eq!(
+                normalized, a,
+                "Montgomery roundtrip failed for {}: to_mont={}, back={}, normalized={}",
+                a, mont, back, normalized
+            );
         }
     }
 
@@ -186,9 +205,11 @@ mod tests {
                 let result = from_mont(mont_result);
                 let result_normalized = barrett_reduce_full(result);
 
-                assert_eq!(result_normalized, expected,
+                assert_eq!(
+                    result_normalized, expected,
                     "Montgomery mul failed: {} * {} = {} (expected {})",
-                    a, b, result_normalized, expected);
+                    a, b, result_normalized, expected
+                );
             }
         }
     }
@@ -223,7 +244,9 @@ mod tests {
 
         // Verify BARRETT_MUL is approximately 2^26 / q (using ceiling for better accuracy)
         let floor_val = (1i32 << 26) / Q as i32;
-        assert!(BARRETT_MUL == floor_val || BARRETT_MUL == floor_val + 1,
-                "BARRETT_MUL should be floor or ceiling of 2^26/q");
+        assert!(
+            BARRETT_MUL == floor_val || BARRETT_MUL == floor_val + 1,
+            "BARRETT_MUL should be floor or ceiling of 2^26/q"
+        );
     }
 }
