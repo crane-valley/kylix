@@ -7,6 +7,7 @@
 
 #![allow(dead_code)]
 #![allow(clippy::assign_op_pattern)]
+#![allow(clippy::manual_range_contains)]
 
 use crate::poly::Poly;
 use crate::reduce::{barrett_reduce, montgomery_mul, INV_N_MONT};
@@ -249,12 +250,12 @@ mod tests {
             poly.coeffs[i] = 1; // All ones
         }
 
-        let original_sum: i32 = poly.coeffs.iter().map(|&x| x as i32).sum();
+        let _original_sum: i32 = poly.coeffs.iter().map(|&x| x as i32).sum();
 
         ntt(&mut poly);
 
         // After NTT, the polynomial should be different (except for the DC component)
-        let ntt_sum: i32 = poly.coeffs.iter().map(|&x| x as i32).sum();
+        let _ntt_sum: i32 = poly.coeffs.iter().map(|&x| x as i32).sum();
 
         // The values should have changed
         let mut same_count = 0;

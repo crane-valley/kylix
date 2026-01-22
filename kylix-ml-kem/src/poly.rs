@@ -8,6 +8,7 @@
 
 #![allow(dead_code)]
 #![allow(clippy::needless_range_loop)]
+#![allow(clippy::manual_range_contains)]
 
 use crate::ntt::{basemul, ZETAS};
 use crate::params::common::{N, Q};
