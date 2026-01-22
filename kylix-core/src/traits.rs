@@ -57,7 +57,9 @@ pub trait Kem {
     /// # Returns
     ///
     /// A tuple of (decapsulation_key, encapsulation_key).
-    fn keygen(rng: &mut impl CryptoRngCore) -> Result<(Self::DecapsulationKey, Self::EncapsulationKey)>;
+    fn keygen(
+        rng: &mut impl CryptoRngCore,
+    ) -> Result<(Self::DecapsulationKey, Self::EncapsulationKey)>;
 
     /// Encapsulate a shared secret using the encapsulation key.
     ///
@@ -161,5 +163,9 @@ pub trait Signer {
     /// # Returns
     ///
     /// `Ok(())` if the signature is valid, `Err(Error::VerificationFailed)` otherwise.
-    fn verify(pk: &Self::VerificationKey, message: &[u8], signature: &Self::Signature) -> Result<()>;
+    fn verify(
+        pk: &Self::VerificationKey,
+        message: &[u8],
+        signature: &Self::Signature,
+    ) -> Result<()>;
 }

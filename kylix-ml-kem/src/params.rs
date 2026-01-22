@@ -1,6 +1,7 @@
 //! ML-KEM parameter sets as defined in FIPS 203.
 
 /// Common parameters for all ML-KEM variants.
+#[allow(dead_code)]
 pub mod common {
     /// Polynomial ring dimension (n).
     pub const N: usize = 256;
@@ -17,7 +18,9 @@ pub mod common {
 
 /// ML-KEM-512 parameters (NIST Security Level 1).
 #[cfg(feature = "ml-kem-512")]
+#[allow(dead_code)]
 pub mod ml_kem_512 {
+    #[allow(unused_imports)]
     use super::common::*;
 
     /// Module rank (k).
@@ -50,7 +53,9 @@ pub mod ml_kem_512 {
 
 /// ML-KEM-768 parameters (NIST Security Level 3).
 #[cfg(feature = "ml-kem-768")]
+#[allow(dead_code)]
 pub mod ml_kem_768 {
+    #[allow(unused_imports)]
     use super::common::*;
 
     /// Module rank (k).
@@ -83,7 +88,9 @@ pub mod ml_kem_768 {
 
 /// ML-KEM-1024 parameters (NIST Security Level 5).
 #[cfg(feature = "ml-kem-1024")]
+#[allow(dead_code)]
 pub mod ml_kem_1024 {
+    #[allow(unused_imports)]
     use super::common::*;
 
     /// Module rank (k).
