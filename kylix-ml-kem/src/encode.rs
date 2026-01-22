@@ -155,7 +155,10 @@ pub fn byte_encode(poly: &Poly, d: usize, out: &mut [u8]) {
             let bytes = poly_to_bytes(poly);
             out[..384].copy_from_slice(&bytes);
         }
-        _ => panic!("Unsupported d value: {} (supported: 1, 4, 5, 10, 11, 12)", d),
+        _ => panic!(
+            "Unsupported d value: {} (supported: 1, 4, 5, 10, 11, 12)",
+            d
+        ),
     }
 }
 
@@ -177,7 +180,10 @@ pub fn byte_decode(bytes: &[u8], d: usize) -> Poly {
         10 => byte_decode_10(bytes),
         11 => byte_decode_11(bytes),
         12 => poly_from_bytes(bytes),
-        _ => panic!("Unsupported d value: {} (supported: 1, 4, 5, 10, 11, 12)", d),
+        _ => panic!(
+            "Unsupported d value: {} (supported: 1, 4, 5, 10, 11, 12)",
+            d
+        ),
     }
 }
 

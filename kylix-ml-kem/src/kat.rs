@@ -75,7 +75,10 @@ mod ml_kem_512_kat {
         let ss_dec = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk, &c);
 
         // Implicit rejection: decaps should NOT produce the same shared secret
-        assert_ne!(ss_enc, ss_dec, "Corrupted ciphertext should produce different shared secret");
+        assert_ne!(
+            ss_enc, ss_dec,
+            "Corrupted ciphertext should produce different shared secret"
+        );
     }
 }
 
@@ -138,7 +141,10 @@ mod ml_kem_768_kat {
 
         let ss_dec = ml_kem_decaps::<3, 2, 2, 10, 4>(&dk, &c);
 
-        assert_ne!(ss_enc, ss_dec, "Corrupted ciphertext should produce different shared secret");
+        assert_ne!(
+            ss_enc, ss_dec,
+            "Corrupted ciphertext should produce different shared secret"
+        );
     }
 }
 
@@ -199,7 +205,10 @@ mod ml_kem_1024_kat {
 
         let ss_dec = ml_kem_decaps::<4, 2, 2, 11, 5>(&dk, &c);
 
-        assert_ne!(ss_enc, ss_dec, "Corrupted ciphertext should produce different shared secret");
+        assert_ne!(
+            ss_enc, ss_dec,
+            "Corrupted ciphertext should produce different shared secret"
+        );
     }
 }
 
@@ -212,7 +221,10 @@ mod determinism_tests {
         let d = hex_decode("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
         let z = hex_decode("fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210");
 
-        let (dk1, ek1) = ml_kem_keygen::<2, 3>(&d.clone().try_into().unwrap(), &z.clone().try_into().unwrap());
+        let (dk1, ek1) = ml_kem_keygen::<2, 3>(
+            &d.clone().try_into().unwrap(),
+            &z.clone().try_into().unwrap(),
+        );
         let (dk2, ek2) = ml_kem_keygen::<2, 3>(&d.try_into().unwrap(), &z.try_into().unwrap());
 
         assert_eq!(ek1, ek2, "Keygen should be deterministic");
@@ -239,7 +251,10 @@ mod determinism_tests {
         let d = hex_decode("abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789");
         let z = hex_decode("9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba");
 
-        let (dk1, ek1) = ml_kem_keygen::<3, 2>(&d.clone().try_into().unwrap(), &z.clone().try_into().unwrap());
+        let (dk1, ek1) = ml_kem_keygen::<3, 2>(
+            &d.clone().try_into().unwrap(),
+            &z.clone().try_into().unwrap(),
+        );
         let (dk2, ek2) = ml_kem_keygen::<3, 2>(&d.try_into().unwrap(), &z.try_into().unwrap());
 
         assert_eq!(ek1, ek2, "Keygen should be deterministic");
@@ -251,7 +266,10 @@ mod determinism_tests {
         let d = hex_decode("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef");
         let z = hex_decode("efcdab9078563412efcdab9078563412efcdab9078563412efcdab9078563412");
 
-        let (dk1, ek1) = ml_kem_keygen::<4, 2>(&d.clone().try_into().unwrap(), &z.clone().try_into().unwrap());
+        let (dk1, ek1) = ml_kem_keygen::<4, 2>(
+            &d.clone().try_into().unwrap(),
+            &z.clone().try_into().unwrap(),
+        );
         let (dk2, ek2) = ml_kem_keygen::<4, 2>(&d.try_into().unwrap(), &z.try_into().unwrap());
 
         assert_eq!(ek1, ek2, "Keygen should be deterministic");
@@ -330,7 +348,10 @@ mod edge_cases {
             let m = [i; 32];
             let (c, ss_enc) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &m);
             let ss_dec = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk, &c);
-            assert_eq!(ss_enc, ss_dec, "Encaps/Decaps should work for multiple messages");
+            assert_eq!(
+                ss_enc, ss_dec,
+                "Encaps/Decaps should work for multiple messages"
+            );
         }
     }
 }

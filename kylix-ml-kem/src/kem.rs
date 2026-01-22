@@ -6,6 +6,9 @@
 
 #![allow(dead_code)]
 
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
+
 use crate::hash::{hash_g, hash_h, hash_j};
 use crate::k_pke::{k_pke_decrypt, k_pke_encrypt, k_pke_keygen};
 use subtle::{ConditionallySelectable, ConstantTimeEq};

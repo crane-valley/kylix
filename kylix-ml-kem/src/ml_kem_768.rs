@@ -187,10 +187,10 @@ mod tests {
 
     #[test]
     fn test_ml_kem_768_roundtrip() {
-        use rand::thread_rng;
+        use rand::rng;
 
-        let (dk, ek) = MlKem768::keygen(&mut thread_rng()).unwrap();
-        let (ct, ss_sender) = MlKem768::encaps(&ek, &mut thread_rng()).unwrap();
+        let (dk, ek) = MlKem768::keygen(&mut rng()).unwrap();
+        let (ct, ss_sender) = MlKem768::encaps(&ek, &mut rng()).unwrap();
         let ss_receiver = MlKem768::decaps(&dk, &ct).unwrap();
 
         assert_eq!(ss_sender.as_ref(), ss_receiver.as_ref());
@@ -198,10 +198,10 @@ mod tests {
 
     #[test]
     fn test_ml_kem_768_implicit_rejection() {
-        use rand::thread_rng;
+        use rand::rng;
 
-        let (dk, ek) = MlKem768::keygen(&mut thread_rng()).unwrap();
-        let (ct, ss_sender) = MlKem768::encaps(&ek, &mut thread_rng()).unwrap();
+        let (dk, ek) = MlKem768::keygen(&mut rng()).unwrap();
+        let (ct, ss_sender) = MlKem768::encaps(&ek, &mut rng()).unwrap();
 
         // Corrupt ciphertext
         let mut ct_bytes = ct.as_bytes().to_vec();

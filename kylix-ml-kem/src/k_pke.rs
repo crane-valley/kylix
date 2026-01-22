@@ -6,12 +6,19 @@
 
 #![allow(dead_code)]
 
+#[cfg(not(feature = "std"))]
+use alloc::vec;
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
+
 use crate::encode::{msg_to_poly, poly_to_msg};
 use crate::hash::{hash_g, prf};
 use crate::matrix::{matrix_vec_mul, sample_matrix};
 use crate::ntt::inv_ntt;
 use crate::params::common::N;
-use crate::poly::{poly_cbd, poly_compress, poly_decompress, poly_from_mont, poly_reduce, poly_to_mont, Poly};
+use crate::poly::{
+    poly_cbd, poly_compress, poly_decompress, poly_from_mont, poly_reduce, poly_to_mont, Poly,
+};
 use crate::polyvec::PolyVec;
 
 /// K-PKE Key Generation (FIPS 203 Algorithm 13).

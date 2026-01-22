@@ -6,6 +6,11 @@
 #![allow(dead_code)]
 #![allow(clippy::wrong_self_convention)]
 
+#[cfg(not(feature = "std"))]
+use alloc::vec;
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
+
 use crate::encode::{poly_from_bytes, poly_to_bytes};
 use crate::ntt::{inv_ntt, ntt};
 use crate::params::common::N;
@@ -170,8 +175,10 @@ impl<const K: usize> PolyVec<K> {
         let mut result = Self::new();
         let bytes_per_poly = 32 * du;
         for i in 0..K {
-            result.polys[i] =
-                poly_decompress(&bytes[i * bytes_per_poly..(i + 1) * bytes_per_poly], du as u32);
+            result.polys[i] = poly_decompress(
+                &bytes[i * bytes_per_poly..(i + 1) * bytes_per_poly],
+                du as u32,
+            );
         }
         result
     }

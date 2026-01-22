@@ -15,10 +15,10 @@
 //!
 //! ```ignore
 //! use kylix_ml_kem::{MlKem768, Kem};
-//! use rand::thread_rng;
+//! use rand::rng;
 //!
-//! let (dk, ek) = MlKem768::keygen(&mut thread_rng())?;
-//! let (ct, ss_sender) = MlKem768::encaps(&ek, &mut thread_rng())?;
+//! let (dk, ek) = MlKem768::keygen(&mut rng())?;
+//! let (ct, ss_sender) = MlKem768::encaps(&ek, &mut rng())?;
 //! let ss_receiver = MlKem768::decaps(&dk, &ct)?;
 //!
 //! assert_eq!(ss_sender.as_ref(), ss_receiver.as_ref());
@@ -28,6 +28,9 @@
 #![warn(missing_docs)]
 #![warn(clippy::all)]
 #![deny(unsafe_code)]
+
+#[cfg(not(feature = "std"))]
+extern crate alloc;
 
 mod encode;
 mod hash;
