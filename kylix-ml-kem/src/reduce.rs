@@ -1,7 +1,7 @@
 //! Modular arithmetic operations for ML-KEM.
 //!
 //! This module provides constant-time Barrett and Montgomery reduction
-//! for efficient modular arithmetic in the polynomial ring Z_q[X]/(X^256 + 1).
+//! for efficient modular arithmetic in the polynomial ring Z_q\[X\]/(X^256 + 1).
 
 #![allow(dead_code)]
 #![allow(clippy::let_and_return)]

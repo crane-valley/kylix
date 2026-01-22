@@ -1,7 +1,7 @@
 //! Polynomial operations for ML-KEM.
 //!
 //! This module provides the `Poly` struct representing polynomials in the ring
-//! R_q = Z_q[X]/(X^256 + 1), along with arithmetic operations, compression,
+//! R_q = Z_q\[X\]/(X^256 + 1), along with arithmetic operations, compression,
 //! and sampling functions as specified in FIPS 203.
 //!
 //! All operations are designed to be constant-time where necessary for security.
@@ -16,7 +16,7 @@ use crate::reduce::{barrett_reduce, barrett_reduce_full};
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 use zeroize::Zeroize;
 
-/// A polynomial in R_q = Z_q[X]/(X^256 + 1).
+/// A polynomial in R_q = Z_q\[X\]/(X^256 + 1).
 ///
 /// Coefficients are stored as `i16` values. Depending on the context:
 /// - Standard form: coefficients in [0, q-1]

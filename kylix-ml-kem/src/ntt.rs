@@ -1,7 +1,7 @@
 //! Number Theoretic Transform (NTT) for ML-KEM.
 //!
 //! This module implements the forward and inverse NTT as specified in FIPS 203.
-//! The NTT is used to efficiently multiply polynomials in the ring Z_q[X]/(X^256 + 1).
+//! The NTT is used to efficiently multiply polynomials in the ring Z_q\[X\]/(X^256 + 1).
 //!
 //! All operations are constant-time.
 
