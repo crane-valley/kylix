@@ -14,7 +14,7 @@ exclude = [
 [workspace.package]
 version = "0.2.0"
 edition = "2021"
-rust-version = "1.80"
+rust-version = "1.81"
 authors = ["Crane Valley <dev@crane-valley.co.jp>"]
 license = "MIT"
 repository = "https://github.com/crane-valley/kylix"
