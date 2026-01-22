@@ -57,9 +57,8 @@ pub trait Kem {
     /// # Returns
     ///
     /// A tuple of (decapsulation_key, encapsulation_key).
-    fn keygen(
-        rng: &mut impl CryptoRng,
-    ) -> Result<(Self::DecapsulationKey, Self::EncapsulationKey)>;
+    fn keygen(rng: &mut impl CryptoRng)
+        -> Result<(Self::DecapsulationKey, Self::EncapsulationKey)>;
 
     /// Encapsulate a shared secret using the encapsulation key.
     ///
