@@ -1,0 +1,47 @@
+[package]
+name = "kylix-ml-kem-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+# Keep this crate out of the parent workspace
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+arbitrary = { version = "1.4", features = ["derive"] }
+
+[dependencies.kylix-ml-kem]
+path = ".."
+features = ["ml-kem-512", "ml-kem-768", "ml-kem-1024"]
+
+[[bin]]
+name = "fuzz_keygen"
+path = "fuzz_targets/fuzz_keygen.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_encaps"
+path = "fuzz_targets/fuzz_encaps.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_decaps"
+path = "fuzz_targets/fuzz_decaps.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_roundtrip"
+path = "fuzz_targets/fuzz_roundtrip.rs"
+test = false
+doc = false
+bench = false
