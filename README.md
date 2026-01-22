@@ -5,7 +5,7 @@
 [![Documentation](https://docs.rs/kylix-pqc/badge.svg)](https://docs.rs/kylix-pqc)
 [![Website](https://img.shields.io/badge/Website-kylix--pqc.dev-blue)](https://kylix-pqc.dev/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![MSRV](https://img.shields.io/badge/MSRV-1.75-blue.svg)](https://blog.rust-lang.org/2023/12/28/Rust-1.75.0.html)
+[![MSRV](https://img.shields.io/badge/MSRV-1.81-blue.svg)](https://blog.rust-lang.org/2024/09/05/Rust-1.81.0.html)
 
 A post-quantum cryptography library implementing NIST FIPS standards in pure Rust.
 
@@ -69,7 +69,7 @@ See [SECURITY.md](SECURITY.md) for security policy and reporting vulnerabilities
 
 ## Minimum Supported Rust Version
 
-This crate requires Rust 1.75 or later.
+This crate requires Rust 1.81 or later.
 
 ## License
 
