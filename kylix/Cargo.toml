@@ -15,7 +15,7 @@ readme = "../README.md"
 [features]
 default = ["std", "ml-kem"]
 std = ["kylix-core/std", "kylix-ml-kem/std"]
-ml-kem = ["dep:kylix-ml-kem"]
+ml-kem = ["dep:kylix-ml-kem", "kylix-ml-kem/ml-kem-512", "kylix-ml-kem/ml-kem-768", "kylix-ml-kem/ml-kem-1024"]
 
 [dependencies]
 kylix-core.workspace = true
