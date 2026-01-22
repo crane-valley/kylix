@@ -197,6 +197,27 @@ pub fn poly_reduce_full(poly: &mut Poly) {
     }
 }
 
+/// Convert polynomial from Montgomery form to standard form.
+///
+/// Should be called after inv_ntt to convert back to standard coefficients.
+pub fn poly_from_mont(poly: &mut Poly) {
+    use crate::reduce::from_mont;
+    for i in 0..N {
+        poly.coeffs[i] = from_mont(poly.coeffs[i]);
+    }
+}
+
+/// Convert polynomial to Montgomery form.
+///
+/// Should be called on polynomials sampled in NTT domain before multiplying
+/// with other Montgomery-form polynomials.
+pub fn poly_to_mont(poly: &mut Poly) {
+    use crate::reduce::to_mont;
+    for i in 0..N {
+        poly.coeffs[i] = to_mont(poly.coeffs[i]);
+    }
+}
+
 // ============================================================================
 // Compression and Decompression (FIPS 203 Algorithms 4-5)
 // ============================================================================

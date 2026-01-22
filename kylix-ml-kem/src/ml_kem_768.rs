@@ -1,5 +1,9 @@
 //! ML-KEM-768 implementation (NIST Security Level 3).
+//!
+//! This module provides the ML-KEM-768 parameter set, which offers
+//! 192-bit classical security (NIST Security Level 3).
 
+use crate::kem::{ml_kem_decaps, ml_kem_encaps, ml_kem_keygen};
 use crate::params::ml_kem_768::*;
 use kylix_core::{Error, Kem, Result};
 use rand_core::CryptoRng;
@@ -112,23 +116,46 @@ impl Kem for MlKem768 {
     const SHARED_SECRET_SIZE: usize = SHARED_SECRET_SIZE;
 
     fn keygen(
-        _rng: &mut impl CryptoRng,
+        rng: &mut impl CryptoRng,
     ) -> Result<(Self::DecapsulationKey, Self::EncapsulationKey)> {
-        // TODO: Implement ML-KEM-768.KeyGen() as per FIPS 203 Algorithm 16
-        unimplemented!("ML-KEM-768 key generation not yet implemented")
+        let mut d = [0u8; 32];
+        let mut z = [0u8; 32];
+        rng.fill_bytes(&mut d);
+        rng.fill_bytes(&mut z);
+
+        let (dk_bytes, ek_bytes) = ml_kem_keygen::<K, ETA1>(&d, &z);
+
+        // Zeroize seeds
+        d.zeroize();
+        z.zeroize();
+
+        Ok((
+            DecapsulationKey::from_bytes(&dk_bytes)?,
+            EncapsulationKey::from_bytes(&ek_bytes)?,
+        ))
     }
 
     fn encaps(
-        _ek: &Self::EncapsulationKey,
-        _rng: &mut impl CryptoRng,
+        ek: &Self::EncapsulationKey,
+        rng: &mut impl CryptoRng,
     ) -> Result<(Self::Ciphertext, Self::SharedSecret)> {
-        // TODO: Implement ML-KEM-768.Encaps() as per FIPS 203 Algorithm 17
-        unimplemented!("ML-KEM-768 encapsulation not yet implemented")
+        let mut m = [0u8; 32];
+        rng.fill_bytes(&mut m);
+
+        let (ct_bytes, ss_bytes) = ml_kem_encaps::<K, ETA1, ETA2, DU, DV>(ek.as_bytes(), &m);
+
+        // Zeroize message
+        m.zeroize();
+
+        Ok((
+            Ciphertext::from_bytes(&ct_bytes)?,
+            SharedSecret { bytes: ss_bytes },
+        ))
     }
 
-    fn decaps(_dk: &Self::DecapsulationKey, _ct: &Self::Ciphertext) -> Result<Self::SharedSecret> {
-        // TODO: Implement ML-KEM-768.Decaps() as per FIPS 203 Algorithm 18
-        unimplemented!("ML-KEM-768 decapsulation not yet implemented")
+    fn decaps(dk: &Self::DecapsulationKey, ct: &Self::Ciphertext) -> Result<Self::SharedSecret> {
+        let ss_bytes = ml_kem_decaps::<K, ETA1, ETA2, DU, DV>(dk.as_bytes(), ct.as_bytes());
+        Ok(SharedSecret { bytes: ss_bytes })
     }
 }
 
@@ -156,5 +183,33 @@ mod tests {
         let bytes = [0u8; 100];
         let result = EncapsulationKey::from_bytes(&bytes);
         assert!(matches!(result, Err(Error::InvalidKeyLength { .. })));
+    }
+
+    #[test]
+    fn test_ml_kem_768_roundtrip() {
+        use rand::rng;
+
+        let (dk, ek) = MlKem768::keygen(&mut rng()).unwrap();
+        let (ct, ss_sender) = MlKem768::encaps(&ek, &mut rng()).unwrap();
+        let ss_receiver = MlKem768::decaps(&dk, &ct).unwrap();
+
+        assert_eq!(ss_sender.as_ref(), ss_receiver.as_ref());
+    }
+
+    #[test]
+    fn test_ml_kem_768_implicit_rejection() {
+        use rand::rng;
+
+        let (dk, ek) = MlKem768::keygen(&mut rng()).unwrap();
+        let (ct, ss_sender) = MlKem768::encaps(&ek, &mut rng()).unwrap();
+
+        // Corrupt ciphertext
+        let mut ct_bytes = ct.as_bytes().to_vec();
+        ct_bytes[0] ^= 0xFF;
+        let ct_bad = Ciphertext::from_bytes(&ct_bytes).unwrap();
+
+        // Decaps should succeed but return different key
+        let ss_bad = MlKem768::decaps(&dk, &ct_bad).unwrap();
+        assert_ne!(ss_sender.as_ref(), ss_bad.as_ref());
     }
 }
