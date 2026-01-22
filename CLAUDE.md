@@ -27,3 +27,4 @@ cargo test --all-features
 - Main crate is `kylix-pqc` (not `kylix` - that name was taken on crates.io)
 - Create a GitHub Release with tag `vX.Y.Z` to auto-publish to crates.io
 - Ensure `Cargo.toml` version matches the tag before release
+- Release tag creation is done by humans
