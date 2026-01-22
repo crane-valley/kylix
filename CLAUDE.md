@@ -21,3 +21,9 @@ cargo fmt --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --all-features
 ```
+
+## Release
+
+- Main crate is `kylix-pqc` (not `kylix` - that name was taken on crates.io)
+- Create a GitHub Release with tag `vX.Y.Z` to auto-publish to crates.io
+- Ensure `Cargo.toml` version matches the tag before release
