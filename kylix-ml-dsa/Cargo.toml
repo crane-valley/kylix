@@ -1,0 +1,32 @@
+[package]
+name = "kylix-ml-dsa"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+categories.workspace = true
+keywords.workspace = true
+description = "ML-DSA (FIPS 204) implementation for the Kylix post-quantum cryptography library"
+
+[features]
+default = ["std", "ml-dsa-65"]
+std = ["kylix-core/std"]
+ml-dsa-44 = []
+ml-dsa-65 = []
+ml-dsa-87 = []
+
+[dependencies]
+kylix-core.workspace = true
+zeroize.workspace = true
+rand_core.workspace = true
+subtle.workspace = true
+sha3 = { version = "0.10", default-features = false }
+
+[dev-dependencies]
+rand = "0.9"
+hex = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

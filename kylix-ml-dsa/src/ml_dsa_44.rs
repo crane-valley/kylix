@@ -1,0 +1,167 @@
+//! ML-DSA-44 (NIST Level 2) implementation
+
+use crate::params::ml_dsa_44::*;
+use crate::sign::{ml_dsa_keygen, ml_dsa_sign, ml_dsa_verify};
+use kylix_core::{Error, Result, Signer};
+use rand_core::CryptoRng;
+use zeroize::{Zeroize, ZeroizeOnDrop};
+
+/// ML-DSA-44 algorithm marker.
+pub struct MlDsa44;
+
+/// ML-DSA-44 signing key.
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
+pub struct SigningKey {
+    bytes: [u8; SK_BYTES],
+}
+
+impl SigningKey {
+    /// Create from bytes.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        if bytes.len() != SK_BYTES {
+            return Err(Error::InvalidKeyLength {
+                expected: SK_BYTES,
+                actual: bytes.len(),
+            });
+        }
+        let mut key = [0u8; SK_BYTES];
+        key.copy_from_slice(bytes);
+        Ok(Self { bytes: key })
+    }
+
+    /// Get the raw bytes.
+    pub fn as_bytes(&self) -> &[u8; SK_BYTES] {
+        &self.bytes
+    }
+}
+
+/// ML-DSA-44 verification key.
+#[derive(Clone)]
+pub struct VerificationKey {
+    bytes: [u8; PK_BYTES],
+}
+
+impl VerificationKey {
+    /// Create from bytes.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        if bytes.len() != PK_BYTES {
+            return Err(Error::InvalidKeyLength {
+                expected: PK_BYTES,
+                actual: bytes.len(),
+            });
+        }
+        let mut key = [0u8; PK_BYTES];
+        key.copy_from_slice(bytes);
+        Ok(Self { bytes: key })
+    }
+
+    /// Get the raw bytes.
+    pub fn as_bytes(&self) -> &[u8; PK_BYTES] {
+        &self.bytes
+    }
+}
+
+/// ML-DSA-44 signature.
+#[derive(Clone)]
+pub struct Signature {
+    bytes: [u8; SIG_BYTES],
+}
+
+impl Signature {
+    /// Create from bytes.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        if bytes.len() != SIG_BYTES {
+            return Err(Error::InvalidSignatureLength {
+                expected: SIG_BYTES,
+                actual: bytes.len(),
+            });
+        }
+        let mut sig = [0u8; SIG_BYTES];
+        sig.copy_from_slice(bytes);
+        Ok(Self { bytes: sig })
+    }
+
+    /// Get the raw bytes.
+    pub fn as_bytes(&self) -> &[u8; SIG_BYTES] {
+        &self.bytes
+    }
+}
+
+impl Signer for MlDsa44 {
+    type SigningKey = SigningKey;
+    type VerificationKey = VerificationKey;
+    type Signature = Signature;
+
+    const SIGNING_KEY_SIZE: usize = SK_BYTES;
+    const VERIFICATION_KEY_SIZE: usize = PK_BYTES;
+    const SIGNATURE_SIZE: usize = SIG_BYTES;
+
+    fn keygen(rng: &mut impl CryptoRng) -> Result<(Self::SigningKey, Self::VerificationKey)> {
+        let mut xi = [0u8; 32];
+        rng.fill_bytes(&mut xi);
+
+        let (sk_bytes, pk_bytes) = ml_dsa_keygen::<K, L, ETA>(&xi);
+
+        xi.zeroize();
+
+        let sk = SigningKey::from_bytes(&sk_bytes)?;
+        let pk = VerificationKey::from_bytes(&pk_bytes)?;
+
+        Ok((sk, pk))
+    }
+
+    fn sign(sk: &Self::SigningKey, message: &[u8]) -> Result<Self::Signature> {
+        // Use deterministic signing (rnd = 0)
+        let rnd = [0u8; 32];
+
+        let sig_bytes = ml_dsa_sign::<K, L, ETA, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
+            sk.as_bytes(),
+            message,
+            &rnd,
+        )
+        .ok_or(Error::EncodingError)?;
+
+        Signature::from_bytes(&sig_bytes)
+    }
+
+    fn verify(
+        pk: &Self::VerificationKey,
+        message: &[u8],
+        signature: &Self::Signature,
+    ) -> Result<()> {
+        let valid = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
+            pk.as_bytes(),
+            message,
+            signature.as_bytes(),
+        );
+
+        if valid {
+            Ok(())
+        } else {
+            Err(Error::VerificationFailed)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_key_sizes() {
+        assert_eq!(MlDsa44::SIGNING_KEY_SIZE, 2560);
+        assert_eq!(MlDsa44::VERIFICATION_KEY_SIZE, 1312);
+        assert_eq!(MlDsa44::SIGNATURE_SIZE, 2420);
+    }
+
+    #[test]
+    fn test_keygen() {
+        let mut rng = rand::rng();
+        let result = MlDsa44::keygen(&mut rng);
+        assert!(result.is_ok());
+
+        let (sk, pk) = result.unwrap();
+        assert_eq!(sk.as_bytes().len(), SK_BYTES);
+        assert_eq!(pk.as_bytes().len(), PK_BYTES);
+    }
+}
