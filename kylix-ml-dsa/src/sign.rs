@@ -2,6 +2,9 @@
 //!
 //! Implements KeyGen, Sign, Verify per FIPS 204.
 
+#[cfg(not(feature = "std"))]
+use alloc::{vec, vec::Vec};
+
 use crate::hash::{h, h2, hash_message, hash_pk, Shake128Xof};
 use crate::packing::*;
 use crate::poly::N;
@@ -726,6 +729,14 @@ pub fn ml_dsa_verify<
     }
     if hint_count > OMEGA {
         return false;
+    }
+
+    // Verify unused hint slots are zero (canonical encoding per FIPS 204)
+    // This prevents signature malleability where non-zero padding would be ignored
+    for i in hint_count..OMEGA {
+        if h[i] != 0 {
+            return false;
+        }
     }
 
     // Compute tr = H(pk)

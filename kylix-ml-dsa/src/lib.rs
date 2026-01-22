@@ -82,6 +82,9 @@
     clippy::unnecessary_cast
 )]
 
+#[cfg(not(feature = "std"))]
+extern crate alloc;
+
 #[allow(dead_code)]
 mod hash;
 #[allow(dead_code)]
