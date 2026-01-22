@@ -29,7 +29,10 @@
 #![warn(clippy::all)]
 #![deny(unsafe_code)]
 
+mod ntt;
 mod params;
+mod poly;
+mod reduce;
 
 #[cfg(feature = "ml-kem-1024")]
 mod ml_kem_1024;
@@ -39,6 +42,7 @@ mod ml_kem_512;
 mod ml_kem_768;
 
 pub use kylix_core::Kem;
+pub use poly::Poly;
 
 #[cfg(feature = "ml-kem-1024")]
 pub use ml_kem_1024::MlKem1024;
