@@ -17,4 +17,4 @@ path = "src/main.rs"
 kylix.workspace = true
 clap.workspace = true
 hex.workspace = true
-rand = "0.8"
+rand = "0.9"
