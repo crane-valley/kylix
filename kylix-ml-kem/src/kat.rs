@@ -216,14 +216,17 @@ mod determinism_tests {
 
     #[test]
     fn test_keygen_determinism_512() {
-        let d = hex_decode("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
-        let z = hex_decode("fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210");
+        let d: [u8; 32] =
+            hex_decode("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+                .try_into()
+                .unwrap();
+        let z: [u8; 32] =
+            hex_decode("fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210")
+                .try_into()
+                .unwrap();
 
-        let (dk1, ek1) = ml_kem_keygen::<2, 3>(
-            &d.clone().try_into().unwrap(),
-            &z.clone().try_into().unwrap(),
-        );
-        let (dk2, ek2) = ml_kem_keygen::<2, 3>(&d.try_into().unwrap(), &z.try_into().unwrap());
+        let (dk1, ek1) = ml_kem_keygen::<2, 3>(&d, &z);
+        let (dk2, ek2) = ml_kem_keygen::<2, 3>(&d, &z);
 
         assert_eq!(ek1, ek2, "Keygen should be deterministic");
         assert_eq!(dk1, dk2, "Keygen should be deterministic");
@@ -231,14 +234,23 @@ mod determinism_tests {
 
     #[test]
     fn test_encaps_determinism_512() {
-        let d = hex_decode("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
-        let z = hex_decode("fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210");
-        let m = hex_decode("aabbccdd11223344aabbccdd11223344aabbccdd11223344aabbccdd11223344");
+        let d: [u8; 32] =
+            hex_decode("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+                .try_into()
+                .unwrap();
+        let z: [u8; 32] =
+            hex_decode("fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210")
+                .try_into()
+                .unwrap();
+        let m: [u8; 32] =
+            hex_decode("aabbccdd11223344aabbccdd11223344aabbccdd11223344aabbccdd11223344")
+                .try_into()
+                .unwrap();
 
-        let (_, ek) = ml_kem_keygen::<2, 3>(&d.try_into().unwrap(), &z.try_into().unwrap());
+        let (_, ek) = ml_kem_keygen::<2, 3>(&d, &z);
 
-        let (c1, ss1) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &m.clone().try_into().unwrap());
-        let (c2, ss2) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &m.try_into().unwrap());
+        let (c1, ss1) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &m);
+        let (c2, ss2) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &m);
 
         assert_eq!(c1, c2, "Encaps should be deterministic");
         assert_eq!(ss1, ss2, "Encaps should be deterministic");
@@ -246,14 +258,17 @@ mod determinism_tests {
 
     #[test]
     fn test_keygen_determinism_768() {
-        let d = hex_decode("abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789");
-        let z = hex_decode("9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba");
+        let d: [u8; 32] =
+            hex_decode("abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789")
+                .try_into()
+                .unwrap();
+        let z: [u8; 32] =
+            hex_decode("9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba")
+                .try_into()
+                .unwrap();
 
-        let (dk1, ek1) = ml_kem_keygen::<3, 2>(
-            &d.clone().try_into().unwrap(),
-            &z.clone().try_into().unwrap(),
-        );
-        let (dk2, ek2) = ml_kem_keygen::<3, 2>(&d.try_into().unwrap(), &z.try_into().unwrap());
+        let (dk1, ek1) = ml_kem_keygen::<3, 2>(&d, &z);
+        let (dk2, ek2) = ml_kem_keygen::<3, 2>(&d, &z);
 
         assert_eq!(ek1, ek2, "Keygen should be deterministic");
         assert_eq!(dk1, dk2, "Keygen should be deterministic");
@@ -261,14 +276,17 @@ mod determinism_tests {
 
     #[test]
     fn test_keygen_determinism_1024() {
-        let d = hex_decode("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef");
-        let z = hex_decode("efcdab9078563412efcdab9078563412efcdab9078563412efcdab9078563412");
+        let d: [u8; 32] =
+            hex_decode("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
+                .try_into()
+                .unwrap();
+        let z: [u8; 32] =
+            hex_decode("efcdab9078563412efcdab9078563412efcdab9078563412efcdab9078563412")
+                .try_into()
+                .unwrap();
 
-        let (dk1, ek1) = ml_kem_keygen::<4, 2>(
-            &d.clone().try_into().unwrap(),
-            &z.clone().try_into().unwrap(),
-        );
-        let (dk2, ek2) = ml_kem_keygen::<4, 2>(&d.try_into().unwrap(), &z.try_into().unwrap());
+        let (dk1, ek1) = ml_kem_keygen::<4, 2>(&d, &z);
+        let (dk2, ek2) = ml_kem_keygen::<4, 2>(&d, &z);
 
         assert_eq!(ek1, ek2, "Keygen should be deterministic");
         assert_eq!(dk1, dk2, "Keygen should be deterministic");
