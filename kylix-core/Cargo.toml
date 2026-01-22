@@ -1,0 +1,22 @@
+[package]
+name = "kylix-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+categories.workspace = true
+keywords.workspace = true
+description = "Core traits and utilities for the Kylix post-quantum cryptography library"
+
+[features]
+default = ["std"]
+std = ["thiserror"]
+
+[dependencies]
+thiserror = { workspace = true, optional = true }
+zeroize.workspace = true
+rand_core.workspace = true
+subtle.workspace = true
