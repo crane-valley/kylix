@@ -3,8 +3,6 @@
 //! This module contains test vectors derived from NIST ACVP and reference implementations
 //! to verify correctness of the ML-KEM implementation.
 
-#![cfg(test)]
-
 use crate::kem::{ml_kem_decaps, ml_kem_encaps, ml_kem_keygen};
 
 /// Helper to decode hex string to bytes
@@ -135,8 +133,8 @@ mod ml_kem_768_kat {
         let (mut c, ss_enc) = ml_kem_encaps::<3, 2, 2, 10, 4>(&ek, &m.try_into().unwrap());
 
         // Corrupt multiple bytes of the ciphertext
-        for i in 0..8 {
-            c[i] ^= 0xFF;
+        for byte in c.iter_mut().take(8) {
+            *byte ^= 0xFF;
         }
 
         let ss_dec = ml_kem_decaps::<3, 2, 2, 10, 4>(&dk, &c);
