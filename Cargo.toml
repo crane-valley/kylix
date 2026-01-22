@@ -14,7 +14,7 @@ rust-version = "1.75"
 authors = ["Crane Valley <dev@crane-valley.co.jp>"]
 license = "MIT"
 repository = "https://github.com/crane-valley/kylix"
-homepage = "https://github.com/crane-valley/kylix"
+homepage = "https://kylix-pqc.dev/"
 categories = ["cryptography", "no-std"]
 keywords = ["post-quantum", "ml-kem", "pqc", "cryptography"]
 

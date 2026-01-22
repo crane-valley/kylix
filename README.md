@@ -3,6 +3,7 @@
 [![CI](https://github.com/crane-valley/kylix/actions/workflows/ci.yml/badge.svg)](https://github.com/crane-valley/kylix/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/kylix-pqc.svg)](https://crates.io/crates/kylix-pqc)
 [![Documentation](https://docs.rs/kylix-pqc/badge.svg)](https://docs.rs/kylix-pqc)
+[![Website](https://img.shields.io/badge/Website-kylix--pqc.dev-blue)](https://kylix-pqc.dev/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![MSRV](https://img.shields.io/badge/MSRV-1.75-blue.svg)](https://blog.rust-lang.org/2023/12/28/Rust-1.75.0.html)
 
@@ -25,7 +26,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-kylix-pqc = "0.1"
+kylix-pqc = "0.2"
 ```
 
 ## Usage
