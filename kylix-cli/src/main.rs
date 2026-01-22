@@ -171,8 +171,15 @@ fn encode_output(data: &[u8], format: OutputFormat, label: &str) -> String {
     }
 }
 
-/// Decode bytes from the specified format
-fn decode_input(data: &str, format: OutputFormat) -> Result<Vec<u8>> {
+/// Check if a string is valid hexadecimal
+fn is_hex(s: &str) -> bool {
+    !s.is_empty() && s.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// Decode bytes with auto-detection of format.
+/// Detection order: PEM (by header) -> Hex (if all hex chars) -> Base64.
+/// The format parameter is ignored for input; it only affects output encoding.
+fn decode_input(data: &str, _format: OutputFormat) -> Result<Vec<u8>> {
     let data = data.trim();
 
     // Auto-detect PEM format
@@ -187,11 +194,15 @@ fn decode_input(data: &str, format: OutputFormat) -> Result<Vec<u8>> {
             .context("Failed to decode PEM base64 content");
     }
 
-    match format {
-        OutputFormat::Hex => hex::decode(data).context("Failed to decode hex"),
-        OutputFormat::Base64 => BASE64.decode(data).context("Failed to decode base64"),
-        OutputFormat::Pem => bail!("Expected PEM format but not found"),
+    // Auto-detect hex vs base64
+    // Hex: only 0-9, a-f, A-F (and must have even length for valid bytes)
+    // Base64: may contain +, /, = which are not valid hex
+    if is_hex(data) && data.len() % 2 == 0 {
+        return hex::decode(data).context("Failed to decode hex");
     }
+
+    // Try base64
+    BASE64.decode(data).context("Failed to decode base64")
 }
 
 /// Generate a key pair for the specified algorithm
