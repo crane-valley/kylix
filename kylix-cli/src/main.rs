@@ -4,11 +4,22 @@ use anyhow::{anyhow, bail, Context, Result};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete::{generate, Shell};
-use kylix_pqc::ml_kem::{self, Kem};
+use kylix_pqc::ml_kem::{self, Kem, MlKem1024, MlKem512, MlKem768};
 use rand::rng;
 use std::fs;
 use std::io::{self, Read};
 use std::path::PathBuf;
+
+// Key size constants derived from kylix-pqc
+const ML_KEM_512_EK_SIZE: usize = MlKem512::ENCAPSULATION_KEY_SIZE;
+const ML_KEM_512_DK_SIZE: usize = MlKem512::DECAPSULATION_KEY_SIZE;
+const ML_KEM_512_CT_SIZE: usize = MlKem512::CIPHERTEXT_SIZE;
+const ML_KEM_768_EK_SIZE: usize = MlKem768::ENCAPSULATION_KEY_SIZE;
+const ML_KEM_768_DK_SIZE: usize = MlKem768::DECAPSULATION_KEY_SIZE;
+const ML_KEM_768_CT_SIZE: usize = MlKem768::CIPHERTEXT_SIZE;
+const ML_KEM_1024_EK_SIZE: usize = MlKem1024::ENCAPSULATION_KEY_SIZE;
+const ML_KEM_1024_DK_SIZE: usize = MlKem1024::DECAPSULATION_KEY_SIZE;
+const ML_KEM_1024_CT_SIZE: usize = MlKem1024::CIPHERTEXT_SIZE;
 
 /// Post-quantum cryptography CLI tool
 #[derive(Parser)]
@@ -157,10 +168,9 @@ fn encode_output(data: &[u8], format: OutputFormat, label: &str) -> String {
         OutputFormat::Pem => {
             let b64 = BASE64.encode(data);
             let wrapped: String = b64
-                .chars()
-                .collect::<Vec<_>>()
+                .as_bytes()
                 .chunks(64)
-                .map(|c| c.iter().collect::<String>())
+                .map(|chunk| std::str::from_utf8(chunk).expect("BASE64 output is valid ASCII"))
                 .collect::<Vec<_>>()
                 .join("\n");
             format!(
@@ -259,22 +269,28 @@ fn cmd_keygen(algo: Algorithm, output: &str, format: OutputFormat, verbose: bool
 fn detect_kem_algorithm(key_size: usize, is_public: bool) -> Result<Algorithm> {
     if is_public {
         match key_size {
-            800 => Ok(Algorithm::MlKem512),
-            1184 => Ok(Algorithm::MlKem768),
-            1568 => Ok(Algorithm::MlKem1024),
+            ML_KEM_512_EK_SIZE => Ok(Algorithm::MlKem512),
+            ML_KEM_768_EK_SIZE => Ok(Algorithm::MlKem768),
+            ML_KEM_1024_EK_SIZE => Ok(Algorithm::MlKem1024),
             _ => bail!(
-                "Unknown public key size: {} bytes. Expected 800, 1184, or 1568.",
-                key_size
+                "Unknown public key size: {} bytes. Expected {}, {}, or {}.",
+                key_size,
+                ML_KEM_512_EK_SIZE,
+                ML_KEM_768_EK_SIZE,
+                ML_KEM_1024_EK_SIZE
             ),
         }
     } else {
         match key_size {
-            1632 => Ok(Algorithm::MlKem512),
-            2400 => Ok(Algorithm::MlKem768),
-            3168 => Ok(Algorithm::MlKem1024),
+            ML_KEM_512_DK_SIZE => Ok(Algorithm::MlKem512),
+            ML_KEM_768_DK_SIZE => Ok(Algorithm::MlKem768),
+            ML_KEM_1024_DK_SIZE => Ok(Algorithm::MlKem1024),
             _ => bail!(
-                "Unknown secret key size: {} bytes. Expected 1632, 2400, or 3168.",
-                key_size
+                "Unknown secret key size: {} bytes. Expected {}, {}, or {}.",
+                key_size,
+                ML_KEM_512_DK_SIZE,
+                ML_KEM_768_DK_SIZE,
+                ML_KEM_1024_DK_SIZE
             ),
         }
     }
@@ -448,9 +464,18 @@ fn cmd_info() {
     println!("Supported algorithms:");
     println!();
     println!("  ML-KEM (FIPS 203) - Key Encapsulation Mechanism");
-    println!("    ml-kem-512   Security Level 1 (128-bit)  PK: 800B   SK: 1632B  CT: 768B");
-    println!("    ml-kem-768   Security Level 3 (192-bit)  PK: 1184B  SK: 2400B  CT: 1088B");
-    println!("    ml-kem-1024  Security Level 5 (256-bit)  PK: 1568B  SK: 3168B  CT: 1568B");
+    println!(
+        "    ml-kem-512   Security Level 1 (128-bit)  PK: {}B   SK: {}B  CT: {}B",
+        ML_KEM_512_EK_SIZE, ML_KEM_512_DK_SIZE, ML_KEM_512_CT_SIZE
+    );
+    println!(
+        "    ml-kem-768   Security Level 3 (192-bit)  PK: {}B  SK: {}B  CT: {}B",
+        ML_KEM_768_EK_SIZE, ML_KEM_768_DK_SIZE, ML_KEM_768_CT_SIZE
+    );
+    println!(
+        "    ml-kem-1024  Security Level 5 (256-bit)  PK: {}B  SK: {}B  CT: {}B",
+        ML_KEM_1024_EK_SIZE, ML_KEM_1024_DK_SIZE, ML_KEM_1024_CT_SIZE
+    );
     println!();
     println!("Planned support:");
     println!("    ML-DSA (FIPS 204)  - Digital Signature Algorithm");
