@@ -13,25 +13,32 @@ Kylix aims to provide a **pure Rust, high-performance, auditable** implementatio
 
 ---
 
-## Current Status (v0.2.0)
+## Current Status (v0.3.0)
 
 ### Completed
 
 | Component | Status | Notes |
 |-----------|--------|-------|
 | ML-KEM-512/768/1024 | ✅ Complete | FIPS 203 compliant |
-| NIST ACVP Tests | ✅ Complete | Official test vectors |
+| ML-DSA-44/65/87 | ✅ Complete | FIPS 204 compliant |
+| NIST ACVP Tests (ML-KEM) | ✅ Complete | Official test vectors |
 | Fuzz Testing | ✅ Complete | Daily CI + 4 targets |
 | CLI (keygen/encaps/decaps) | ✅ Complete | HEX/Base64/PEM support |
 | no_std Support | ✅ Complete | Embedded-ready |
 | Constant-time Operations | ✅ Complete | Using `subtle` crate |
 | Zeroization | ✅ Complete | Using `zeroize` crate |
 
+### In Progress
+
+| Component | FIPS Standard | Status |
+|-----------|---------------|--------|
+| NIST ACVP Tests (ML-DSA) | FIPS 204 | Pending |
+| CLI (sign/verify) | - | Pending |
+
 ### Not Started
 
 | Component | FIPS Standard | Priority |
 |-----------|---------------|----------|
-| ML-DSA | FIPS 204 | HIGH |
 | SLH-DSA | FIPS 205 | MEDIUM |
 | Performance Benchmarks | - | HIGH |
 | Security Audit | - | HIGH |
@@ -126,28 +133,28 @@ kylix bench --report --output BENCHMARKS.md
 
 ---
 
-## Phase 2: ML-DSA Implementation
+## Phase 2: ML-DSA Implementation ✅
 
 ### 2.1 New Crate: kylix-ml-dsa
 
-Implement FIPS 204 (Module-Lattice-Based Digital Signature Algorithm):
+Implemented FIPS 204 (Module-Lattice-Based Digital Signature Algorithm):
 
-| Variant | Security Level | Public Key | Signature |
-|---------|----------------|------------|-----------|
-| ML-DSA-44 | NIST Level 2 | 1,312 bytes | 2,420 bytes |
-| ML-DSA-65 | NIST Level 3 | 1,952 bytes | 3,293 bytes |
-| ML-DSA-87 | NIST Level 5 | 2,592 bytes | 4,595 bytes |
+| Variant | Security Level | Public Key | Secret Key | Signature |
+|---------|----------------|------------|------------|-----------|
+| ML-DSA-44 | NIST Level 2 | 1,312 bytes | 2,560 bytes | 2,420 bytes |
+| ML-DSA-65 | NIST Level 3 | 1,952 bytes | 4,032 bytes | 3,309 bytes |
+| ML-DSA-87 | NIST Level 5 | 2,592 bytes | 4,896 bytes | 4,627 bytes |
 
-### 2.2 Implementation Order
+### 2.2 Implementation Status
 
-1. Core polynomial arithmetic (share with ML-KEM where possible)
-2. NTT for ML-DSA parameters (different modulus q=8380417)
-3. Signing algorithm (Algorithm 2)
-4. Verification algorithm (Algorithm 3)
-5. Key generation (Algorithm 1)
-6. NIST ACVP test vectors
-7. Fuzz targets
-8. CLI integration (sign/verify commands)
+1. ✅ Core polynomial arithmetic (i32 coefficients for q=8380417)
+2. ✅ NTT for ML-DSA parameters (9-layer, ζ=1753)
+3. ✅ Signing algorithm (Algorithm 2)
+4. ✅ Verification algorithm (Algorithm 3)
+5. ✅ Key generation (Algorithm 1)
+6. ⏳ NIST ACVP test vectors
+7. ⏳ Fuzz targets
+8. ⏳ CLI integration (sign/verify commands)
 
 ### 2.3 Shared Infrastructure
 
