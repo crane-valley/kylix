@@ -14,7 +14,7 @@ name = "kylix"
 path = "src/main.rs"
 
 [dependencies]
-kylix.workspace = true
+kylix-pqc.workspace = true
 clap.workspace = true
 hex.workspace = true
 rand = "0.9"

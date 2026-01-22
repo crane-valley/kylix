@@ -20,7 +20,7 @@ keywords = ["post-quantum", "ml-kem", "pqc", "cryptography"]
 
 [workspace.dependencies]
 # Internal crates
-kylix = { path = "kylix", version = "0.1.0" }
+kylix-pqc = { path = "kylix", version = "0.1.0" }
 kylix-core = { path = "kylix-core", version = "0.1.0", default-features = false }
 kylix-ml-kem = { path = "kylix-ml-kem", version = "0.1.0", default-features = false }
 
