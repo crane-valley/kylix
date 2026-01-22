@@ -1,8 +1,8 @@
 # Kylix
 
 [![CI](https://github.com/crane-valley/kylix/actions/workflows/ci.yml/badge.svg)](https://github.com/crane-valley/kylix/actions/workflows/ci.yml)
-[![Crates.io](https://img.shields.io/crates/v/kylix.svg)](https://crates.io/crates/kylix)
-[![Documentation](https://docs.rs/kylix/badge.svg)](https://docs.rs/kylix)
+[![Crates.io](https://img.shields.io/crates/v/kylix-pqc.svg)](https://crates.io/crates/kylix-pqc)
+[![Documentation](https://docs.rs/kylix-pqc/badge.svg)](https://docs.rs/kylix-pqc)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![MSRV](https://img.shields.io/badge/MSRV-1.75-blue.svg)](https://blog.rust-lang.org/2023/12/28/Rust-1.75.0.html)
 
@@ -25,16 +25,16 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-kylix = "0.1"
+kylix-pqc = "0.1"
 ```
 
 ## Usage
 
 ```rust
-use kylix::ml_kem::{MlKem768, Kem};
+use kylix_pqc::ml_kem::{MlKem768, Kem};
 use rand::rngs::OsRng;
 
-fn main() -> kylix::Result<()> {
+fn main() -> kylix_pqc::Result<()> {
     // Generate a key pair
     let (decapsulation_key, encapsulation_key) = MlKem768::keygen(&mut OsRng)?;
 
@@ -55,7 +55,7 @@ fn main() -> kylix::Result<()> {
 
 | Crate | Description |
 |-------|-------------|
-| `kylix` | Main crate with re-exports |
+| `kylix-pqc` | Main crate with re-exports |
 | `kylix-core` | Core traits and utilities |
 | `kylix-ml-kem` | ML-KEM (FIPS 203) implementation |
 | `kylix-cli` | Command-line interface |
