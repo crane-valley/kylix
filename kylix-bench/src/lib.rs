@@ -27,12 +27,7 @@ pub struct BenchmarkResult {
 
 impl BenchmarkResult {
     /// Create a new benchmark result from raw timing data.
-    pub fn new(
-        algorithm: &str,
-        operation: &str,
-        iterations: u64,
-        times: &[Duration],
-    ) -> Self {
+    pub fn new(algorithm: &str, operation: &str, iterations: u64, times: &[Duration]) -> Self {
         let total_time: Duration = times.iter().sum();
         let mean_nanos = total_time.as_nanos() as f64 / iterations as f64;
         let mean = Duration::from_nanos(mean_nanos as u64);
@@ -128,8 +123,7 @@ impl BenchmarkReport {
 
     /// Save the report to a JSON file.
     pub fn save_json(&self, path: &str) -> std::io::Result<()> {
-        let json = serde_json::to_string_pretty(self)
-            .map_err(std::io::Error::other)?;
+        let json = serde_json::to_string_pretty(self).map_err(std::io::Error::other)?;
         std::fs::write(path, json)
     }
 
@@ -143,8 +137,12 @@ impl BenchmarkReport {
             self.system.os, self.system.arch, self.system.num_cpus
         ));
         md.push_str("## Results\n\n");
-        md.push_str("| Algorithm | Operation | Mean (µs) | Std Dev (µs) | Throughput (ops/sec) |\n");
-        md.push_str("|-----------|-----------|-----------|--------------|----------------------|\n");
+        md.push_str(
+            "| Algorithm | Operation | Mean (µs) | Std Dev (µs) | Throughput (ops/sec) |\n",
+        );
+        md.push_str(
+            "|-----------|-----------|-----------|--------------|----------------------|\n",
+        );
 
         for result in &self.results {
             md.push_str(&format!(
@@ -176,9 +174,7 @@ mod tests {
 
     #[test]
     fn test_benchmark_result_creation() {
-        let times: Vec<Duration> = (0..100)
-            .map(|_| Duration::from_micros(50))
-            .collect();
+        let times: Vec<Duration> = (0..100).map(|_| Duration::from_micros(50)).collect();
         let result = BenchmarkResult::new("ML-KEM-768", "keygen", 100, &times);
 
         assert_eq!(result.algorithm, "ML-KEM-768");
@@ -198,9 +194,7 @@ mod tests {
     #[test]
     fn test_report_markdown() {
         let mut report = BenchmarkReport::new("kylix-ml-kem");
-        let times: Vec<Duration> = (0..10)
-            .map(|_| Duration::from_micros(50))
-            .collect();
+        let times: Vec<Duration> = (0..10).map(|_| Duration::from_micros(50)).collect();
         report.add_result(BenchmarkResult::new("ML-KEM-768", "keygen", 10, &times));
 
         let md = report.to_markdown();
