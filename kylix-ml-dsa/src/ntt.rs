@@ -22,6 +22,7 @@ pub const INV_N_MONT: i32 = 41978;
 /// Note: zetas[0] is unused since the NTT loop uses ++k before access.
 #[rustfmt::skip]
 pub const ZETAS: [i32; 256] = [
+    // zetas[0] = 0 is intentionally unused; NTT loop uses pre-increment before access
          0,    25847, -2608894,  -518909,   237124,  -777960,  -876248,   466468,
    1826347,  2353451,  -359251, -2091905,  3119733, -2884855,  3111497,  2680103,
    2725464,  1024112, -1079900,  3585928,  -549488, -1119584,  2619752, -2108549,

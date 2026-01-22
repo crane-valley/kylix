@@ -67,7 +67,8 @@ pub fn pack_t0(poly: &Poly, out: &mut [u8]) {
 
 /// Unpack polynomial with coefficients in [-2^(D-1), 2^(D-1)] (t0).
 ///
-/// Byte layout (8 coefficients * 13 bits = 104 bits = 13 bytes):
+/// This function unpacks from the following packed byte format
+/// (8 coefficients * 13 bits = 104 bits = 13 bytes):
 /// - byte[0] = t0[0-7]
 /// - byte[1] = t0[8-12] | t1[0-2]<<5
 /// - byte[2] = t1[3-10]

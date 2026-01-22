@@ -151,8 +151,9 @@ impl Poly {
             // - If c >= 0 and c > (Q-1)/2: use Q - c (reduced negative)
             // - Otherwise: use c
 
-            // Check if c is negative (signed comparison)
-            let c_negative = (c as u32).ct_gt(&(i32::MAX as u32)); // c < 0 in signed
+            // Check if c < 0 when interpreted as signed i32
+            // When cast to u32, negative values have their MSB set, making them > i32::MAX
+            let c_negative = (c as u32).ct_gt(&(i32::MAX as u32));
             let neg_c = (-(c as i64)) as u32; // -c (safe for all i32)
 
             // For non-negative c, check if it represents a negative in reduced form

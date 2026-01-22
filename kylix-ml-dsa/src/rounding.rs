@@ -27,6 +27,11 @@ pub fn power2round(r: i32) -> (i32, i32) {
 ///
 /// Per FIPS 204 Section 8.4, Algorithm 35 (Decompose).
 /// Magic constants are derived from the modular arithmetic optimization:
+/// Returns (r1, r0) where:
+/// - r1 = HighBits(r): the "high" part used for signature compression
+/// - r0 = LowBits(r): the "low" part, centered in (-alpha/2, alpha/2]
+///
+/// Constants explanation:
 /// - For gamma2 = (q-1)/32 = 261888: alpha = 523776, m = 16
 ///   - 1025 = ceil(2^22 / 4096) for division approximation
 ///   - 22-bit shift and mask by 15 (= m-1) for mod m

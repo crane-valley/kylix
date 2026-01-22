@@ -52,55 +52,63 @@ pub fn sample_eta<const ETA: usize>(seed: &[u8], nonce: u16) -> Poly {
         // eta = 2: sample uniformly from {-2, -1, 0, 1, 2}
         // Per FIPS 204 Algorithm 15 (CoeffFromHalfByte for eta=2)
         // Use 4-bit nibbles, reject if >= 15, then compute t mod 5
-        let mut buf = [0u8; 136];
-        xof.squeeze(&mut buf);
-
-        let mut pos = 0;
+        // Acceptance rate: 15/16, so 136 bytes (272 nibbles) typically suffices,
+        // but we must keep squeezing until all N coefficients are filled.
         let mut ctr = 0;
-        while ctr < N && pos < buf.len() {
-            let t0 = (buf[pos] & 0x0F) as i32;
-            let t1 = (buf[pos] >> 4) as i32;
-            pos += 1;
+        while ctr < N {
+            let mut buf = [0u8; 136];
+            xof.squeeze(&mut buf);
 
-            // Reject values >= 15 to get uniform distribution over {0..14}
-            // 15 values: 3 copies each of {0,1,2,3,4}
-            if t0 < 15 {
-                // Compute t0 mod 5 using: a = t - (205*t >> 10) * 5
-                // 205/1024 ≈ 0.2 ≈ 1/5, so (205*t >> 10) ≈ floor(t/5)
-                let a = t0 - (205 * t0 >> 10) * 5;
-                // Map {0,1,2,3,4} to {2,1,0,-1,-2}
-                poly.coeffs[ctr] = 2 - a;
-                ctr += 1;
-            }
-            if ctr < N && t1 < 15 {
-                let a = t1 - (205 * t1 >> 10) * 5;
-                poly.coeffs[ctr] = 2 - a;
-                ctr += 1;
+            let mut pos = 0;
+            while ctr < N && pos < buf.len() {
+                let t0 = (buf[pos] & 0x0F) as i32;
+                let t1 = (buf[pos] >> 4) as i32;
+                pos += 1;
+
+                // Reject values >= 15 to get uniform distribution over {0..14}
+                // 15 values: 3 copies each of {0,1,2,3,4}
+                if t0 < 15 {
+                    // Compute t0 mod 5 using: a = t - (205*t >> 10) * 5
+                    // 205/1024 ≈ 0.2 ≈ 1/5, so (205*t >> 10) ≈ floor(t/5)
+                    let a = t0 - (205 * t0 >> 10) * 5;
+                    // Map {0,1,2,3,4} to {2,1,0,-1,-2}
+                    poly.coeffs[ctr] = 2 - a;
+                    ctr += 1;
+                }
+                if ctr < N && t1 < 15 {
+                    let a = t1 - (205 * t1 >> 10) * 5;
+                    poly.coeffs[ctr] = 2 - a;
+                    ctr += 1;
+                }
             }
         }
     } else if ETA == 4 {
         // eta = 4: sample uniformly from {-4, -3, -2, -1, 0, 1, 2, 3, 4}
         // Per FIPS 204 Algorithm 15 (CoeffFromHalfByte for eta=4)
         // Use 4-bit nibbles, reject if >= 9
-        let mut buf = [0u8; 136];
-        xof.squeeze(&mut buf);
-
-        let mut pos = 0;
+        // Acceptance rate: 9/16 (~56%), so 136 bytes (272 nibbles) yields ~153 coeffs.
+        // Must keep squeezing until all N=256 coefficients are filled.
         let mut ctr = 0;
-        while ctr < N && pos < buf.len() {
-            let t0 = (buf[pos] & 0x0F) as i32;
-            let t1 = (buf[pos] >> 4) as i32;
-            pos += 1;
+        while ctr < N {
+            let mut buf = [0u8; 136];
+            xof.squeeze(&mut buf);
 
-            // Reject values >= 9 to get uniform distribution over {0..8}
-            if t0 < 9 {
-                // Map {0,1,2,3,4,5,6,7,8} to {4,3,2,1,0,-1,-2,-3,-4}
-                poly.coeffs[ctr] = 4 - t0;
-                ctr += 1;
-            }
-            if ctr < N && t1 < 9 {
-                poly.coeffs[ctr] = 4 - t1;
-                ctr += 1;
+            let mut pos = 0;
+            while ctr < N && pos < buf.len() {
+                let t0 = (buf[pos] & 0x0F) as i32;
+                let t1 = (buf[pos] >> 4) as i32;
+                pos += 1;
+
+                // Reject values >= 9 to get uniform distribution over {0..8}
+                if t0 < 9 {
+                    // Map {0,1,2,3,4,5,6,7,8} to {4,3,2,1,0,-1,-2,-3,-4}
+                    poly.coeffs[ctr] = 4 - t0;
+                    ctr += 1;
+                }
+                if ctr < N && t1 < 9 {
+                    poly.coeffs[ctr] = 4 - t1;
+                    ctr += 1;
+                }
             }
         }
     }
