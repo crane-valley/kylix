@@ -1,7 +1,7 @@
 //! Cryptographic primitive traits.
 
 use crate::Result;
-use rand_core::CryptoRngCore;
+use rand_core::CryptoRng;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Key Encapsulation Mechanism (KEM) trait.
@@ -58,7 +58,7 @@ pub trait Kem {
     ///
     /// A tuple of (decapsulation_key, encapsulation_key).
     fn keygen(
-        rng: &mut impl CryptoRngCore,
+        rng: &mut impl CryptoRng,
     ) -> Result<(Self::DecapsulationKey, Self::EncapsulationKey)>;
 
     /// Encapsulate a shared secret using the encapsulation key.
@@ -73,7 +73,7 @@ pub trait Kem {
     /// A tuple of (ciphertext, shared_secret).
     fn encaps(
         ek: &Self::EncapsulationKey,
-        rng: &mut impl CryptoRngCore,
+        rng: &mut impl CryptoRng,
     ) -> Result<(Self::Ciphertext, Self::SharedSecret)>;
 
     /// Decapsulate a shared secret using the decapsulation key.
@@ -138,7 +138,7 @@ pub trait Signer {
     /// # Returns
     ///
     /// A tuple of (signing_key, verification_key).
-    fn keygen(rng: &mut impl CryptoRngCore) -> Result<(Self::SigningKey, Self::VerificationKey)>;
+    fn keygen(rng: &mut impl CryptoRng) -> Result<(Self::SigningKey, Self::VerificationKey)>;
 
     /// Sign a message.
     ///

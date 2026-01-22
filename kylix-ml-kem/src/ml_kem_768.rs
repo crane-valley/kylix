@@ -2,7 +2,7 @@
 
 use crate::params::ml_kem_768::*;
 use kylix_core::{Error, Kem, Result};
-use rand_core::CryptoRngCore;
+use rand_core::CryptoRng;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// ML-KEM-768 decapsulation key.
@@ -112,7 +112,7 @@ impl Kem for MlKem768 {
     const SHARED_SECRET_SIZE: usize = SHARED_SECRET_SIZE;
 
     fn keygen(
-        _rng: &mut impl CryptoRngCore,
+        _rng: &mut impl CryptoRng,
     ) -> Result<(Self::DecapsulationKey, Self::EncapsulationKey)> {
         // TODO: Implement ML-KEM-768.KeyGen() as per FIPS 203 Algorithm 16
         unimplemented!("ML-KEM-768 key generation not yet implemented")
@@ -120,7 +120,7 @@ impl Kem for MlKem768 {
 
     fn encaps(
         _ek: &Self::EncapsulationKey,
-        _rng: &mut impl CryptoRngCore,
+        _rng: &mut impl CryptoRng,
     ) -> Result<(Self::Ciphertext, Self::SharedSecret)> {
         // TODO: Implement ML-KEM-768.Encaps() as per FIPS 203 Algorithm 17
         unimplemented!("ML-KEM-768 encapsulation not yet implemented")
