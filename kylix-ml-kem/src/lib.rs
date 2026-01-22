@@ -37,7 +37,9 @@ mod hash;
 mod k_pke;
 #[cfg(test)]
 mod kat;
-mod kem;
+/// Internal KEM functions for deterministic testing.
+/// For normal use, prefer the `MlKem512`, `MlKem768`, or `MlKem1024` types.
+pub mod kem;
 mod matrix;
 mod ntt;
 mod params;

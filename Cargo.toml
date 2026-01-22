@@ -6,6 +6,9 @@ members = [
     "kylix-ml-kem",
     "kylix-cli",
 ]
+exclude = [
+    "kylix-ml-kem/fuzz",
+]
 
 [workspace.package]
 version = "0.2.0"
