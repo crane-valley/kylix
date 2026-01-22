@@ -13,10 +13,12 @@ description = "Post-quantum cryptography library implementing NIST FIPS standard
 readme = "../README.md"
 
 [features]
-default = ["std", "ml-kem"]
-std = ["kylix-core/std", "kylix-ml-kem/std"]
+default = ["std", "ml-kem", "ml-dsa"]
+std = ["kylix-core/std", "kylix-ml-kem?/std", "kylix-ml-dsa?/std"]
 ml-kem = ["dep:kylix-ml-kem", "kylix-ml-kem/ml-kem-512", "kylix-ml-kem/ml-kem-768", "kylix-ml-kem/ml-kem-1024"]
+ml-dsa = ["dep:kylix-ml-dsa", "kylix-ml-dsa/ml-dsa-44", "kylix-ml-dsa/ml-dsa-65", "kylix-ml-dsa/ml-dsa-87"]
 
 [dependencies]
 kylix-core.workspace = true
 kylix-ml-kem = { workspace = true, optional = true }
+kylix-ml-dsa = { workspace = true, optional = true }

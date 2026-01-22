@@ -6,6 +6,7 @@
 //!
 //! - `std` (default): Enable standard library support
 //! - `ml-kem` (default): Enable ML-KEM (FIPS 203) key encapsulation
+//! - `ml-dsa` (default): Enable ML-DSA (FIPS 204) digital signatures
 //!
 //! ## Supported Algorithms
 //!
@@ -13,6 +14,10 @@
 //!   - ML-KEM-512
 //!   - ML-KEM-768
 //!   - ML-KEM-1024
+//! - **ML-DSA** (FIPS 204): Module-Lattice-Based Digital Signature Algorithm
+//!   - ML-DSA-44
+//!   - ML-DSA-65
+//!   - ML-DSA-87
 //!
 //! ## Example
 //!
@@ -48,4 +53,11 @@ pub mod traits {
 pub mod ml_kem {
     pub use kylix_core::Kem;
     pub use kylix_ml_kem::*;
+}
+
+/// ML-DSA (FIPS 204) digital signature algorithm.
+#[cfg(feature = "ml-dsa")]
+pub mod ml_dsa {
+    pub use kylix_core::Signer;
+    pub use kylix_ml_dsa::*;
 }
