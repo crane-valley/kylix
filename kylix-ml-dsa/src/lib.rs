@@ -50,6 +50,10 @@
 // - assign_op_pattern: Explicit a[j] = a[j] + t matches FIPS 204 specification
 // - precedence: Bit manipulation patterns are standard in crypto (e.g., 205*t >> 10)
 // - large_types_passed_by_value: Poly::new takes array by value for const fn compatibility
+// - manual_range_contains: Explicit comparisons are clearer in assertions
+// - redundant_closure_for_method_calls: Closure |p| p.norm_inf() is clearer than Poly::norm_inf
+// - uninlined_format_args: Format args are clearer with explicit variable names
+// - unnecessary_cast: ETA as usize is consistent with other const generic usage
 #![allow(
     clippy::many_single_char_names,
     clippy::similar_names,
@@ -71,7 +75,11 @@
     clippy::needless_range_loop,
     clippy::assign_op_pattern,
     clippy::precedence,
-    clippy::large_types_passed_by_value
+    clippy::large_types_passed_by_value,
+    clippy::manual_range_contains,
+    clippy::redundant_closure_for_method_calls,
+    clippy::uninlined_format_args,
+    clippy::unnecessary_cast
 )]
 
 #[allow(dead_code)]
