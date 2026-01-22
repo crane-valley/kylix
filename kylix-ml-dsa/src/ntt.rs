@@ -56,7 +56,6 @@ pub const ZETAS: [i32; 256] = [
    -554416,  3919660,   -48306, -1362209,  3937738,  1400424,  -846154,  1976782,
 ];
 
-
 /// Forward NTT: polynomial to NTT domain.
 ///
 /// Input: polynomial with coefficients in standard form
@@ -173,9 +172,9 @@ mod tests {
         // Create simple polynomials
         let mut a = [0i32; N];
         let mut b = [0i32; N];
-        a[0] = 1;  // a = 1
-        b[0] = 1;  // b = 1
-        // So a * b = 1 (convolution of two constants)
+        a[0] = 1; // a = 1
+        b[0] = 1; // b = 1
+                  // So a * b = 1 (convolution of two constants)
 
         // NTT
         ntt(&mut a);
@@ -239,7 +238,10 @@ mod tests {
             let got = caddq(val);
             let got = if got >= Q { got - Q } else { got };
             let expected = original[i];
-            assert_eq!(got, expected, "Mismatch at index {i}: got {got}, expected {expected}");
+            assert_eq!(
+                got, expected,
+                "Mismatch at index {i}: got {got}, expected {expected}"
+            );
         }
     }
 

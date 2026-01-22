@@ -149,10 +149,7 @@ mod tests {
         let bound = 1 << (D - 1); // 4096 for D=13
         for r in [0, 100, 1000, Q - 1, Q / 2, 4096, 4097, 8191, 8192] {
             let (_, r0) = power2round(r);
-            assert!(
-                r0 > -bound && r0 <= bound,
-                "r0={r0} out of range for r={r}"
-            );
+            assert!(r0 > -bound && r0 <= bound, "r0={r0} out of range for r={r}");
         }
     }
 

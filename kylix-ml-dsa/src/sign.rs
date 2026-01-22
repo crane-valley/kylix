@@ -263,15 +263,24 @@ pub fn ml_dsa_sign<
 
         #[cfg(test)]
         {
-            eprintln!("SIGN: A[0][0].coeffs[0..4] = {:?}", &a.rows[0].polys[0].coeffs[0..4]);
-            eprintln!("SIGN: y_hat[0].coeffs[0..4] = {:?}", &y_hat.polys[0].coeffs[0..4]);
+            eprintln!(
+                "SIGN: A[0][0].coeffs[0..4] = {:?}",
+                &a.rows[0].polys[0].coeffs[0..4]
+            );
+            eprintln!(
+                "SIGN: y_hat[0].coeffs[0..4] = {:?}",
+                &y_hat.polys[0].coeffs[0..4]
+            );
         }
 
         let ay_ntt = a.mul_vec(&y_hat); // A*y in NTT domain (before reduce)
 
         #[cfg(test)]
         {
-            eprintln!("SIGN: (A*y)_ntt[0].coeffs[0..4] = {:?}", &ay_ntt.polys[0].coeffs[0..4]);
+            eprintln!(
+                "SIGN: (A*y)_ntt[0].coeffs[0..4] = {:?}",
+                &ay_ntt.polys[0].coeffs[0..4]
+            );
         }
 
         // Clone for later use in debugging
@@ -301,7 +310,11 @@ pub fn ml_dsa_sign<
         let w1_bytes = if GAMMA2 == 261888 { 128 } else { 192 };
         let mut w1_encoded = vec![0u8; K * w1_bytes];
         for i in 0..K {
-            pack_w1(&w1.polys[i], GAMMA2, &mut w1_encoded[i * w1_bytes..(i + 1) * w1_bytes]);
+            pack_w1(
+                &w1.polys[i],
+                GAMMA2,
+                &mut w1_encoded[i * w1_bytes..(i + 1) * w1_bytes],
+            );
         }
 
         // Store w1 for comparison with verify
@@ -311,7 +324,10 @@ pub fn ml_dsa_sign<
             let w1_bytes = if GAMMA2 == 261888 { 128 } else { 192 };
             for i in 0..K {
                 let start = i * w1_bytes;
-                let poly_checksum: u64 = w1_encoded[start..start + w1_bytes].iter().map(|&b| b as u64).sum();
+                let poly_checksum: u64 = w1_encoded[start..start + w1_bytes]
+                    .iter()
+                    .map(|&b| b as u64)
+                    .sum();
                 eprintln!("SIGN: w1[{}] checksum = {}", i, poly_checksum);
             }
         }
@@ -338,7 +354,11 @@ pub fn ml_dsa_sign<
             #[cfg(test)]
             if kappa == 0 && i == 0 {
                 let max_cs1 = cs1_poly.norm_inf();
-                eprintln!("SIGN: max ||c*s1[0]||_inf = {}, expected <= tau*eta = {}", max_cs1, TAU * (ETA as usize));
+                eprintln!(
+                    "SIGN: max ||c*s1[0]||_inf = {}, expected <= tau*eta = {}",
+                    max_cs1,
+                    TAU * (ETA as usize)
+                );
             }
 
             z.polys[i] = y.polys[i].add(&cs1_poly);
@@ -350,7 +370,12 @@ pub fn ml_dsa_sign<
         #[cfg(test)]
         if kappa < 5 || kappa % 1000 == 0 {
             let max_z = z.polys.iter().map(|p| p.norm_inf()).max().unwrap_or(0);
-            eprintln!("SIGN: kappa={}, max ||z||_inf = {}, bound = {}", kappa, max_z, GAMMA1 - BETA);
+            eprintln!(
+                "SIGN: kappa={}, max ||z||_inf = {}, bound = {}",
+                kappa,
+                max_z,
+                GAMMA1 - BETA
+            );
         }
         if !z.check_norm(GAMMA1 - BETA) {
             kappa += 1;
@@ -402,7 +427,8 @@ pub fn ml_dsa_sign<
         'hint_loop: for i in 0..K {
             for j in 0..N {
                 // w' = w - cs2 + ct0 (what verify will compute)
-                let w_prime = w.polys[i].coeffs[j] - cs2.polys[i].coeffs[j] + ct0.polys[i].coeffs[j];
+                let w_prime =
+                    w.polys[i].coeffs[j] - cs2.polys[i].coeffs[j] + ct0.polys[i].coeffs[j];
 
                 #[cfg(test)]
                 {
@@ -444,9 +470,8 @@ pub fn ml_dsa_sign<
                 let cs2_ntt = c_hat.pointwise_mul(&s2_hat.polys[i]);
                 let ct0_ntt = c_hat.pointwise_mul(&t0_hat.polys[i]);
                 for j in 0..N {
-                    result.polys[i].coeffs[j] = ay_ntt_copy.polys[i].coeffs[j]
-                        - cs2_ntt.coeffs[j]
-                        + ct0_ntt.coeffs[j];
+                    result.polys[i].coeffs[j] =
+                        ay_ntt_copy.polys[i].coeffs[j] - cs2_ntt.coeffs[j] + ct0_ntt.coeffs[j];
                 }
             }
             result.reduce();
@@ -455,10 +480,16 @@ pub fn ml_dsa_sign<
 
         #[cfg(test)]
         {
-            eprintln!("SIGN: expected_w'_ntt[0][0..4] = {:?}", &expected_w_prime_ntt.polys[0].coeffs[0..4]);
+            eprintln!(
+                "SIGN: expected_w'_ntt[0][0..4] = {:?}",
+                &expected_w_prime_ntt.polys[0].coeffs[0..4]
+            );
 
             // This is w' that verify will compute: w - c*s2 + c*t0
-            eprintln!("SIGN: wcs2ct0[0][0..8] = {:?}", &wcs2ct0_vec.polys[0].coeffs[0..8]);
+            eprintln!(
+                "SIGN: wcs2ct0[0][0..8] = {:?}",
+                &wcs2ct0_vec.polys[0].coeffs[0..8]
+            );
 
             // Compute what UseHint would return and compare with w1
             let mut recovered_w1 = PolyVecK::<K>::zero();
@@ -471,7 +502,8 @@ pub fn ml_dsa_sign<
                         hint_val = 1;
                         hint_idx_dbg += 1;
                     }
-                    recovered_w1.polys[i].coeffs[j] = use_hint(hint_val, wcs2ct0_vec.polys[i].coeffs[j], GAMMA2);
+                    recovered_w1.polys[i].coeffs[j] =
+                        use_hint(hint_val, wcs2ct0_vec.polys[i].coeffs[j], GAMMA2);
                 }
                 hint_idx_dbg = end;
             }
@@ -491,7 +523,10 @@ pub fn ml_dsa_sign<
                 }
             }
             if diff_count > 0 {
-                eprintln!("SIGN: Total mismatches between w1 and UseHint(h, wcs2ct0): {}", diff_count);
+                eprintln!(
+                    "SIGN: Total mismatches between w1 and UseHint(h, wcs2ct0): {}",
+                    diff_count
+                );
             }
         }
 
@@ -515,12 +550,18 @@ pub fn ml_dsa_sign<
 
         #[cfg(test)]
         {
-            eprintln!("SIGN: z_centered[0][0..4] = {:?}", &z_centered.polys[0].coeffs[0..4]);
+            eprintln!(
+                "SIGN: z_centered[0][0..4] = {:?}",
+                &z_centered.polys[0].coeffs[0..4]
+            );
 
             // Compute NTT(z) to compare with verify
             let mut z_for_ntt = z_centered.clone();
             z_for_ntt.ntt();
-            eprintln!("SIGN: NTT(z)[0].coeffs[0..4] = {:?}", &z_for_ntt.polys[0].coeffs[0..4]);
+            eprintln!(
+                "SIGN: NTT(z)[0].coeffs[0..4] = {:?}",
+                &z_for_ntt.polys[0].coeffs[0..4]
+            );
 
             // Verify z_hat = y_hat + c_hat ⊙ s1_hat
             let mut expected_z_hat = PolyVecL::<L>::zero();
@@ -531,14 +572,22 @@ pub fn ml_dsa_sign<
                 }
             }
             expected_z_hat.reduce();
-            eprintln!("SIGN: expected z_hat = y_hat + c_hat⊙s1_hat: [0][0..4] = {:?}", &expected_z_hat.polys[0].coeffs[0..4]);
+            eprintln!(
+                "SIGN: expected z_hat = y_hat + c_hat⊙s1_hat: [0][0..4] = {:?}",
+                &expected_z_hat.polys[0].coeffs[0..4]
+            );
 
             // Check if they match
-            let match_first4 = (0..4).all(|j| freeze(z_for_ntt.polys[0].coeffs[j]) == freeze(expected_z_hat.polys[0].coeffs[j]));
+            let match_first4 = (0..4).all(|j| {
+                freeze(z_for_ntt.polys[0].coeffs[j]) == freeze(expected_z_hat.polys[0].coeffs[j])
+            });
             eprintln!("SIGN: z_hat matches expected? (first 4): {}", match_first4);
 
             eprintln!("SIGN: hint_counts = {:?}", &h[OMEGA..OMEGA + K]);
-            eprintln!("SIGN: first 10 hint positions = {:?}", &h[0..10.min(hint_count)]);
+            eprintln!(
+                "SIGN: first 10 hint positions = {:?}",
+                &h[0..10.min(hint_count)]
+            );
         }
 
         // Encode signature: c_tilde || z || h
@@ -698,15 +747,24 @@ pub fn ml_dsa_verify<
     {
         eprintln!("VERIFY: z[0][0..4] = {:?}", &z.polys[0].coeffs[0..4]);
         eprintln!("VERIFY: t1[0][0..4] = {:?}", &t1.polys[0].coeffs[0..4]);
-        eprintln!("VERIFY: t1_scaled[0][0..4] = {:?}", &t1_scaled.polys[0].coeffs[0..4]);
+        eprintln!(
+            "VERIFY: t1_scaled[0][0..4] = {:?}",
+            &t1_scaled.polys[0].coeffs[0..4]
+        );
     }
 
     t1_scaled.ntt();
 
     #[cfg(test)]
     {
-        eprintln!("VERIFY: A[0][0].coeffs[0..4] = {:?}", &a.rows[0].polys[0].coeffs[0..4]);
-        eprintln!("VERIFY: z_hat[0].coeffs[0..4] = {:?}", &z_hat.polys[0].coeffs[0..4]);
+        eprintln!(
+            "VERIFY: A[0][0].coeffs[0..4] = {:?}",
+            &a.rows[0].polys[0].coeffs[0..4]
+        );
+        eprintln!(
+            "VERIFY: z_hat[0].coeffs[0..4] = {:?}",
+            &z_hat.polys[0].coeffs[0..4]
+        );
     }
 
     // Compute A*z - c*(t1*2^d) in NTT domain
@@ -715,7 +773,10 @@ pub fn ml_dsa_verify<
 
     #[cfg(test)]
     {
-        eprintln!("VERIFY: az[0].coeffs[0..4] = {:?}", &az.polys[0].coeffs[0..4]);
+        eprintln!(
+            "VERIFY: az[0].coeffs[0..4] = {:?}",
+            &az.polys[0].coeffs[0..4]
+        );
     }
 
     let mut ct1_2d = PolyVecK::<K>::zero();
@@ -726,7 +787,10 @@ pub fn ml_dsa_verify<
 
     #[cfg(test)]
     {
-        eprintln!("VERIFY: ct1_2d[0].coeffs[0..4] = {:?}", &ct1_2d.polys[0].coeffs[0..4]);
+        eprintln!(
+            "VERIFY: ct1_2d[0].coeffs[0..4] = {:?}",
+            &ct1_2d.polys[0].coeffs[0..4]
+        );
     }
 
     // w' = A*z - c*t1*2^d (in NTT domain)
@@ -739,14 +803,20 @@ pub fn ml_dsa_verify<
 
     #[cfg(test)]
     {
-        eprintln!("VERIFY: w'_hat[0].coeffs[0..4] (before reduce) = {:?}", &w_prime_hat.polys[0].coeffs[0..4]);
+        eprintln!(
+            "VERIFY: w'_hat[0].coeffs[0..4] (before reduce) = {:?}",
+            &w_prime_hat.polys[0].coeffs[0..4]
+        );
     }
 
     w_prime_hat.reduce();
 
     #[cfg(test)]
     {
-        eprintln!("VERIFY: w'_hat[0].coeffs[0..4] (after reduce) = {:?}", &w_prime_hat.polys[0].coeffs[0..4]);
+        eprintln!(
+            "VERIFY: w'_hat[0].coeffs[0..4] (after reduce) = {:?}",
+            &w_prime_hat.polys[0].coeffs[0..4]
+        );
         eprintln!("VERIFY: compare with SIGN expected_w'_ntt values above");
     }
 
@@ -758,7 +828,10 @@ pub fn ml_dsa_verify<
     #[cfg(test)]
     {
         eprintln!("VERIFY: hint_counts = {:?}", &h[OMEGA..]);
-        eprintln!("VERIFY: first 10 hint positions = {:?}", &h[0..10.min(h[OMEGA + K - 1] as usize)]);
+        eprintln!(
+            "VERIFY: first 10 hint positions = {:?}",
+            &h[0..10.min(h[OMEGA + K - 1] as usize)]
+        );
     }
 
     // Apply hints to get w'1
@@ -772,23 +845,37 @@ pub fn ml_dsa_verify<
                 hint_val = 1;
                 hint_idx += 1;
             }
-            w1_prime.polys[i].coeffs[j] = use_hint(hint_val, freeze(w_prime.polys[i].coeffs[j]), GAMMA2);
+            w1_prime.polys[i].coeffs[j] =
+                use_hint(hint_val, freeze(w_prime.polys[i].coeffs[j]), GAMMA2);
         }
         hint_idx = end;
     }
 
     #[cfg(test)]
     {
-        eprintln!("VERIFY: w_prime[0][0..8] = {:?}", &w_prime.polys[0].coeffs[0..8]);
-        eprintln!("VERIFY: w_prime[0][12..20] = {:?}", &w_prime.polys[0].coeffs[12..20]);
-        eprintln!("VERIFY: w1_prime[0][12..20] = {:?}", &w1_prime.polys[0].coeffs[12..20]);
+        eprintln!(
+            "VERIFY: w_prime[0][0..8] = {:?}",
+            &w_prime.polys[0].coeffs[0..8]
+        );
+        eprintln!(
+            "VERIFY: w_prime[0][12..20] = {:?}",
+            &w_prime.polys[0].coeffs[12..20]
+        );
+        eprintln!(
+            "VERIFY: w1_prime[0][12..20] = {:?}",
+            &w1_prime.polys[0].coeffs[12..20]
+        );
     }
 
     // Encode w'1
     let w1_bytes = if GAMMA2 == 261888 { 128 } else { 192 };
     let mut w1_encoded = vec![0u8; K * w1_bytes];
     for i in 0..K {
-        pack_w1(&w1_prime.polys[i], GAMMA2, &mut w1_encoded[i * w1_bytes..(i + 1) * w1_bytes]);
+        pack_w1(
+            &w1_prime.polys[i],
+            GAMMA2,
+            &mut w1_encoded[i * w1_bytes..(i + 1) * w1_bytes],
+        );
     }
 
     #[cfg(test)]
@@ -796,7 +883,10 @@ pub fn ml_dsa_verify<
         // Print per-polynomial checksums
         for i in 0..K {
             let start = i * w1_bytes;
-            let poly_checksum: u64 = w1_encoded[start..start + w1_bytes].iter().map(|&b| b as u64).sum();
+            let poly_checksum: u64 = w1_encoded[start..start + w1_bytes]
+                .iter()
+                .map(|&b| b as u64)
+                .sum();
             eprintln!("VERIFY: w1_prime[{}] checksum = {}", i, poly_checksum);
         }
     }
@@ -920,7 +1010,10 @@ mod tests {
             for j in 0..N {
                 let a = freeze(as1.polys[i].coeffs[j]);
                 let e = freeze(expected.polys[i].coeffs[j]);
-                assert_eq!(a, e, "A*s1 != t1*2^d + t0 - s2 at [{i}][{j}]: A*s1={a}, expected={e}");
+                assert_eq!(
+                    a, e,
+                    "A*s1 != t1*2^d + t0 - s2 at [{i}][{j}]: A*s1={a}, expected={e}"
+                );
             }
         }
     }

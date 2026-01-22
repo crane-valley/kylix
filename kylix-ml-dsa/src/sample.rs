@@ -173,8 +173,7 @@ pub fn sample_in_ball(seed: &[u8], tau: usize) -> Poly {
     // First 8 bytes give the signs
     let mut signs = [0u8; 8];
     xof.squeeze(&mut signs);
-    let mut sign_bits =
-        u64::from_le_bytes(signs);
+    let mut sign_bits = u64::from_le_bytes(signs);
 
     let mut buf = [0u8; 1];
     for i in (N - tau)..N {

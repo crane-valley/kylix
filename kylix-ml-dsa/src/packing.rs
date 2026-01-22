@@ -113,8 +113,8 @@ pub fn unpack_t0(input: &[u8], poly: &mut Poly) {
         poly.coeffs[8 * i + 4] &= 0x1FFF;
 
         // Coeff 5: t5 from bytes 8-9
-        poly.coeffs[8 * i + 5] = ((input[13 * i + 8] as i32) >> 1)
-            | ((input[13 * i + 9] as i32) << 7);
+        poly.coeffs[8 * i + 5] =
+            ((input[13 * i + 8] as i32) >> 1) | ((input[13 * i + 9] as i32) << 7);
         poly.coeffs[8 * i + 5] &= 0x1FFF;
 
         // Coeff 6: t6 from bytes 9-11
@@ -124,8 +124,8 @@ pub fn unpack_t0(input: &[u8], poly: &mut Poly) {
         poly.coeffs[8 * i + 6] &= 0x1FFF;
 
         // Coeff 7: t7 from bytes 11-12
-        poly.coeffs[8 * i + 7] = ((input[13 * i + 11] as i32) >> 3)
-            | ((input[13 * i + 12] as i32) << 5);
+        poly.coeffs[8 * i + 7] =
+            ((input[13 * i + 11] as i32) >> 3) | ((input[13 * i + 12] as i32) << 5);
         poly.coeffs[8 * i + 7] &= 0x1FFF;
 
         // Map back to centered representation
@@ -407,8 +407,8 @@ mod tests {
         let mut poly = Poly::zero();
 
         // Test values at boundaries
-        poly.coeffs[0] = -4095;  // min valid
-        poly.coeffs[1] = 4096;   // max valid
+        poly.coeffs[0] = -4095; // min valid
+        poly.coeffs[1] = 4096; // max valid
         poly.coeffs[2] = 0;
         poly.coeffs[3] = 1;
         poly.coeffs[4] = -1;

@@ -35,7 +35,21 @@
 // - too_many_arguments: Generic const parameters for security levels
 // - cast_possible_truncation/sign_loss/wrap: Intentional for modular arithmetic
 //   All casts are verified to be within bounds for q=8380417 (23-bit)
+// - cast_lossless: Explicit u8->i32 casts in bit-packing are clearer than From
 // - module_name_repetitions: MlDsa65 in ml_dsa_65 module is acceptable
+// - unreadable_literal: NTT zeta constants are from FIPS 204 spec, keeping original format
+// - must_use_candidate: Not all getters need #[must_use] in crypto code
+// - missing_errors_doc: Error documentation is in the Error type itself
+// - missing_panics_doc: Panics are documented where non-obvious
+// - doc_markdown: Math notation doesn't need backticks (R_q, Z_q, etc.)
+// - wildcard_imports: Parameter imports (K, L, ETA, etc.) are cleaner as wildcards
+// - too_many_lines: Crypto functions (sign/verify) are inherently long algorithms
+// - items_after_statements: Constants near their usage aids readability
+// - needless_borrow: Explicit borrows for slice arguments improve clarity
+// - needless_range_loop: Index-based loops are clearer for crypto indexing patterns
+// - assign_op_pattern: Explicit a[j] = a[j] + t matches FIPS 204 specification
+// - precedence: Bit manipulation patterns are standard in crypto (e.g., 205*t >> 10)
+// - large_types_passed_by_value: Poly::new takes array by value for const fn compatibility
 #![allow(
     clippy::many_single_char_names,
     clippy::similar_names,
@@ -43,29 +57,43 @@
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
     clippy::cast_possible_wrap,
-    clippy::module_name_repetitions
+    clippy::cast_lossless,
+    clippy::module_name_repetitions,
+    clippy::unreadable_literal,
+    clippy::must_use_candidate,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::doc_markdown,
+    clippy::wildcard_imports,
+    clippy::too_many_lines,
+    clippy::items_after_statements,
+    clippy::needless_borrow,
+    clippy::needless_range_loop,
+    clippy::assign_op_pattern,
+    clippy::precedence,
+    clippy::large_types_passed_by_value
 )]
 
 #[allow(dead_code)]
-mod reduce;
-#[allow(dead_code)]
-mod poly;
+mod hash;
 #[allow(dead_code)]
 mod ntt;
 #[allow(dead_code)]
-mod hash;
-#[allow(dead_code)]
-mod sample;
-#[allow(dead_code)]
-mod rounding;
-#[allow(dead_code)]
 mod packing;
+#[allow(dead_code)]
+mod params;
+#[allow(dead_code)]
+mod poly;
 #[allow(dead_code)]
 mod polyvec;
 #[allow(dead_code)]
-mod sign;
+mod reduce;
 #[allow(dead_code)]
-mod params;
+mod rounding;
+#[allow(dead_code)]
+mod sample;
+#[allow(dead_code)]
+mod sign;
 
 #[cfg(feature = "ml-dsa-44")]
 mod ml_dsa_44;

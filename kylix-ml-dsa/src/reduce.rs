@@ -89,8 +89,7 @@ pub const fn from_mont(a: i32) -> i32 {
 /// Centered reduction: reduce a to [-q/2, q/2].
 #[inline]
 pub const fn caddq(a: i32) -> i32 {
-    let r = a + (Q & (a >> 31));
-    r
+    a + (Q & (a >> 31))
 }
 
 /// Freeze: reduce to canonical [0, q-1] range.
