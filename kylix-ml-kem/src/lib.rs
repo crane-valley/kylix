@@ -47,11 +47,11 @@ mod reduce;
 mod sample;
 
 #[cfg(feature = "ml-kem-1024")]
-mod ml_kem_1024;
+pub mod ml_kem_1024;
 #[cfg(feature = "ml-kem-512")]
-mod ml_kem_512;
+pub mod ml_kem_512;
 #[cfg(feature = "ml-kem-768")]
-mod ml_kem_768;
+pub mod ml_kem_768;
 
 pub use kylix_core::Kem;
 pub use poly::Poly;
