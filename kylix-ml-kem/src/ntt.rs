@@ -130,8 +130,8 @@ mod tests {
 
     #[test]
     fn test_ntt_inv_ntt_roundtrip() {
-        // NTT followed by INVNTT should return original (after reduction)
-        // Note: Output is in Montgomery form, so we need to convert back
+        // NTT followed by INVNTT returns original * R (Montgomery form)
+        // This is the expected behavior - need from_mont to get back to normal form
         let mut poly = Poly::default();
         for i in 0..256 {
             poly.coeffs[i] = (i as i16) % 3329;
@@ -147,7 +147,7 @@ mod tests {
         ntt(&mut poly);
         inv_ntt(&mut poly);
 
-        // Compare (converting from Montgomery form)
+        // Result is in Montgomery form - need from_mont to convert back
         for i in 0..256 {
             let reduced = barrett_reduce_full(crate::reduce::from_mont(poly.coeffs[i]));
             let orig = barrett_reduce_full(original.coeffs[i]);
@@ -189,7 +189,7 @@ mod tests {
         ntt(&mut poly);
         inv_ntt(&mut poly);
 
-        // Convert from Montgomery form
+        // Result is in Montgomery form - need from_mont to convert back
         for i in 0..256 {
             let reduced = barrett_reduce_full(crate::reduce::from_mont(poly.coeffs[i]));
             let orig = barrett_reduce_full(original.coeffs[i]);

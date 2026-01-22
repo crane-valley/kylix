@@ -15,10 +15,10 @@
 //!
 //! ```ignore
 //! use kylix_ml_kem::{MlKem768, Kem};
-//! use rand::rngs::OsRng;
+//! use rand::thread_rng;
 //!
-//! let (dk, ek) = MlKem768::keygen(&mut OsRng)?;
-//! let (ct, ss_sender) = MlKem768::encaps(&ek, &mut OsRng)?;
+//! let (dk, ek) = MlKem768::keygen(&mut thread_rng())?;
+//! let (ct, ss_sender) = MlKem768::encaps(&ek, &mut thread_rng())?;
 //! let ss_receiver = MlKem768::decaps(&dk, &ct)?;
 //!
 //! assert_eq!(ss_sender.as_ref(), ss_receiver.as_ref());
@@ -29,10 +29,19 @@
 #![warn(clippy::all)]
 #![deny(unsafe_code)]
 
+mod encode;
+mod hash;
+mod k_pke;
+#[cfg(test)]
+mod kat;
+mod kem;
+mod matrix;
 mod ntt;
 mod params;
 mod poly;
+mod polyvec;
 mod reduce;
+mod sample;
 
 #[cfg(feature = "ml-kem-1024")]
 mod ml_kem_1024;
