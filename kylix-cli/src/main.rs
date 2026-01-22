@@ -31,7 +31,7 @@ enum Commands {
         #[arg(short, long, value_enum, default_value = "ml-kem-768")]
         algo: Algorithm,
 
-        /// Output file prefix (creates <prefix>.pub and <prefix>.sec)
+        /// Output file prefix (creates `<prefix>.pub` and `<prefix>.sec`)
         #[arg(short, long)]
         output: String,
 
