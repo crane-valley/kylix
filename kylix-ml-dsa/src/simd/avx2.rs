@@ -241,6 +241,250 @@ pub unsafe fn caddq_avx2(a: &mut [i32; N]) {
     }
 }
 
+// ============================================================================
+// NTT SIMD optimizations
+// ============================================================================
+
+/// Vectorized NTT butterfly operation.
+///
+/// For each pair (a[j], a[j+len]):
+///   t = zeta * a[j+len] (Montgomery multiplication)
+///   a[j+len] = a[j] - t
+///   a[j] = a[j] + t
+///
+/// # Safety
+///
+/// Requires AVX2 support.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+unsafe fn butterfly_avx2(a: &mut [i32; N], start: usize, len: usize, zeta: i32) {
+    let zeta_v = _mm256_set1_epi32(zeta);
+    let q = _mm256_set1_epi32(Q);
+    let qinv = _mm256_set1_epi32(QINV);
+
+    let mut j = start;
+    while j + 8 <= start + len {
+        // Load 8 pairs
+        let a_lo = _mm256_loadu_si256(a.as_ptr().add(j).cast());
+        let a_hi = _mm256_loadu_si256(a.as_ptr().add(j + len).cast());
+
+        // t = zeta * a_hi (Montgomery multiplication)
+        let t = montgomery_mul_8x_with_params(a_hi, zeta_v, q, qinv);
+
+        // a[j] = a[j] + t
+        let new_lo = _mm256_add_epi32(a_lo, t);
+        // a[j+len] = a[j] - t
+        let new_hi = _mm256_sub_epi32(a_lo, t);
+
+        _mm256_storeu_si256(a.as_mut_ptr().add(j).cast(), new_lo);
+        _mm256_storeu_si256(a.as_mut_ptr().add(j + len).cast(), new_hi);
+
+        j += 8;
+    }
+
+    // Handle remaining elements with scalar
+    while j < start + len {
+        let t = crate::reduce::montgomery_mul(zeta, a[j + len]);
+        a[j + len] = a[j] - t;
+        a[j] = a[j] + t;
+        j += 1;
+    }
+}
+
+/// Montgomery multiplication with pre-loaded parameters.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+#[inline]
+unsafe fn montgomery_mul_8x_with_params(
+    a: __m256i,
+    b: __m256i,
+    q: __m256i,
+    qinv: __m256i,
+) -> __m256i {
+    // Even lanes (0, 2, 4, 6): _mm256_mul_epi32 does this directly
+    let ab_even = _mm256_mul_epi32(a, b);
+    let ab_hi_even = _mm256_srli_epi64(ab_even, 32);
+
+    // Odd lanes (1, 3, 5, 7): shift right by 32 to bring to even positions
+    let a_odd = _mm256_srli_epi64(a, 32);
+    let b_odd = _mm256_srli_epi64(b, 32);
+    let ab_odd = _mm256_mul_epi32(a_odd, b_odd);
+    let ab_lo_odd = _mm256_slli_epi64(ab_odd, 32);
+
+    // Combine even and odd results
+    // ab_even already has low bits in correct position for even lanes
+    // ab_odd already has high bits in correct position for odd lanes
+    let ab_lo = _mm256_blend_epi32(ab_even, ab_lo_odd, 0xAA);
+    let ab_hi = _mm256_blend_epi32(ab_hi_even, ab_odd, 0xAA);
+
+    // Montgomery reduce
+    montgomery_reduce_with_params(ab_lo, ab_hi, q, qinv)
+}
+
+/// Montgomery reduction with pre-loaded parameters.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+#[inline]
+unsafe fn montgomery_reduce_with_params(
+    a_lo: __m256i,
+    a_hi: __m256i,
+    q: __m256i,
+    qinv: __m256i,
+) -> __m256i {
+    // t = a_lo * QINV (wrapping multiply, keep low 32 bits)
+    let t = _mm256_mullo_epi32(a_lo, qinv);
+
+    // Process even lanes (0, 2, 4, 6)
+    let tq_even = _mm256_mul_epi32(t, q);
+    let tq_hi_even = _mm256_srli_epi64(tq_even, 32);
+
+    // Process odd lanes (1, 3, 5, 7)
+    let t_odd = _mm256_srli_epi64(t, 32);
+    let tq_odd = _mm256_mul_epi32(t_odd, q);
+    let tq_hi_odd = _mm256_srli_epi64(tq_odd, 32);
+
+    // Blend even and odd results back together
+    let tq_hi_odd_shifted = _mm256_slli_epi64(tq_hi_odd, 32);
+    let tq_hi = _mm256_blend_epi32(tq_hi_even, tq_hi_odd_shifted, 0xAA);
+
+    // result = a_hi - tq_hi
+    _mm256_sub_epi32(a_hi, tq_hi)
+}
+
+/// Vectorized inverse NTT butterfly operation.
+///
+/// For each pair (a[j], a[j+len]):
+///   t = a[j]
+///   a[j] = t + a[j+len]
+///   a[j+len] = (t - a[j+len]) * zeta (Montgomery)
+///
+/// # Safety
+///
+/// Requires AVX2 support.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+unsafe fn inv_butterfly_avx2(a: &mut [i32; N], start: usize, len: usize, zeta: i32) {
+    let zeta_v = _mm256_set1_epi32(zeta);
+    let q = _mm256_set1_epi32(Q);
+    let qinv = _mm256_set1_epi32(QINV);
+
+    let mut j = start;
+    while j + 8 <= start + len {
+        let t = _mm256_loadu_si256(a.as_ptr().add(j).cast());
+        let a_hi = _mm256_loadu_si256(a.as_ptr().add(j + len).cast());
+
+        // a[j] = t + a[j+len]
+        let new_lo = _mm256_add_epi32(t, a_hi);
+
+        // a[j+len] = (t - a[j+len]) * zeta
+        let diff = _mm256_sub_epi32(t, a_hi);
+        let new_hi = montgomery_mul_8x_with_params(diff, zeta_v, q, qinv);
+
+        _mm256_storeu_si256(a.as_mut_ptr().add(j).cast(), new_lo);
+        _mm256_storeu_si256(a.as_mut_ptr().add(j + len).cast(), new_hi);
+
+        j += 8;
+    }
+
+    // Handle remaining elements with scalar
+    while j < start + len {
+        let t = a[j];
+        a[j] = t + a[j + len];
+        a[j + len] = crate::reduce::montgomery_mul(zeta, t - a[j + len]);
+        j += 1;
+    }
+}
+
+/// Forward NTT using AVX2.
+///
+/// # Safety
+///
+/// Requires AVX2 support.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+pub unsafe fn ntt_avx2(a: &mut [i32; N]) {
+    let mut k: usize = 0;
+    let mut len: usize = 128;
+
+    while len >= 8 {
+        let mut start: usize = 0;
+        while start < N {
+            k += 1;
+            let zeta = crate::ntt::ZETAS[k];
+            butterfly_avx2(a, start, len, zeta);
+            start += 2 * len;
+        }
+        len >>= 1;
+    }
+
+    // For len < 8, use scalar operations
+    while len >= 1 {
+        let mut start: usize = 0;
+        while start < N {
+            k += 1;
+            let zeta = crate::ntt::ZETAS[k];
+            for j in start..(start + len) {
+                let t = crate::reduce::montgomery_mul(zeta, a[j + len]);
+                a[j + len] = a[j] - t;
+                a[j] = a[j] + t;
+            }
+            start += 2 * len;
+        }
+        len >>= 1;
+    }
+}
+
+/// Inverse NTT using AVX2.
+///
+/// # Safety
+///
+/// Requires AVX2 support.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+pub unsafe fn inv_ntt_avx2(a: &mut [i32; N]) {
+    let mut k: usize = 256;
+    let mut len: usize = 1;
+
+    // For len < 8, use scalar operations
+    while len < 8 {
+        let mut start: usize = 0;
+        while start < N {
+            k -= 1;
+            let zeta = -crate::ntt::ZETAS[k];
+            for j in start..(start + len) {
+                let t = a[j];
+                a[j] = t + a[j + len];
+                a[j + len] = crate::reduce::montgomery_mul(zeta, t - a[j + len]);
+            }
+            start += 2 * len;
+        }
+        len <<= 1;
+    }
+
+    // For len >= 8, use SIMD
+    while len < N {
+        let mut start: usize = 0;
+        while start < N {
+            k -= 1;
+            let zeta = -crate::ntt::ZETAS[k];
+            inv_butterfly_avx2(a, start, len, zeta);
+            start += 2 * len;
+        }
+        len <<= 1;
+    }
+
+    // Multiply by N^(-1) in Montgomery form
+    let inv_n = _mm256_set1_epi32(crate::ntt::INV_N_MONT);
+    let q = _mm256_set1_epi32(Q);
+    let qinv = _mm256_set1_epi32(QINV);
+
+    for i in (0..N).step_by(8) {
+        let va = _mm256_loadu_si256(a.as_ptr().add(i).cast());
+        let vr = montgomery_mul_8x_with_params(va, inv_n, q, qinv);
+        _mm256_storeu_si256(a.as_mut_ptr().add(i).cast(), vr);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

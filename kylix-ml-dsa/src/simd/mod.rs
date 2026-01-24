@@ -188,3 +188,55 @@ pub fn pointwise_mul(_r: &mut [i32; N], _a: &[i32; N], _b: &[i32; N]) -> bool {
 pub fn pointwise_mul_acc(_r: &mut [i32; N], _a: &[i32; N], _b: &[i32; N]) -> bool {
     false
 }
+
+// ============================================================================
+// NTT SIMD API
+// ============================================================================
+
+/// Forward NTT using SIMD (AVX2).
+///
+/// Returns true if SIMD was used, false if caller should use scalar fallback.
+#[cfg(target_arch = "x86_64")]
+#[inline]
+pub fn ntt(a: &mut [i32; N]) -> bool {
+    if has_avx2() {
+        // SAFETY: AVX2 availability confirmed by has_avx2()
+        unsafe {
+            avx2::ntt_avx2(a);
+        }
+        true
+    } else {
+        false
+    }
+}
+
+/// Inverse NTT using SIMD (AVX2).
+///
+/// Returns true if SIMD was used, false if caller should use scalar fallback.
+#[cfg(target_arch = "x86_64")]
+#[inline]
+pub fn inv_ntt(a: &mut [i32; N]) -> bool {
+    if has_avx2() {
+        // SAFETY: AVX2 availability confirmed by has_avx2()
+        unsafe {
+            avx2::inv_ntt_avx2(a);
+        }
+        true
+    } else {
+        false
+    }
+}
+
+/// Forward NTT fallback for non-x86_64 architectures.
+#[cfg(not(target_arch = "x86_64"))]
+#[inline]
+pub fn ntt(_a: &mut [i32; N]) -> bool {
+    false
+}
+
+/// Inverse NTT fallback for non-x86_64 architectures.
+#[cfg(not(target_arch = "x86_64"))]
+#[inline]
+pub fn inv_ntt(_a: &mut [i32; N]) -> bool {
+    false
+}

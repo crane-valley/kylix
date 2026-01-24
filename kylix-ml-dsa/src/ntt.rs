@@ -62,6 +62,21 @@ pub const ZETAS: [i32; 256] = [
 /// Input: polynomial with coefficients in standard form
 /// Output: polynomial in NTT domain (evaluations at roots of unity)
 pub fn ntt(a: &mut [i32; N]) {
+    // Try SIMD implementation first
+    #[cfg(feature = "simd")]
+    {
+        if crate::simd::ntt(a) {
+            return;
+        }
+    }
+
+    // Scalar fallback
+    ntt_scalar(a);
+}
+
+/// Scalar implementation of forward NTT.
+#[inline]
+fn ntt_scalar(a: &mut [i32; N]) {
     let mut k: usize = 0;
     let mut len: usize = 128;
 
@@ -90,6 +105,21 @@ pub fn ntt(a: &mut [i32; N]) {
 /// Includes the 1/N normalization and R factor via INV_N_MONT multiplication.
 /// To convert to standard form, apply from_mont() to each coefficient.
 pub fn inv_ntt(a: &mut [i32; N]) {
+    // Try SIMD implementation first
+    #[cfg(feature = "simd")]
+    {
+        if crate::simd::inv_ntt(a) {
+            return;
+        }
+    }
+
+    // Scalar fallback
+    inv_ntt_scalar(a);
+}
+
+/// Scalar implementation of inverse NTT.
+#[inline]
+fn inv_ntt_scalar(a: &mut [i32; N]) {
     let mut k: usize = 256;
     let mut len: usize = 1;
 
