@@ -32,7 +32,7 @@ Kylix aims to provide a **pure Rust, high-performance, auditable** implementatio
 | Fuzz Testing (ML-DSA) | ✅ Complete | Daily CI + 4 targets |
 | Benchmarks (ML-DSA) | ✅ Complete | Criterion-based |
 | SIMD Infrastructure | ✅ Complete | AVX2/NEON/WASM-SIMD128 |
-| SIMD NTT (AVX2) | ✅ Complete | 8-way parallel butterflies |
+| SIMD NTT (AVX2) | ✅ Complete | 8-way parallel butterflies + len=4 optimization |
 | SIMD NTT (NEON) | ✅ Complete | 4-way parallel butterflies |
 
 ### Not Started
@@ -53,14 +53,15 @@ Measured on Windows x86_64 (Intel i5-13500), Release build with `--features simd
 | ML-KEM-768 KeyGen | < 50 µs | 29.76 µs | ✅ |
 | ML-KEM-768 Encaps | < 60 µs | 29.54 µs | ✅ |
 | ML-KEM-768 Decaps | < 50 µs | 39.73 µs | ✅ |
-| ML-DSA-65 KeyGen | - | 86 µs | ✅ |
-| ML-DSA-65 Sign | < 200 µs | 155 µs | ✅ |
-| ML-DSA-65 Verify | < 100 µs | 95 µs | ✅ |
+| ML-DSA-65 KeyGen | - | 97 µs | ✅ |
+| ML-DSA-65 Sign | < 200 µs | 165 µs | ✅ |
+| ML-DSA-65 Verify | < 100 µs | 102 µs | ✅ |
 
 #### ML-DSA Optimization Tasks
 
 1. **NTT Optimization** - ✅ Completed with SIMD:
    - ✅ AVX2 vectorized butterfly operations (8-way parallel)
+   - ✅ AVX2 len=4 layer optimization (2-group SIMD processing)
    - Precomputed twiddle factors (already in use)
    - Loop unrolling
    - Cache-friendly memory access patterns
