@@ -35,13 +35,38 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --all-targets --all-features -- -D warnings
 
+  # Fast test for PRs - ubuntu + stable only
+  test-pr:
+    name: Test (PR)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # Test with fast SLH-DSA variants only (skip slow -s variants)
+      - name: Test core crates
+        run: cargo test -p kylix-core -p kylix-ml-kem -p kylix-ml-dsa --all-features
+      - name: Test SLH-DSA fast variants
+        run: cargo test -p kylix-slh-dsa --features "std,slh-dsa-shake-128f,slh-dsa-shake-192f,slh-dsa-shake-256f"
+      - name: Test CLI and integration
+        run: cargo test -p kylix-pqc -p kylix-cli --all-features
+
+  # Full test matrix for main branch
   test:
-    name: Test
+    name: Test (${{ matrix.os }}, ${{ matrix.rust }})
+    if: github.event_name == 'push'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         rust: [stable, "1.75"]
+        exclude:
+          # MSRV only on ubuntu to save time
+          - os: macos-latest
+            rust: "1.75"
+          - os: windows-latest
+            rust: "1.75"
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@master
@@ -56,6 +81,7 @@ jobs:
 
   test-arm64:
     name: Test (ARM64 Linux)
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v6
@@ -76,6 +102,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --package kylix-core --no-default-features --target thumbv7em-none-eabi
       - run: cargo build --package kylix-ml-kem --no-default-features --target thumbv7em-none-eabi
+      - run: cargo build --package kylix-slh-dsa --no-default-features --features slh-dsa-shake-128f --target thumbv7em-none-eabi
 
   doc:
     name: Documentation
@@ -100,8 +127,10 @@ jobs:
       # Exclude kylix-bench - criterion requires newer Rust
       - run: cargo check --workspace --exclude kylix-bench --all-features
 
+  # Coverage only on main branch pushes
   coverage:
     name: Coverage
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
