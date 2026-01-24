@@ -17,24 +17,27 @@ fn bench_keygen(c: &mut Criterion) {
     group.throughput(Throughput::Elements(1));
 
     group.bench_function("ML-DSA-44", |b| {
-        b.iter(|| {
-            let mut rng = rng();
-            black_box(MlDsa44::keygen(&mut rng).unwrap())
-        })
+        b.iter_batched(
+            rng,
+            |mut rng| black_box(MlDsa44::keygen(&mut rng).unwrap()),
+            criterion::BatchSize::SmallInput,
+        )
     });
 
     group.bench_function("ML-DSA-65", |b| {
-        b.iter(|| {
-            let mut rng = rng();
-            black_box(MlDsa65::keygen(&mut rng).unwrap())
-        })
+        b.iter_batched(
+            rng,
+            |mut rng| black_box(MlDsa65::keygen(&mut rng).unwrap()),
+            criterion::BatchSize::SmallInput,
+        )
     });
 
     group.bench_function("ML-DSA-87", |b| {
-        b.iter(|| {
-            let mut rng = rng();
-            black_box(MlDsa87::keygen(&mut rng).unwrap())
-        })
+        b.iter_batched(
+            rng,
+            |mut rng| black_box(MlDsa87::keygen(&mut rng).unwrap()),
+            criterion::BatchSize::SmallInput,
+        )
     });
 
     group.finish();
@@ -47,9 +50,10 @@ fn bench_sign(c: &mut Criterion) {
     group.throughput(Throughput::Elements(1));
 
     // Pre-generate keys for signing benchmarks
-    let (sk_44, _) = MlDsa44::keygen(&mut rng()).unwrap();
-    let (sk_65, _) = MlDsa65::keygen(&mut rng()).unwrap();
-    let (sk_87, _) = MlDsa87::keygen(&mut rng()).unwrap();
+    let mut rng = rng();
+    let (sk_44, _) = MlDsa44::keygen(&mut rng).unwrap();
+    let (sk_65, _) = MlDsa65::keygen(&mut rng).unwrap();
+    let (sk_87, _) = MlDsa87::keygen(&mut rng).unwrap();
 
     group.bench_function("ML-DSA-44", |b| {
         b.iter(|| black_box(MlDsa44::sign(&sk_44, TEST_MESSAGE).unwrap()))
@@ -127,60 +131,40 @@ fn bench_roundtrip(c: &mut Criterion) {
     group.throughput(Throughput::Elements(1));
 
     group.bench_function("ML-DSA-44", |b| {
-        b.iter(|| {
-            let mut rng = rng();
-            let (sk, vk) = MlDsa44::keygen(&mut rng).unwrap();
-            let sig = MlDsa44::sign(&sk, TEST_MESSAGE).unwrap();
-            MlDsa44::verify(&vk, TEST_MESSAGE, &sig).unwrap()
-        })
+        b.iter_batched(
+            rng,
+            |mut rng| {
+                let (sk, vk) = MlDsa44::keygen(&mut rng).unwrap();
+                let sig = MlDsa44::sign(&sk, TEST_MESSAGE).unwrap();
+                MlDsa44::verify(&vk, TEST_MESSAGE, &sig).unwrap()
+            },
+            criterion::BatchSize::SmallInput,
+        )
     });
 
     group.bench_function("ML-DSA-65", |b| {
-        b.iter(|| {
-            let mut rng = rng();
-            let (sk, vk) = MlDsa65::keygen(&mut rng).unwrap();
-            let sig = MlDsa65::sign(&sk, TEST_MESSAGE).unwrap();
-            MlDsa65::verify(&vk, TEST_MESSAGE, &sig).unwrap()
-        })
+        b.iter_batched(
+            rng,
+            |mut rng| {
+                let (sk, vk) = MlDsa65::keygen(&mut rng).unwrap();
+                let sig = MlDsa65::sign(&sk, TEST_MESSAGE).unwrap();
+                MlDsa65::verify(&vk, TEST_MESSAGE, &sig).unwrap()
+            },
+            criterion::BatchSize::SmallInput,
+        )
     });
 
     group.bench_function("ML-DSA-87", |b| {
-        b.iter(|| {
-            let mut rng = rng();
-            let (sk, vk) = MlDsa87::keygen(&mut rng).unwrap();
-            let sig = MlDsa87::sign(&sk, TEST_MESSAGE).unwrap();
-            MlDsa87::verify(&vk, TEST_MESSAGE, &sig).unwrap()
-        })
+        b.iter_batched(
+            rng,
+            |mut rng| {
+                let (sk, vk) = MlDsa87::keygen(&mut rng).unwrap();
+                let sig = MlDsa87::sign(&sk, TEST_MESSAGE).unwrap();
+                MlDsa87::verify(&vk, TEST_MESSAGE, &sig).unwrap()
+            },
+            criterion::BatchSize::SmallInput,
+        )
     });
-
-    group.finish();
-}
-
-/// Benchmark key sizes (informational).
-fn bench_sizes(c: &mut Criterion) {
-    let group = c.benchmark_group("ML-DSA Sizes");
-
-    // This is just to print sizes, not a real benchmark
-    println!("\n=== ML-DSA Key/Signature Sizes ===");
-    println!(
-        "ML-DSA-44:  sk={} vk={} sig={}",
-        MlDsa44::SIGNING_KEY_SIZE,
-        MlDsa44::VERIFICATION_KEY_SIZE,
-        MlDsa44::SIGNATURE_SIZE
-    );
-    println!(
-        "ML-DSA-65:  sk={} vk={} sig={}",
-        MlDsa65::SIGNING_KEY_SIZE,
-        MlDsa65::VERIFICATION_KEY_SIZE,
-        MlDsa65::SIGNATURE_SIZE
-    );
-    println!(
-        "ML-DSA-87:  sk={} vk={} sig={}",
-        MlDsa87::SIGNING_KEY_SIZE,
-        MlDsa87::VERIFICATION_KEY_SIZE,
-        MlDsa87::SIGNATURE_SIZE
-    );
-    println!();
 
     group.finish();
 }
@@ -191,7 +175,6 @@ criterion_group!(
     bench_sign,
     bench_verify,
     bench_roundtrip,
-    bench_sizes,
 );
 
 criterion_main!(benches);
