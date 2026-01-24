@@ -4,13 +4,14 @@ use anyhow::{anyhow, bail, Context, Result};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete::{generate, Shell};
+use kylix_pqc::ml_dsa::{self, MlDsa44, MlDsa65, MlDsa87, Signer};
 use kylix_pqc::ml_kem::{self, Kem, MlKem1024, MlKem512, MlKem768};
 use rand::rng;
 use std::fs;
 use std::io::{self, Read};
 use std::path::PathBuf;
 
-// Key size constants derived from kylix-pqc
+// ML-KEM key size constants
 const ML_KEM_512_EK_SIZE: usize = MlKem512::ENCAPSULATION_KEY_SIZE;
 const ML_KEM_512_DK_SIZE: usize = MlKem512::DECAPSULATION_KEY_SIZE;
 const ML_KEM_512_CT_SIZE: usize = MlKem512::CIPHERTEXT_SIZE;
@@ -20,6 +21,17 @@ const ML_KEM_768_CT_SIZE: usize = MlKem768::CIPHERTEXT_SIZE;
 const ML_KEM_1024_EK_SIZE: usize = MlKem1024::ENCAPSULATION_KEY_SIZE;
 const ML_KEM_1024_DK_SIZE: usize = MlKem1024::DECAPSULATION_KEY_SIZE;
 const ML_KEM_1024_CT_SIZE: usize = MlKem1024::CIPHERTEXT_SIZE;
+
+// ML-DSA key size constants
+const ML_DSA_44_VK_SIZE: usize = MlDsa44::VERIFICATION_KEY_SIZE;
+const ML_DSA_44_SK_SIZE: usize = MlDsa44::SIGNING_KEY_SIZE;
+const ML_DSA_44_SIG_SIZE: usize = MlDsa44::SIGNATURE_SIZE;
+const ML_DSA_65_VK_SIZE: usize = MlDsa65::VERIFICATION_KEY_SIZE;
+const ML_DSA_65_SK_SIZE: usize = MlDsa65::SIGNING_KEY_SIZE;
+const ML_DSA_65_SIG_SIZE: usize = MlDsa65::SIGNATURE_SIZE;
+const ML_DSA_87_VK_SIZE: usize = MlDsa87::VERIFICATION_KEY_SIZE;
+const ML_DSA_87_SK_SIZE: usize = MlDsa87::SIGNING_KEY_SIZE;
+const ML_DSA_87_SIG_SIZE: usize = MlDsa87::SIGNATURE_SIZE;
 
 /// Post-quantum cryptography CLI tool
 #[derive(Parser)]
@@ -81,9 +93,9 @@ enum Commands {
         format: OutputFormat,
     },
 
-    /// Sign a file (requires ML-DSA - not yet implemented)
+    /// Sign a file using ML-DSA
     Sign {
-        /// Path to the secret key file
+        /// Path to the signing key file
         #[arg(long = "key")]
         key: PathBuf,
 
@@ -100,9 +112,9 @@ enum Commands {
         format: OutputFormat,
     },
 
-    /// Verify a signature (requires ML-DSA - not yet implemented)
+    /// Verify a signature using ML-DSA
     Verify {
-        /// Path to the public key file
+        /// Path to the verification (public) key file
         #[arg(long = "pub")]
         pubkey: PathBuf,
 
@@ -137,7 +149,34 @@ enum Algorithm {
     /// ML-KEM-1024 (NIST Security Level 5, 256-bit)
     #[value(name = "ml-kem-1024")]
     MlKem1024,
-    // Future: ML-DSA variants
+    /// ML-DSA-44 (NIST Security Level 2, 128-bit)
+    #[value(name = "ml-dsa-44")]
+    MlDsa44,
+    /// ML-DSA-65 (NIST Security Level 3, 192-bit)
+    #[value(name = "ml-dsa-65")]
+    MlDsa65,
+    /// ML-DSA-87 (NIST Security Level 5, 256-bit)
+    #[value(name = "ml-dsa-87")]
+    MlDsa87,
+}
+
+impl Algorithm {
+    /// Returns true if this is a KEM algorithm
+    fn is_kem(&self) -> bool {
+        matches!(
+            self,
+            Algorithm::MlKem512 | Algorithm::MlKem768 | Algorithm::MlKem1024
+        )
+    }
+
+    /// Returns true if this is a signature algorithm
+    #[allow(dead_code)]
+    fn is_dsa(&self) -> bool {
+        matches!(
+            self,
+            Algorithm::MlDsa44 | Algorithm::MlDsa65 | Algorithm::MlDsa87
+        )
+    }
 }
 
 impl std::fmt::Display for Algorithm {
@@ -146,6 +185,9 @@ impl std::fmt::Display for Algorithm {
             Algorithm::MlKem512 => write!(f, "ML-KEM-512"),
             Algorithm::MlKem768 => write!(f, "ML-KEM-768"),
             Algorithm::MlKem1024 => write!(f, "ML-KEM-1024"),
+            Algorithm::MlDsa44 => write!(f, "ML-DSA-44"),
+            Algorithm::MlDsa65 => write!(f, "ML-DSA-65"),
+            Algorithm::MlDsa87 => write!(f, "ML-DSA-87"),
         }
     }
 }
@@ -221,10 +263,10 @@ fn cmd_keygen(algo: Algorithm, output: &str, format: OutputFormat, verbose: bool
         eprintln!("Generating {} key pair...", algo);
     }
 
-    let (pk_label, sk_label) = match algo {
-        Algorithm::MlKem512 | Algorithm::MlKem768 | Algorithm::MlKem1024 => {
-            ("ML-KEM PUBLIC KEY", "ML-KEM SECRET KEY")
-        }
+    let (pk_label, sk_label) = if algo.is_kem() {
+        ("ML-KEM PUBLIC KEY", "ML-KEM SECRET KEY")
+    } else {
+        ("ML-DSA PUBLIC KEY", "ML-DSA SECRET KEY")
     };
 
     let (pk_bytes, sk_bytes): (Vec<u8>, Vec<u8>) = match algo {
@@ -242,6 +284,21 @@ fn cmd_keygen(algo: Algorithm, output: &str, format: OutputFormat, verbose: bool
             let (dk, ek) = ml_kem::MlKem1024::keygen(&mut rng())
                 .map_err(|e| anyhow!("Key generation failed: {:?}", e))?;
             (ek.as_bytes().to_vec(), dk.as_bytes().to_vec())
+        }
+        Algorithm::MlDsa44 => {
+            let (sk, pk) = ml_dsa::MlDsa44::keygen(&mut rng())
+                .map_err(|e| anyhow!("Key generation failed: {:?}", e))?;
+            (pk.as_bytes().to_vec(), sk.as_bytes().to_vec())
+        }
+        Algorithm::MlDsa65 => {
+            let (sk, pk) = ml_dsa::MlDsa65::keygen(&mut rng())
+                .map_err(|e| anyhow!("Key generation failed: {:?}", e))?;
+            (pk.as_bytes().to_vec(), sk.as_bytes().to_vec())
+        }
+        Algorithm::MlDsa87 => {
+            let (sk, pk) = ml_dsa::MlDsa87::keygen(&mut rng())
+                .map_err(|e| anyhow!("Key generation failed: {:?}", e))?;
+            (pk.as_bytes().to_vec(), sk.as_bytes().to_vec())
         }
     };
 
@@ -335,6 +392,8 @@ fn cmd_encaps(
                 .map_err(|e| anyhow!("Encapsulation failed: {:?}", e))?;
             (ct.as_bytes().to_vec(), ss.as_ref().to_vec())
         }
+        // detect_kem_algorithm only returns ML-KEM variants, so this is unreachable
+        Algorithm::MlDsa44 | Algorithm::MlDsa65 | Algorithm::MlDsa87 => unreachable!(),
     };
 
     let ct_encoded = encode_output(&ct_bytes, format, "ML-KEM CIPHERTEXT");
@@ -424,6 +483,8 @@ fn cmd_decaps(
                 .map_err(|e| anyhow!("Decapsulation failed: {:?}", e))?;
             ss.as_ref().to_vec()
         }
+        // detect_kem_algorithm only returns ML-KEM variants, so this is unreachable
+        Algorithm::MlDsa44 | Algorithm::MlDsa65 | Algorithm::MlDsa87 => unreachable!(),
     };
 
     let ss_encoded = encode_output(&ss_bytes, format, "SHARED SECRET");
@@ -436,25 +497,154 @@ fn cmd_decaps(
     Ok(())
 }
 
-/// Sign a file (not yet implemented)
-fn cmd_sign(
-    _key: &PathBuf,
-    _input: &PathBuf,
-    _output: &PathBuf,
-    _format: OutputFormat,
-    _verbose: bool,
-) -> Result<()> {
-    bail!("Signing is not yet implemented. ML-DSA support coming soon.")
+/// Detect ML-DSA algorithm from signing key size
+fn detect_dsa_algorithm_from_sk(key_size: usize) -> Result<Algorithm> {
+    match key_size {
+        ML_DSA_44_SK_SIZE => Ok(Algorithm::MlDsa44),
+        ML_DSA_65_SK_SIZE => Ok(Algorithm::MlDsa65),
+        ML_DSA_87_SK_SIZE => Ok(Algorithm::MlDsa87),
+        _ => bail!(
+            "Unknown signing key size: {} bytes. Expected {}, {}, or {}.",
+            key_size,
+            ML_DSA_44_SK_SIZE,
+            ML_DSA_65_SK_SIZE,
+            ML_DSA_87_SK_SIZE
+        ),
+    }
 }
 
-/// Verify a signature (not yet implemented)
-fn cmd_verify(
-    _pubkey: &PathBuf,
-    _input: &PathBuf,
-    _signature: &PathBuf,
-    _verbose: bool,
+/// Detect ML-DSA algorithm from verification key size
+fn detect_dsa_algorithm_from_vk(key_size: usize) -> Result<Algorithm> {
+    match key_size {
+        ML_DSA_44_VK_SIZE => Ok(Algorithm::MlDsa44),
+        ML_DSA_65_VK_SIZE => Ok(Algorithm::MlDsa65),
+        ML_DSA_87_VK_SIZE => Ok(Algorithm::MlDsa87),
+        _ => bail!(
+            "Unknown verification key size: {} bytes. Expected {}, {}, or {}.",
+            key_size,
+            ML_DSA_44_VK_SIZE,
+            ML_DSA_65_VK_SIZE,
+            ML_DSA_87_VK_SIZE
+        ),
+    }
+}
+
+/// Sign a file with ML-DSA
+fn cmd_sign(
+    key: &PathBuf,
+    input: &PathBuf,
+    output: &PathBuf,
+    format: OutputFormat,
+    verbose: bool,
 ) -> Result<()> {
-    bail!("Verification is not yet implemented. ML-DSA support coming soon.")
+    let sk_data = fs::read_to_string(key).context("Failed to read signing key file")?;
+    let sk_bytes = decode_input(&sk_data, format)?;
+
+    let algo = detect_dsa_algorithm_from_sk(sk_bytes.len())?;
+
+    if verbose {
+        eprintln!("Detected algorithm: {}", algo);
+        eprintln!("Signing key size: {} bytes", sk_bytes.len());
+    }
+
+    let message = fs::read(input).context("Failed to read input file")?;
+
+    if verbose {
+        eprintln!("Message size: {} bytes", message.len());
+    }
+
+    let sig_bytes: Vec<u8> = match algo {
+        Algorithm::MlDsa44 => {
+            let sk = ml_dsa::dsa44::SigningKey::from_bytes(&sk_bytes)
+                .map_err(|e| anyhow!("Invalid signing key: {:?}", e))?;
+            let sig = ml_dsa::MlDsa44::sign(&sk, &message)
+                .map_err(|e| anyhow!("Signing failed: {:?}", e))?;
+            sig.as_bytes().to_vec()
+        }
+        Algorithm::MlDsa65 => {
+            let sk = ml_dsa::dsa65::SigningKey::from_bytes(&sk_bytes)
+                .map_err(|e| anyhow!("Invalid signing key: {:?}", e))?;
+            let sig = ml_dsa::MlDsa65::sign(&sk, &message)
+                .map_err(|e| anyhow!("Signing failed: {:?}", e))?;
+            sig.as_bytes().to_vec()
+        }
+        Algorithm::MlDsa87 => {
+            let sk = ml_dsa::dsa87::SigningKey::from_bytes(&sk_bytes)
+                .map_err(|e| anyhow!("Invalid signing key: {:?}", e))?;
+            let sig = ml_dsa::MlDsa87::sign(&sk, &message)
+                .map_err(|e| anyhow!("Signing failed: {:?}", e))?;
+            sig.as_bytes().to_vec()
+        }
+        _ => bail!("Algorithm {} does not support signing", algo),
+    };
+
+    let sig_encoded = encode_output(&sig_bytes, format, "ML-DSA SIGNATURE");
+    fs::write(output, &sig_encoded).context("Failed to write signature")?;
+
+    if verbose {
+        eprintln!("Signature size: {} bytes", sig_bytes.len());
+    }
+
+    println!("Signature written to: {}", output.display());
+
+    Ok(())
+}
+
+/// Verify a signature with ML-DSA
+fn cmd_verify(pubkey: &PathBuf, input: &PathBuf, signature: &PathBuf, verbose: bool) -> Result<()> {
+    let pk_data = fs::read_to_string(pubkey).context("Failed to read public key file")?;
+    let pk_bytes = decode_input(&pk_data, OutputFormat::Hex)?;
+
+    let algo = detect_dsa_algorithm_from_vk(pk_bytes.len())?;
+
+    if verbose {
+        eprintln!("Detected algorithm: {}", algo);
+        eprintln!("Verification key size: {} bytes", pk_bytes.len());
+    }
+
+    let message = fs::read(input).context("Failed to read input file")?;
+    let sig_data = fs::read_to_string(signature).context("Failed to read signature file")?;
+    let sig_bytes = decode_input(&sig_data, OutputFormat::Hex)?;
+
+    if verbose {
+        eprintln!("Message size: {} bytes", message.len());
+        eprintln!("Signature size: {} bytes", sig_bytes.len());
+    }
+
+    let result = match algo {
+        Algorithm::MlDsa44 => {
+            let pk = ml_dsa::dsa44::VerificationKey::from_bytes(&pk_bytes)
+                .map_err(|e| anyhow!("Invalid verification key: {:?}", e))?;
+            let sig = ml_dsa::dsa44::Signature::from_bytes(&sig_bytes)
+                .map_err(|e| anyhow!("Invalid signature: {:?}", e))?;
+            ml_dsa::MlDsa44::verify(&pk, &message, &sig)
+        }
+        Algorithm::MlDsa65 => {
+            let pk = ml_dsa::dsa65::VerificationKey::from_bytes(&pk_bytes)
+                .map_err(|e| anyhow!("Invalid verification key: {:?}", e))?;
+            let sig = ml_dsa::dsa65::Signature::from_bytes(&sig_bytes)
+                .map_err(|e| anyhow!("Invalid signature: {:?}", e))?;
+            ml_dsa::MlDsa65::verify(&pk, &message, &sig)
+        }
+        Algorithm::MlDsa87 => {
+            let pk = ml_dsa::dsa87::VerificationKey::from_bytes(&pk_bytes)
+                .map_err(|e| anyhow!("Invalid verification key: {:?}", e))?;
+            let sig = ml_dsa::dsa87::Signature::from_bytes(&sig_bytes)
+                .map_err(|e| anyhow!("Invalid signature: {:?}", e))?;
+            ml_dsa::MlDsa87::verify(&pk, &message, &sig)
+        }
+        _ => bail!("Algorithm {} does not support verification", algo),
+    };
+
+    match result {
+        Ok(()) => {
+            println!("Signature is valid.");
+            Ok(())
+        }
+        Err(_) => {
+            bail!("Signature verification failed.")
+        }
+    }
 }
 
 /// Display information about supported algorithms
@@ -477,8 +667,21 @@ fn cmd_info() {
         ML_KEM_1024_EK_SIZE, ML_KEM_1024_DK_SIZE, ML_KEM_1024_CT_SIZE
     );
     println!();
+    println!("  ML-DSA (FIPS 204) - Digital Signature Algorithm");
+    println!(
+        "    ml-dsa-44    Security Level 2 (128-bit)  PK: {}B  SK: {}B  SIG: {}B",
+        ML_DSA_44_VK_SIZE, ML_DSA_44_SK_SIZE, ML_DSA_44_SIG_SIZE
+    );
+    println!(
+        "    ml-dsa-65    Security Level 3 (192-bit)  PK: {}B  SK: {}B  SIG: {}B",
+        ML_DSA_65_VK_SIZE, ML_DSA_65_SK_SIZE, ML_DSA_65_SIG_SIZE
+    );
+    println!(
+        "    ml-dsa-87    Security Level 5 (256-bit)  PK: {}B  SK: {}B  SIG: {}B",
+        ML_DSA_87_VK_SIZE, ML_DSA_87_SK_SIZE, ML_DSA_87_SIG_SIZE
+    );
+    println!();
     println!("Planned support:");
-    println!("    ML-DSA (FIPS 204)  - Digital Signature Algorithm");
     println!("    SLH-DSA (FIPS 205) - Stateless Hash-Based Signatures");
     println!();
     println!("Output formats:");

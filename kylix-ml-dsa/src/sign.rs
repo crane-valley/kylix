@@ -47,7 +47,7 @@ pub fn expand_s<const K: usize, const L: usize, const ETA: usize>(
     (s1, s2)
 }
 
-/// ML-DSA Key Generation (Algorithm 1)
+/// ML-DSA Key Generation (Algorithm 1 - ML-DSA.KeyGen_internal)
 ///
 /// Returns (sk, pk) where:
 /// - sk = (rho, K, tr, s1, s2, t0)
@@ -55,9 +55,15 @@ pub fn expand_s<const K: usize, const L: usize, const ETA: usize>(
 pub fn ml_dsa_keygen<const K: usize, const L: usize, const ETA: usize>(
     xi: &[u8; 32],
 ) -> (Vec<u8>, Vec<u8>) {
-    // 1. Expand seed: (rho, rho', K) = H(xi, 1024 bits = 128 bytes)
+    // 1. Expand seed with domain separation: (rho, rho', K) = H(xi || k || l, 128)
+    // Per FIPS 204 Algorithm 1, step 1
+    let mut seed_input = [0u8; 34];
+    seed_input[..32].copy_from_slice(xi);
+    seed_input[32] = K as u8;
+    seed_input[33] = L as u8;
+
     let mut expanded = [0u8; 128];
-    h(xi, &mut expanded);
+    h(&seed_input, &mut expanded);
 
     let mut rho = [0u8; 32];
     let mut rho_prime = [0u8; 64];

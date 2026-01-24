@@ -103,8 +103,9 @@ mod reduce;
 mod rounding;
 #[allow(dead_code)]
 mod sample;
+/// Core signing algorithms (internal API for ACVP testing).
 #[allow(dead_code)]
-mod sign;
+pub mod sign;
 
 #[cfg(feature = "ml-dsa-44")]
 mod ml_dsa_44;
