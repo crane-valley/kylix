@@ -486,7 +486,7 @@ unsafe fn inv_butterfly_len4_avx2(a: &mut [i32; N], zetas: &[i32]) {
         let hi1 = _mm_loadu_si128(a.as_ptr().add(base + 12).cast());
         let a_hi = _mm256_set_m128i(hi1, hi0);
 
-        // Zetas (negated for inverse)
+        // Broadcast pre-negated zetas to appropriate lanes
         let zeta_v = _mm256_set_epi32(zeta1, zeta1, zeta1, zeta1, zeta0, zeta0, zeta0, zeta0);
 
         // a[j] = t + a[j+len]
@@ -549,7 +549,7 @@ pub unsafe fn ntt_avx2(a: &mut [i32; N]) {
         butterfly_len4_avx2(a, &zetas_len4);
     }
 
-    // len=2 and len=1: use scalar operations
+    // len=2 and len=1: use scalar operations (descending order for forward NTT)
     for len in [2usize, 1] {
         let mut start: usize = 0;
         while start < N {
