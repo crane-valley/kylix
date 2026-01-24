@@ -120,7 +120,7 @@ enum Commands {
         format: OutputFormat,
     },
 
-    /// Sign a file using ML-DSA
+    /// Sign a file using ML-DSA or SLH-DSA
     Sign {
         /// Path to the signing key file
         #[arg(long = "key")]
@@ -137,9 +137,13 @@ enum Commands {
         /// Output format
         #[arg(short, long, value_enum, default_value = "hex")]
         format: OutputFormat,
+
+        /// Algorithm (required for SLH-DSA to distinguish -s/-f variants)
+        #[arg(long, value_enum)]
+        algo: Option<Algorithm>,
     },
 
-    /// Verify a signature using ML-DSA
+    /// Verify a signature using ML-DSA or SLH-DSA
     Verify {
         /// Path to the verification (public) key file
         #[arg(long = "pub")]
@@ -156,6 +160,10 @@ enum Commands {
         /// Input format for key and signature files
         #[arg(short, long, value_enum, default_value = "hex")]
         format: OutputFormat,
+
+        /// Algorithm (required for SLH-DSA to distinguish -s/-f variants)
+        #[arg(long, value_enum)]
+        algo: Option<Algorithm>,
     },
 
     /// Display information about supported algorithms
@@ -670,12 +678,13 @@ fn detect_dsa_algorithm_from_vk(key_size: usize) -> Result<Algorithm> {
     }
 }
 
-/// Sign a file with ML-DSA
+/// Sign a file with ML-DSA or SLH-DSA
 fn cmd_sign(
     key: &PathBuf,
     input: &PathBuf,
     output: &PathBuf,
     format: OutputFormat,
+    explicit_algo: Option<Algorithm>,
     verbose: bool,
 ) -> Result<()> {
     let mut sk_data = fs::read_to_string(key).context("Failed to read signing key file")?;
@@ -684,7 +693,30 @@ fn cmd_sign(
     // Zeroize the raw string data immediately after decoding
     sk_data.zeroize();
 
-    let algo = detect_dsa_algorithm_from_sk(sk_bytes.len())?;
+    // Use explicit algorithm if provided, otherwise detect from key size
+    let algo = if let Some(a) = explicit_algo {
+        // Validate key size matches the explicit algorithm
+        let expected_size = match a {
+            Algorithm::MlDsa44 => ML_DSA_44_SK_SIZE,
+            Algorithm::MlDsa65 => ML_DSA_65_SK_SIZE,
+            Algorithm::MlDsa87 => ML_DSA_87_SK_SIZE,
+            Algorithm::SlhDsaShake128s | Algorithm::SlhDsaShake128f => SLH_DSA_128S_SK_SIZE,
+            Algorithm::SlhDsaShake192s | Algorithm::SlhDsaShake192f => SLH_DSA_192S_SK_SIZE,
+            Algorithm::SlhDsaShake256s | Algorithm::SlhDsaShake256f => SLH_DSA_256S_SK_SIZE,
+            _ => bail!("Algorithm {} is not a signature algorithm", a),
+        };
+        if sk_bytes.len() != expected_size {
+            bail!(
+                "Key size {} bytes does not match algorithm {} (expected {} bytes)",
+                sk_bytes.len(),
+                a,
+                expected_size
+            );
+        }
+        a
+    } else {
+        detect_dsa_algorithm_from_sk(sk_bytes.len())?
+    };
 
     if verbose {
         eprintln!("Detected algorithm: {}", algo);
@@ -719,21 +751,42 @@ fn cmd_sign(
                 .map_err(|e| anyhow!("Signing failed: {:?}", e))?;
             sig.as_bytes().to_vec()
         }
-        Algorithm::SlhDsaShake128s | Algorithm::SlhDsaShake128f => {
+        Algorithm::SlhDsaShake128s => {
+            let sk = slh_dsa::slh_dsa_shake_128s::SigningKey::from_bytes(&sk_bytes)
+                .ok_or_else(|| anyhow!("Invalid signing key"))?;
+            let sig = slh_dsa::SlhDsaShake128s::sign(&sk, &message)
+                .map_err(|e| anyhow!("Signing failed: {:?}", e))?;
+            sig.as_ref().to_vec()
+        }
+        Algorithm::SlhDsaShake128f => {
             let sk = slh_dsa::slh_dsa_shake_128f::SigningKey::from_bytes(&sk_bytes)
                 .ok_or_else(|| anyhow!("Invalid signing key"))?;
             let sig = slh_dsa::SlhDsaShake128f::sign(&sk, &message)
                 .map_err(|e| anyhow!("Signing failed: {:?}", e))?;
             sig.as_ref().to_vec()
         }
-        Algorithm::SlhDsaShake192s | Algorithm::SlhDsaShake192f => {
+        Algorithm::SlhDsaShake192s => {
+            let sk = slh_dsa::slh_dsa_shake_192s::SigningKey::from_bytes(&sk_bytes)
+                .ok_or_else(|| anyhow!("Invalid signing key"))?;
+            let sig = slh_dsa::SlhDsaShake192s::sign(&sk, &message)
+                .map_err(|e| anyhow!("Signing failed: {:?}", e))?;
+            sig.as_ref().to_vec()
+        }
+        Algorithm::SlhDsaShake192f => {
             let sk = slh_dsa::slh_dsa_shake_192f::SigningKey::from_bytes(&sk_bytes)
                 .ok_or_else(|| anyhow!("Invalid signing key"))?;
             let sig = slh_dsa::SlhDsaShake192f::sign(&sk, &message)
                 .map_err(|e| anyhow!("Signing failed: {:?}", e))?;
             sig.as_ref().to_vec()
         }
-        Algorithm::SlhDsaShake256s | Algorithm::SlhDsaShake256f => {
+        Algorithm::SlhDsaShake256s => {
+            let sk = slh_dsa::slh_dsa_shake_256s::SigningKey::from_bytes(&sk_bytes)
+                .ok_or_else(|| anyhow!("Invalid signing key"))?;
+            let sig = slh_dsa::SlhDsaShake256s::sign(&sk, &message)
+                .map_err(|e| anyhow!("Signing failed: {:?}", e))?;
+            sig.as_ref().to_vec()
+        }
+        Algorithm::SlhDsaShake256f => {
             let sk = slh_dsa::slh_dsa_shake_256f::SigningKey::from_bytes(&sk_bytes)
                 .ok_or_else(|| anyhow!("Invalid signing key"))?;
             let sig = slh_dsa::SlhDsaShake256f::sign(&sk, &message)
@@ -763,18 +816,42 @@ fn cmd_sign(
     Ok(())
 }
 
-/// Verify a signature with ML-DSA
+/// Verify a signature with ML-DSA or SLH-DSA
 fn cmd_verify(
     pubkey: &PathBuf,
     input: &PathBuf,
     signature: &PathBuf,
     format: OutputFormat,
+    explicit_algo: Option<Algorithm>,
     verbose: bool,
 ) -> Result<()> {
     let pk_data = fs::read_to_string(pubkey).context("Failed to read public key file")?;
     let pk_bytes = decode_input(&pk_data, format)?;
 
-    let algo = detect_dsa_algorithm_from_vk(pk_bytes.len())?;
+    // Use explicit algorithm if provided, otherwise detect from key size
+    let algo = if let Some(a) = explicit_algo {
+        // Validate key size matches the explicit algorithm
+        let expected_size = match a {
+            Algorithm::MlDsa44 => ML_DSA_44_VK_SIZE,
+            Algorithm::MlDsa65 => ML_DSA_65_VK_SIZE,
+            Algorithm::MlDsa87 => ML_DSA_87_VK_SIZE,
+            Algorithm::SlhDsaShake128s | Algorithm::SlhDsaShake128f => SLH_DSA_128S_VK_SIZE,
+            Algorithm::SlhDsaShake192s | Algorithm::SlhDsaShake192f => SLH_DSA_192S_VK_SIZE,
+            Algorithm::SlhDsaShake256s | Algorithm::SlhDsaShake256f => SLH_DSA_256S_VK_SIZE,
+            _ => bail!("Algorithm {} is not a signature algorithm", a),
+        };
+        if pk_bytes.len() != expected_size {
+            bail!(
+                "Key size {} bytes does not match algorithm {} (expected {} bytes)",
+                pk_bytes.len(),
+                a,
+                expected_size
+            );
+        }
+        a
+    } else {
+        detect_dsa_algorithm_from_vk(pk_bytes.len())?
+    };
 
     if verbose {
         eprintln!("Detected algorithm: {}", algo);
@@ -812,21 +889,42 @@ fn cmd_verify(
                 .map_err(|e| anyhow!("Invalid signature: {:?}", e))?;
             ml_dsa::MlDsa87::verify(&pk, &message, &sig)
         }
-        Algorithm::SlhDsaShake128s | Algorithm::SlhDsaShake128f => {
+        Algorithm::SlhDsaShake128s => {
+            let pk = slh_dsa::slh_dsa_shake_128s::VerificationKey::from_bytes(&pk_bytes)
+                .ok_or_else(|| anyhow!("Invalid verification key"))?;
+            let sig = slh_dsa::slh_dsa_shake_128s::Signature::from_bytes(&sig_bytes)
+                .ok_or_else(|| anyhow!("Invalid signature"))?;
+            slh_dsa::SlhDsaShake128s::verify(&pk, &message, &sig)
+        }
+        Algorithm::SlhDsaShake128f => {
             let pk = slh_dsa::slh_dsa_shake_128f::VerificationKey::from_bytes(&pk_bytes)
                 .ok_or_else(|| anyhow!("Invalid verification key"))?;
             let sig = slh_dsa::slh_dsa_shake_128f::Signature::from_bytes(&sig_bytes)
                 .ok_or_else(|| anyhow!("Invalid signature"))?;
             slh_dsa::SlhDsaShake128f::verify(&pk, &message, &sig)
         }
-        Algorithm::SlhDsaShake192s | Algorithm::SlhDsaShake192f => {
+        Algorithm::SlhDsaShake192s => {
+            let pk = slh_dsa::slh_dsa_shake_192s::VerificationKey::from_bytes(&pk_bytes)
+                .ok_or_else(|| anyhow!("Invalid verification key"))?;
+            let sig = slh_dsa::slh_dsa_shake_192s::Signature::from_bytes(&sig_bytes)
+                .ok_or_else(|| anyhow!("Invalid signature"))?;
+            slh_dsa::SlhDsaShake192s::verify(&pk, &message, &sig)
+        }
+        Algorithm::SlhDsaShake192f => {
             let pk = slh_dsa::slh_dsa_shake_192f::VerificationKey::from_bytes(&pk_bytes)
                 .ok_or_else(|| anyhow!("Invalid verification key"))?;
             let sig = slh_dsa::slh_dsa_shake_192f::Signature::from_bytes(&sig_bytes)
                 .ok_or_else(|| anyhow!("Invalid signature"))?;
             slh_dsa::SlhDsaShake192f::verify(&pk, &message, &sig)
         }
-        Algorithm::SlhDsaShake256s | Algorithm::SlhDsaShake256f => {
+        Algorithm::SlhDsaShake256s => {
+            let pk = slh_dsa::slh_dsa_shake_256s::VerificationKey::from_bytes(&pk_bytes)
+                .ok_or_else(|| anyhow!("Invalid verification key"))?;
+            let sig = slh_dsa::slh_dsa_shake_256s::Signature::from_bytes(&sig_bytes)
+                .ok_or_else(|| anyhow!("Invalid signature"))?;
+            slh_dsa::SlhDsaShake256s::verify(&pk, &message, &sig)
+        }
+        Algorithm::SlhDsaShake256f => {
             let pk = slh_dsa::slh_dsa_shake_256f::VerificationKey::from_bytes(&pk_bytes)
                 .ok_or_else(|| anyhow!("Invalid verification key"))?;
             let sig = slh_dsa::slh_dsa_shake_256f::Signature::from_bytes(&sig_bytes)
@@ -899,11 +997,11 @@ fn cmd_info() {
         SLH_DSA_192F_VK_SIZE, SLH_DSA_192F_SK_SIZE, SLH_DSA_192F_SIG_SIZE
     );
     println!(
-        "    slh-dsa-shake-256s  Security Level 5 (small)  PK: {}B   SK: {}B  SIG: {}B",
+        "    slh-dsa-shake-256s  Security Level 5 (small)  PK: {}B   SK: {}B   SIG: {}B",
         SLH_DSA_256S_VK_SIZE, SLH_DSA_256S_SK_SIZE, SLH_DSA_256S_SIG_SIZE
     );
     println!(
-        "    slh-dsa-shake-256f  Security Level 5 (fast)   PK: {}B   SK: {}B  SIG: {}B",
+        "    slh-dsa-shake-256f  Security Level 5 (fast)   PK: {}B   SK: {}B   SIG: {}B",
         SLH_DSA_256F_VK_SIZE, SLH_DSA_256F_SK_SIZE, SLH_DSA_256F_SIG_SIZE
     );
     println!();
@@ -1182,14 +1280,16 @@ fn main() -> Result<()> {
             input,
             output,
             format,
-        } => cmd_sign(&key, &input, &output, format, cli.verbose),
+            algo,
+        } => cmd_sign(&key, &input, &output, format, algo, cli.verbose),
 
         Commands::Verify {
             pubkey,
             input,
             signature,
             format,
-        } => cmd_verify(&pubkey, &input, &signature, format, cli.verbose),
+            algo,
+        } => cmd_verify(&pubkey, &input, &signature, format, algo, cli.verbose),
 
         Commands::Info => {
             cmd_info();
