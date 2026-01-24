@@ -37,7 +37,7 @@ Kylix aims to provide a **pure Rust, high-performance, auditable** implementatio
 | Component | FIPS Standard | Priority |
 |-----------|---------------|----------|
 | SLH-DSA | FIPS 205 | MEDIUM |
-| Performance Benchmarks | - | HIGH |
+| CLI Bench Command | ✅ Complete | - |
 | Security Audit | - | HIGH |
 
 ---
@@ -150,7 +150,7 @@ Implemented FIPS 204 (Module-Lattice-Based Digital Signature Algorithm):
 4. ✅ Verification algorithm (Algorithm 3)
 5. ✅ Key generation (Algorithm 1)
 6. ✅ NIST ACVP test vectors (KeyGen + SigVer)
-7. ⏳ Fuzz targets
+7. ✅ Fuzz targets
 8. ✅ CLI integration (sign/verify commands)
 
 ### 2.3 Shared Infrastructure

@@ -404,6 +404,7 @@ version = "0.3.0"
 dependencies = [
  "criterion",
  "kylix-core",
+ "kylix-ml-dsa",
  "kylix-ml-kem",
  "rand",
  "serde",
@@ -419,8 +420,10 @@ dependencies = [
  "clap",
  "clap_complete",
  "hex",
+ "kylix-bench",
  "kylix-pqc",
  "rand",
+ "serde_json",
  "zeroize",
 ]
 
