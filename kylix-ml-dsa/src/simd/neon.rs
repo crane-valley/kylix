@@ -322,29 +322,13 @@ pub unsafe fn ntt_neon(a: &mut [i32; N]) {
     let mut k: usize = 0;
     let mut len: usize = 128;
 
-    // For len >= 4, use SIMD
-    while len >= 4 {
-        let mut start: usize = 0;
-        while start < N {
-            k += 1;
-            let zeta = crate::ntt::ZETAS[k];
-            butterfly_neon(a, start, len, zeta);
-            start += 2 * len;
-        }
-        len >>= 1;
-    }
-
-    // For len < 4, use scalar operations
+    // butterfly_neon handles both SIMD (len >= 4) and scalar (len < 4) cases
     while len >= 1 {
         let mut start: usize = 0;
         while start < N {
             k += 1;
             let zeta = crate::ntt::ZETAS[k];
-            for j in start..(start + len) {
-                let t = crate::reduce::montgomery_mul(zeta, a[j + len]);
-                a[j + len] = a[j] - t;
-                a[j] = a[j] + t;
-            }
+            butterfly_neon(a, start, len, zeta);
             start += 2 * len;
         }
         len >>= 1;
@@ -362,23 +346,7 @@ pub unsafe fn inv_ntt_neon(a: &mut [i32; N]) {
     let mut k: usize = 256;
     let mut len: usize = 1;
 
-    // For len < 4, use scalar operations
-    while len < 4 {
-        let mut start: usize = 0;
-        while start < N {
-            k -= 1;
-            let zeta = -crate::ntt::ZETAS[k];
-            for j in start..(start + len) {
-                let t = a[j];
-                a[j] = t + a[j + len];
-                a[j + len] = crate::reduce::montgomery_mul(zeta, t - a[j + len]);
-            }
-            start += 2 * len;
-        }
-        len <<= 1;
-    }
-
-    // For len >= 4, use SIMD
+    // inv_butterfly_neon handles both SIMD (len >= 4) and scalar (len < 4) cases
     while len < N {
         let mut start: usize = 0;
         while start < N {
@@ -482,7 +450,7 @@ mod tests {
     #[test]
     #[cfg(target_arch = "aarch64")]
     fn test_inv_ntt_equivalence() {
-        // Test that NEON inv_NTT produces same results as scalar
+        // Test that NEON inv NTT produces same results as scalar
         let mut a_simd = [0i32; N];
         let mut a_scalar = [0i32; N];
 
@@ -506,13 +474,13 @@ mod tests {
     #[test]
     #[cfg(target_arch = "aarch64")]
     fn test_ntt_roundtrip() {
-        // Test NTT -> inv_NTT roundtrip
+        // Test NTT -> inv NTT roundtrip
         let mut a = [0i32; N];
 
         for i in 0..N {
             a[i] = (i as i32 * 12345) % Q;
         }
-        let original: [i32; N] = a;
+        let original = a;
 
         // Forward NTT
         unsafe {
