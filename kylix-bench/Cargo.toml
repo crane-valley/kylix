@@ -9,6 +9,10 @@ repository.workspace = true
 description = "Benchmarks for the Kylix post-quantum cryptography library"
 publish = false
 
+[features]
+default = []
+simd = ["kylix-ml-dsa/simd"]
+
 [dependencies]
 kylix-ml-kem = { path = "../kylix-ml-kem", features = ["ml-kem-512", "ml-kem-768", "ml-kem-1024"] }
 kylix-ml-dsa = { path = "../kylix-ml-dsa", features = ["ml-dsa-44", "ml-dsa-65", "ml-dsa-87"] }

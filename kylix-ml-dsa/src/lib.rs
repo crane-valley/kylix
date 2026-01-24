@@ -107,6 +107,10 @@ mod sample;
 #[allow(dead_code)]
 pub mod sign;
 
+// SIMD optimizations (optional, platform-specific)
+#[cfg(feature = "simd")]
+pub(crate) mod simd;
+
 #[cfg(feature = "ml-dsa-44")]
 mod ml_dsa_44;
 #[cfg(feature = "ml-dsa-65")]
