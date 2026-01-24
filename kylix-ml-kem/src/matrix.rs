@@ -3,6 +3,7 @@
 //! This module provides functions for sampling the public matrix A
 //! and computing matrix-vector products.
 
+// Matrix operations are used internally; public API is via variant modules.
 #![allow(dead_code)]
 #![allow(clippy::needless_range_loop)]
 

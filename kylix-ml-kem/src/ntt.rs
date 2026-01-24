@@ -5,6 +5,7 @@
 //!
 //! All operations are constant-time.
 
+// NTT internals used by polynomial multiplication; not directly exposed.
 #![allow(dead_code)]
 #![allow(clippy::assign_op_pattern)]
 #![allow(clippy::manual_range_contains)]

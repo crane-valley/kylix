@@ -7,6 +7,7 @@
 //! - XOF = SHAKE128: Sample matrix A
 //! - PRF = SHAKE256: Sample noise vectors
 
+// Hash wrappers are feature-gated; some functions are only used in specific parameter sets.
 #![allow(dead_code)]
 
 use sha3::{

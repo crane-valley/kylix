@@ -6,6 +6,7 @@
 //! The primary encoding used is d=12 (384 bytes for 256 coefficients),
 //! which is used for public key (t) and secret key (s) polynomials.
 
+// Internal helper functions for byte encoding; not all variants are used by every parameter set.
 #![allow(dead_code)]
 #![allow(clippy::needless_range_loop)]
 

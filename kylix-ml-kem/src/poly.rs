@@ -6,6 +6,7 @@
 //!
 //! All operations are designed to be constant-time where necessary for security.
 
+// Polynomial helpers include compression variants not used by all parameter sets.
 #![allow(dead_code)]
 #![allow(clippy::needless_range_loop)]
 #![allow(clippy::manual_range_contains)]
