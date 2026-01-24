@@ -1,0 +1,13 @@
+# Cargo configuration for kylix project
+
+# Uncomment below to enable native CPU optimizations (AVX2, etc.)
+# This significantly improves SIMD performance by avoiding runtime detection overhead.
+# Note: Binaries built with this setting may not run on older CPUs.
+#
+# [build]
+# rustflags = ["-C", "target-cpu=native"]
+
+# For benchmarks, use native CPU features for maximum performance
+[profile.bench]
+# LTO for better optimization
+lto = "thin"

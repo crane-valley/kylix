@@ -152,6 +152,15 @@ fn inv_ntt_scalar(a: &mut [i32; N]) {
 /// Correctly applies Montgomery reduction only to the product,
 /// then adds to the accumulator.
 pub fn pointwise_acc(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) {
+    // Try SIMD optimized path
+    #[cfg(feature = "simd")]
+    {
+        if crate::simd::pointwise_mul_acc(r, a, b) {
+            return;
+        }
+    }
+
+    // Scalar fallback
     for i in 0..N {
         // Montgomery reduce the product, then add to accumulator
         r[i] += montgomery_reduce((a[i] as i64) * (b[i] as i64));
