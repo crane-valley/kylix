@@ -97,6 +97,96 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo bench --no-run
 
+  bench-comparison:
+    name: Benchmark (${{ matrix.os }}, SIMD=${{ matrix.simd }})
+    runs-on: ${{ matrix.os }}
+    if: github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, ubuntu-24.04-arm]
+        simd: [true, false]
+    env:
+      RUSTFLAGS: ""  # Override -Dwarnings for benchmarks
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run ML-DSA benchmarks (SIMD=${{ matrix.simd }})
+        run: |
+          if [ "${{ matrix.simd }}" = "true" ]; then
+            cargo bench -p kylix-bench --bench ml_dsa --features kylix-ml-dsa/simd -- --noplot 2>&1 | tee bench-output.txt
+          else
+            cargo bench -p kylix-bench --bench ml_dsa -- --noplot 2>&1 | tee bench-output.txt
+          fi
+        shell: bash
+
+      - name: Extract benchmark results
+        run: |
+          echo "## Benchmark Results (${{ matrix.os }}, SIMD=${{ matrix.simd }})" > results.md
+          echo "" >> results.md
+          echo "| Operation | Time |" >> results.md
+          echo "|-----------|------|" >> results.md
+          grep -E "time:.*\[" bench-output.txt | while read line; do
+            name=$(echo "$line" | sed 's/time:.*//' | xargs)
+            time=$(echo "$line" | grep -oE '\[[^]]+\]' | head -1)
+            echo "| $name | $time |" >> results.md
+          done
+          cat results.md
+        shell: bash
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-${{ matrix.os }}-simd-${{ matrix.simd }}
+          path: |
+            results.md
+            bench-output.txt
+
+  bench-summary:
+    name: Benchmark Summary
+    runs-on: ubuntu-latest
+    needs: bench-comparison
+    if: github.event_name == 'pull_request'
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Download all benchmark results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bench-*
+          merge-multiple: false
+
+      - name: Create summary comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            let comment = '## 📊 Benchmark Results\n\n';
+
+            const dirs = fs.readdirSync('.').filter(f => f.startsWith('bench-'));
+            dirs.sort();
+
+            for (const dir of dirs) {
+              const resultsPath = path.join(dir, 'results.md');
+              if (fs.existsSync(resultsPath)) {
+                const content = fs.readFileSync(resultsPath, 'utf8');
+                comment += content + '\n---\n\n';
+              }
+            }
+
+            comment += '\n*Benchmarks run on GitHub Actions runners*';
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
   msrv:
     name: MSRV
     runs-on: ubuntu-latest
