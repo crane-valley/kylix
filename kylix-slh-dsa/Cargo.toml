@@ -38,7 +38,10 @@ zeroize.workspace = true
 rand_core.workspace = true
 subtle.workspace = true
 sha3 = { version = "0.10", default-features = false }
+# Pin rayon and rayon-core for MSRV 1.75 compatibility
+# rayon-core 1.13+ requires Rust 1.80
 rayon = { version = ">=1.10, <1.11", optional = true }
+rayon-core = { version = ">=1.12, <1.13", optional = true }
 
 [dev-dependencies]
 rand = "0.9"
