@@ -54,6 +54,17 @@ jobs:
       - run: cargo test --all-features
         if: matrix.rust != '1.75'
 
+  test-arm64:
+    name: Test (ARM64 Linux)
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --all-features
+      # Run SIMD-specific tests to verify NEON implementation
+      - run: cargo test -p kylix-ml-dsa --features simd -- simd
+
   test-no-std:
     name: Test (no_std)
     runs-on: ubuntu-latest
