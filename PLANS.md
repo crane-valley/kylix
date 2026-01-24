@@ -286,7 +286,7 @@ Based on the OpenSSL critique, aim for:
 - [x] NIST ACVP compliance for all algorithms
 - [x] Fuzz testing with corpus persistence
 - [ ] Property-based tests (proptest)
-- [ ] Integration tests for CLI
+- [x] Integration tests for CLI
 - [x] Cross-platform CI (Linux, macOS, Windows)
 
 ### Documentation Requirements
