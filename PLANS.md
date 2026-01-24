@@ -29,12 +29,7 @@ Kylix aims to provide a **pure Rust, high-performance, auditable** implementatio
 | no_std Support | ✅ Complete | Embedded-ready |
 | Constant-time Operations | ✅ Complete | Using `subtle` crate |
 | Zeroization | ✅ Complete | Using `zeroize` crate |
-
-### In Progress
-
-| Component | FIPS Standard | Status |
-|-----------|---------------|--------|
-| ML-DSA Fuzz Targets | FIPS 204 | Pending |
+| Fuzz Testing (ML-DSA) | ✅ Complete | Daily CI + 4 targets |
 
 ### Not Started
 
