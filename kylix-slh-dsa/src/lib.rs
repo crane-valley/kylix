@@ -87,19 +87,19 @@ mod xmss;
 /// Core SLH-DSA signing algorithms.
 pub mod sign;
 
-// Variant-specific modules
+// Variant-specific modules (public for access to SigningKey, VerificationKey, Signature types)
 #[cfg(feature = "slh-dsa-shake-128f")]
-mod slh_dsa_shake_128f;
+pub mod slh_dsa_shake_128f;
 #[cfg(feature = "slh-dsa-shake-128s")]
-mod slh_dsa_shake_128s;
+pub mod slh_dsa_shake_128s;
 #[cfg(feature = "slh-dsa-shake-192f")]
-mod slh_dsa_shake_192f;
+pub mod slh_dsa_shake_192f;
 #[cfg(feature = "slh-dsa-shake-192s")]
-mod slh_dsa_shake_192s;
+pub mod slh_dsa_shake_192s;
 #[cfg(feature = "slh-dsa-shake-256f")]
-mod slh_dsa_shake_256f;
+pub mod slh_dsa_shake_256f;
 #[cfg(feature = "slh-dsa-shake-256s")]
-mod slh_dsa_shake_256s;
+pub mod slh_dsa_shake_256s;
 
 // Public exports
 pub use address::{Address, AdrsType};
