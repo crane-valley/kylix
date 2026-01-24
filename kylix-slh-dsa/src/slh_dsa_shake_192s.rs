@@ -123,9 +123,15 @@ impl Signer for SlhDsaShake192s {
         Ok(Signature(sig))
     }
 
-    fn verify(pk: &Self::VerificationKey, message: &[u8], signature: &Self::Signature) -> Result<()> {
+    fn verify(
+        pk: &Self::VerificationKey,
+        message: &[u8],
+        signature: &Self::Signature,
+    ) -> Result<()> {
         if slh_verify::<Shake192Hash, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(
-            &pk.0, message, &signature.0,
+            &pk.0,
+            message,
+            &signature.0,
         ) {
             Ok(())
         } else {

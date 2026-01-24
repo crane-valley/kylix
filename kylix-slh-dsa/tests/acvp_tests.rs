@@ -176,8 +176,9 @@ mod keygen_shake_128s {
                 .try_into()
                 .expect("Invalid pk_seed length");
 
-            let (sk, pk) =
-                slh_keygen_internal::<Shake128Hash, N, WOTS_LEN, H_PRIME, D>(sk_seed, sk_prf, pk_seed);
+            let (sk, pk) = slh_keygen_internal::<Shake128Hash, N, WOTS_LEN, H_PRIME, D>(
+                sk_seed, sk_prf, pk_seed,
+            );
 
             let expected_pk = hex_decode(&expected.pk);
             let expected_sk = hex_decode(&expected.sk);
@@ -243,8 +244,9 @@ mod keygen_shake_128f {
                 .try_into()
                 .expect("Invalid pk_seed length");
 
-            let (sk, pk) =
-                slh_keygen_internal::<Shake128Hash, N, WOTS_LEN, H_PRIME, D>(sk_seed, sk_prf, pk_seed);
+            let (sk, pk) = slh_keygen_internal::<Shake128Hash, N, WOTS_LEN, H_PRIME, D>(
+                sk_seed, sk_prf, pk_seed,
+            );
 
             let expected_pk = hex_decode(&expected.pk);
             let expected_sk = hex_decode(&expected.sk);
@@ -310,8 +312,9 @@ mod keygen_shake_192s {
                 .try_into()
                 .expect("Invalid pk_seed length");
 
-            let (sk, pk) =
-                slh_keygen_internal::<Shake192Hash, N, WOTS_LEN, H_PRIME, D>(sk_seed, sk_prf, pk_seed);
+            let (sk, pk) = slh_keygen_internal::<Shake192Hash, N, WOTS_LEN, H_PRIME, D>(
+                sk_seed, sk_prf, pk_seed,
+            );
 
             let expected_pk = hex_decode(&expected.pk);
             let expected_sk = hex_decode(&expected.sk);
@@ -377,8 +380,9 @@ mod keygen_shake_192f {
                 .try_into()
                 .expect("Invalid pk_seed length");
 
-            let (sk, pk) =
-                slh_keygen_internal::<Shake192Hash, N, WOTS_LEN, H_PRIME, D>(sk_seed, sk_prf, pk_seed);
+            let (sk, pk) = slh_keygen_internal::<Shake192Hash, N, WOTS_LEN, H_PRIME, D>(
+                sk_seed, sk_prf, pk_seed,
+            );
 
             let expected_pk = hex_decode(&expected.pk);
             let expected_sk = hex_decode(&expected.sk);
@@ -444,8 +448,9 @@ mod keygen_shake_256s {
                 .try_into()
                 .expect("Invalid pk_seed length");
 
-            let (sk, pk) =
-                slh_keygen_internal::<Shake256Hash, N, WOTS_LEN, H_PRIME, D>(sk_seed, sk_prf, pk_seed);
+            let (sk, pk) = slh_keygen_internal::<Shake256Hash, N, WOTS_LEN, H_PRIME, D>(
+                sk_seed, sk_prf, pk_seed,
+            );
 
             let expected_pk = hex_decode(&expected.pk);
             let expected_sk = hex_decode(&expected.sk);
@@ -511,8 +516,9 @@ mod keygen_shake_256f {
                 .try_into()
                 .expect("Invalid pk_seed length");
 
-            let (sk, pk) =
-                slh_keygen_internal::<Shake256Hash, N, WOTS_LEN, H_PRIME, D>(sk_seed, sk_prf, pk_seed);
+            let (sk, pk) = slh_keygen_internal::<Shake256Hash, N, WOTS_LEN, H_PRIME, D>(
+                sk_seed, sk_prf, pk_seed,
+            );
 
             let expected_pk = hex_decode(&expected.pk);
             let expected_sk = hex_decode(&expected.sk);

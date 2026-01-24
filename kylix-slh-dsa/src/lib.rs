@@ -88,18 +88,18 @@ mod xmss;
 pub mod sign;
 
 // Variant-specific modules
-#[cfg(feature = "slh-dsa-shake-128s")]
-mod slh_dsa_shake_128s;
 #[cfg(feature = "slh-dsa-shake-128f")]
 mod slh_dsa_shake_128f;
-#[cfg(feature = "slh-dsa-shake-192s")]
-mod slh_dsa_shake_192s;
+#[cfg(feature = "slh-dsa-shake-128s")]
+mod slh_dsa_shake_128s;
 #[cfg(feature = "slh-dsa-shake-192f")]
 mod slh_dsa_shake_192f;
-#[cfg(feature = "slh-dsa-shake-256s")]
-mod slh_dsa_shake_256s;
+#[cfg(feature = "slh-dsa-shake-192s")]
+mod slh_dsa_shake_192s;
 #[cfg(feature = "slh-dsa-shake-256f")]
 mod slh_dsa_shake_256f;
+#[cfg(feature = "slh-dsa-shake-256s")]
+mod slh_dsa_shake_256s;
 
 // Public exports
 pub use address::{Address, AdrsType};
@@ -110,15 +110,15 @@ pub use hash_shake::{Shake128Hash, Shake192Hash, Shake256Hash};
 pub use kylix_core::{Error, Result, Signer};
 
 // Variant exports
-#[cfg(feature = "slh-dsa-shake-128s")]
-pub use slh_dsa_shake_128s::SlhDsaShake128s;
 #[cfg(feature = "slh-dsa-shake-128f")]
 pub use slh_dsa_shake_128f::SlhDsaShake128f;
-#[cfg(feature = "slh-dsa-shake-192s")]
-pub use slh_dsa_shake_192s::SlhDsaShake192s;
+#[cfg(feature = "slh-dsa-shake-128s")]
+pub use slh_dsa_shake_128s::SlhDsaShake128s;
 #[cfg(feature = "slh-dsa-shake-192f")]
 pub use slh_dsa_shake_192f::SlhDsaShake192f;
-#[cfg(feature = "slh-dsa-shake-256s")]
-pub use slh_dsa_shake_256s::SlhDsaShake256s;
+#[cfg(feature = "slh-dsa-shake-192s")]
+pub use slh_dsa_shake_192s::SlhDsaShake192s;
 #[cfg(feature = "slh-dsa-shake-256f")]
 pub use slh_dsa_shake_256f::SlhDsaShake256f;
+#[cfg(feature = "slh-dsa-shake-256s")]
+pub use slh_dsa_shake_256s::SlhDsaShake256s;

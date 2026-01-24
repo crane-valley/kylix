@@ -10,7 +10,7 @@ use crate::fors::{fors_pk_from_sig, fors_sign};
 use crate::hash::HashSuite;
 use crate::hypertree::{ht_root, ht_sign, ht_verify};
 
-use rand_core::{CryptoRng, RngCore};
+use rand_core::CryptoRng;
 
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
@@ -123,7 +123,7 @@ pub fn slh_keygen<
     const H_PRIME: usize,
     const D: usize,
 >(
-    rng: &mut (impl RngCore + CryptoRng),
+    rng: &mut impl CryptoRng,
 ) -> (SecretKey<N>, PublicKey<N>) {
     let mut sk_seed = [0u8; N];
     let mut sk_prf = [0u8; N];
@@ -228,10 +228,10 @@ pub fn slh_sign<
 
     // Calculate digest length: need enough bytes for md || idx_tree || idx_leaf
     // md: K*A bits, idx_tree: H_PRIME*(D-1) bits, idx_leaf: H_PRIME bits
-    let md_bytes = (K * A + 7) / 8;
+    let md_bytes = (K * A).div_ceil(8);
     let tree_bits = H_PRIME * (D - 1);
-    let tree_bytes = (tree_bits + 7) / 8;
-    let leaf_bytes = (H_PRIME + 7) / 8;
+    let tree_bytes = tree_bits.div_ceil(8);
+    let leaf_bytes = H_PRIME.div_ceil(8);
     let digest_len = md_bytes + tree_bytes + leaf_bytes;
 
     // Compute message digest
@@ -327,10 +327,10 @@ pub fn slh_verify<
     let sig_ht = &signature[N + fors_sig_len..];
 
     // Calculate digest length: need enough bytes for md || idx_tree || idx_leaf
-    let md_bytes = (K * A + 7) / 8;
+    let md_bytes = (K * A).div_ceil(8);
     let tree_bits = H_PRIME * (D - 1);
-    let tree_bytes = (tree_bits + 7) / 8;
-    let leaf_bytes = (H_PRIME + 7) / 8;
+    let tree_bytes = tree_bits.div_ceil(8);
+    let leaf_bytes = H_PRIME.div_ceil(8);
     let digest_len = md_bytes + tree_bytes + leaf_bytes;
 
     // Compute message digest
@@ -376,9 +376,9 @@ fn parse_digest<const K: usize, const A: usize, const H_PRIME: usize, const D: u
     let leaf_bits = H_PRIME;
 
     // Calculate byte boundaries
-    let md_bytes = (md_bits + 7) / 8;
-    let tree_bytes = (tree_bits + 7) / 8;
-    let leaf_bytes = (leaf_bits + 7) / 8;
+    let md_bytes = md_bits.div_ceil(8);
+    let tree_bytes = tree_bits.div_ceil(8);
+    let leaf_bytes = leaf_bits.div_ceil(8);
 
     // Extract message digest for FORS (first md_bytes)
     let md = digest[..md_bytes].to_vec();
@@ -469,13 +469,13 @@ mod tests {
 
         let message = b"Hello, SLH-DSA!";
 
-        let signature =
-            slh_sign::<Shake128Hash, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
-                &sk, message, None,
-            );
+        let signature = slh_sign::<Shake128Hash, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
+            &sk, message, None,
+        );
 
-        let valid =
-            slh_verify::<Shake128Hash, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(&pk, message, &signature);
+        let valid = slh_verify::<Shake128Hash, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(
+            &pk, message, &signature,
+        );
 
         assert!(valid, "Signature verification failed");
     }
@@ -488,16 +488,17 @@ mod tests {
         let message = b"Test message";
 
         // Deterministic signing (using pk_seed as opt_rand)
-        let sig1 =
-            slh_sign::<Shake128Hash, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
-                &sk, message, None,
-            );
-        let sig2 =
-            slh_sign::<Shake128Hash, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
-                &sk, message, None,
-            );
+        let sig1 = slh_sign::<Shake128Hash, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
+            &sk, message, None,
+        );
+        let sig2 = slh_sign::<Shake128Hash, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
+            &sk, message, None,
+        );
 
-        assert_eq!(sig1, sig2, "Deterministic signing should produce same signature");
+        assert_eq!(
+            sig1, sig2,
+            "Deterministic signing should produce same signature"
+        );
     }
 
     #[test]
@@ -506,10 +507,9 @@ mod tests {
         let (sk, _pk) = slh_keygen::<Shake128Hash, N, WOTS_LEN, H_PRIME, D>(&mut rng);
 
         let message = b"Test message";
-        let signature =
-            slh_sign::<Shake128Hash, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
-                &sk, message, None,
-            );
+        let signature = slh_sign::<Shake128Hash, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
+            &sk, message, None,
+        );
 
         // Expected size: N + K*(A+1)*N + D*(WOTS_LEN*N + H_PRIME*N)
         let fors_sig_len = K * (A + 1) * N;
@@ -527,13 +527,15 @@ mod tests {
         let message = b"Original message";
         let wrong_message = b"Modified message";
 
-        let signature =
-            slh_sign::<Shake128Hash, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
-                &sk, message, None,
-            );
+        let signature = slh_sign::<Shake128Hash, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
+            &sk, message, None,
+        );
 
-        let valid =
-            slh_verify::<Shake128Hash, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(&pk, wrong_message, &signature);
+        let valid = slh_verify::<Shake128Hash, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(
+            &pk,
+            wrong_message,
+            &signature,
+        );
 
         assert!(!valid, "Verification should fail for wrong message");
     }
@@ -552,8 +554,9 @@ mod tests {
         // Corrupt the signature
         signature[10] ^= 0xFF;
 
-        let valid =
-            slh_verify::<Shake128Hash, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(&pk, message, &signature);
+        let valid = slh_verify::<Shake128Hash, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(
+            &pk, message, &signature,
+        );
 
         assert!(!valid, "Verification should fail for corrupted signature");
     }
@@ -568,14 +571,14 @@ mod tests {
         let (_sk2, pk2) = slh_keygen::<Shake128Hash, N, WOTS_LEN, H_PRIME, D>(&mut rng2);
 
         let message = b"Test message";
-        let signature =
-            slh_sign::<Shake128Hash, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
-                &sk, message, None,
-            );
+        let signature = slh_sign::<Shake128Hash, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
+            &sk, message, None,
+        );
 
         // Verify with wrong public key
-        let valid =
-            slh_verify::<Shake128Hash, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(&pk2, message, &signature);
+        let valid = slh_verify::<Shake128Hash, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(
+            &pk2, message, &signature,
+        );
 
         assert!(!valid, "Verification should fail for wrong public key");
     }
@@ -599,8 +602,9 @@ mod tests {
                     &sk, message, None,
                 );
 
-            let valid =
-                slh_verify::<Shake128Hash, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(&pk, message, &signature);
+            let valid = slh_verify::<Shake128Hash, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(
+                &pk, message, &signature,
+            );
 
             assert!(valid, "Failed for message of length {}", message.len());
         }
@@ -608,7 +612,9 @@ mod tests {
 
     #[test]
     fn test_parse_digest() {
-        let digest = vec![0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0, 0x11, 0x22, 0x33, 0x44];
+        let digest = vec![
+            0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0, 0x11, 0x22, 0x33, 0x44,
+        ];
         let (md, idx_tree, idx_leaf) = parse_digest::<K, A, H_PRIME, D>(&digest);
 
         // md should be first ceil(k*a/8) = ceil(12/8) = 2 bytes

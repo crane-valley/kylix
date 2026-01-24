@@ -54,8 +54,9 @@ pub fn ht_sign<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
     sig_ht.extend_from_slice(&sig_xmss);
 
     // Get root for next layer
-    let mut root =
-        xmss_pk_from_sig::<H, WOTS_LEN, WOTS_LEN1>(idx_leaf, &sig_xmss, message, pk_seed, &adrs, h_prime);
+    let mut root = xmss_pk_from_sig::<H, WOTS_LEN, WOTS_LEN1>(
+        idx_leaf, &sig_xmss, message, pk_seed, &adrs, h_prime,
+    );
 
     // Sign at each subsequent layer
     let mut current_idx_tree = idx_tree;
@@ -67,8 +68,9 @@ pub fn ht_sign<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
         adrs.set_layer(j as u32);
         adrs.set_tree(current_idx_tree);
 
-        let sig_xmss_j =
-            xmss_sign::<H, WOTS_LEN, WOTS_LEN1>(&root, sk_seed, idx_leaf_j, pk_seed, &adrs, h_prime);
+        let sig_xmss_j = xmss_sign::<H, WOTS_LEN, WOTS_LEN1>(
+            &root, sk_seed, idx_leaf_j, pk_seed, &adrs, h_prime,
+        );
         sig_ht.extend_from_slice(&sig_xmss_j);
 
         // Get root for next layer (if not the last layer)
@@ -124,8 +126,9 @@ pub fn ht_verify<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
     adrs.set_tree(idx_tree);
 
     let sig_xmss_0 = &sig_ht[..xmss_sig_len];
-    let mut node =
-        xmss_pk_from_sig::<H, WOTS_LEN, WOTS_LEN1>(idx_leaf, sig_xmss_0, message, pk_seed, &adrs, h_prime);
+    let mut node = xmss_pk_from_sig::<H, WOTS_LEN, WOTS_LEN1>(
+        idx_leaf, sig_xmss_0, message, pk_seed, &adrs, h_prime,
+    );
 
     // Verify at each subsequent layer
     let mut current_idx_tree = idx_tree;
@@ -139,12 +142,7 @@ pub fn ht_verify<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
 
         let sig_xmss_j = &sig_ht[j * xmss_sig_len..(j + 1) * xmss_sig_len];
         node = xmss_pk_from_sig::<H, WOTS_LEN, WOTS_LEN1>(
-            idx_leaf_j,
-            sig_xmss_j,
-            &node,
-            pk_seed,
-            &adrs,
-            h_prime,
+            idx_leaf_j, sig_xmss_j, &node, pk_seed, &adrs, h_prime,
         );
     }
 
@@ -269,7 +267,14 @@ mod tests {
 
         // Verify with wrong message
         let valid = ht_verify::<Shake128Hash, WOTS_LEN, WOTS_LEN1>(
-            &wrong_message, &sig, &pk_seed, 0, 0, &pk_root, H_PRIME, D,
+            &wrong_message,
+            &sig,
+            &pk_seed,
+            0,
+            0,
+            &pk_root,
+            H_PRIME,
+            D,
         );
 
         assert!(!valid);
@@ -289,7 +294,14 @@ mod tests {
 
         // Verify with wrong root
         let valid = ht_verify::<Shake128Hash, WOTS_LEN, WOTS_LEN1>(
-            &message, &sig, &pk_seed, 0, 0, &wrong_root, H_PRIME, D,
+            &message,
+            &sig,
+            &pk_seed,
+            0,
+            0,
+            &wrong_root,
+            H_PRIME,
+            D,
         );
 
         assert!(!valid);

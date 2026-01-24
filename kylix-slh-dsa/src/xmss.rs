@@ -135,7 +135,8 @@ pub fn xmss_pk_from_sig<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: us
     let mut wots_adrs = *adrs;
     wots_adrs.set_type(AdrsType::WotsHash);
     wots_adrs.set_keypair(idx);
-    let mut node = wots_pk_from_sig::<H, WOTS_LEN, WOTS_LEN1>(sig_wots, message, pk_seed, &mut wots_adrs);
+    let mut node =
+        wots_pk_from_sig::<H, WOTS_LEN, WOTS_LEN1>(sig_wots, message, pk_seed, &mut wots_adrs);
 
     // Climb the tree using authentication path
     let mut tree_adrs = *adrs;
@@ -218,23 +219,13 @@ mod tests {
 
         // Compute expected root
         let root_adrs = Address::tree_node(0, 0, 0, 0);
-        let expected_root = xmss_node::<Shake128Hash, WOTS_LEN>(
-            &sk_seed,
-            0,
-            H_PRIME as u32,
-            &pk_seed,
-            &root_adrs,
-        );
+        let expected_root =
+            xmss_node::<Shake128Hash, WOTS_LEN>(&sk_seed, 0, H_PRIME as u32, &pk_seed, &root_adrs);
 
         // Sign
         let sign_adrs = Address::tree_node(0, 0, 0, 0);
         let sig = xmss_sign::<Shake128Hash, WOTS_LEN, WOTS_LEN1>(
-            &message,
-            &sk_seed,
-            idx,
-            &pk_seed,
-            &sign_adrs,
-            H_PRIME,
+            &message, &sk_seed, idx, &pk_seed, &sign_adrs, H_PRIME,
         );
 
         // Expected signature size: WOTS_LEN * N + H_PRIME * N
@@ -262,24 +253,14 @@ mod tests {
 
         // Compute expected root
         let root_adrs = Address::tree_node(0, 0, 0, 0);
-        let expected_root = xmss_node::<Shake128Hash, WOTS_LEN>(
-            &sk_seed,
-            0,
-            H_PRIME as u32,
-            &pk_seed,
-            &root_adrs,
-        );
+        let expected_root =
+            xmss_node::<Shake128Hash, WOTS_LEN>(&sk_seed, 0, H_PRIME as u32, &pk_seed, &root_adrs);
 
         // Sign with different leaf indices
         for idx in 0..(1u32 << H_PRIME) {
             let sign_adrs = Address::tree_node(0, 0, 0, 0);
             let sig = xmss_sign::<Shake128Hash, WOTS_LEN, WOTS_LEN1>(
-                &message,
-                &sk_seed,
-                idx,
-                &pk_seed,
-                &sign_adrs,
-                H_PRIME,
+                &message, &sk_seed, idx, &pk_seed, &sign_adrs, H_PRIME,
             );
 
             let verify_adrs = Address::tree_node(0, 0, 0, 0);
@@ -310,23 +291,13 @@ mod tests {
 
         // Compute expected root
         let root_adrs = Address::tree_node(0, 0, 0, 0);
-        let expected_root = xmss_node::<Shake128Hash, WOTS_LEN>(
-            &sk_seed,
-            0,
-            H_PRIME as u32,
-            &pk_seed,
-            &root_adrs,
-        );
+        let expected_root =
+            xmss_node::<Shake128Hash, WOTS_LEN>(&sk_seed, 0, H_PRIME as u32, &pk_seed, &root_adrs);
 
         // Sign
         let sign_adrs = Address::tree_node(0, 0, 0, 0);
         let sig = xmss_sign::<Shake128Hash, WOTS_LEN, WOTS_LEN1>(
-            &message,
-            &sk_seed,
-            idx,
-            &pk_seed,
-            &sign_adrs,
-            H_PRIME,
+            &message, &sk_seed, idx, &pk_seed, &sign_adrs, H_PRIME,
         );
 
         // Verify with wrong message
@@ -353,23 +324,13 @@ mod tests {
 
         // Compute expected root
         let root_adrs = Address::tree_node(0, 0, 0, 0);
-        let expected_root = xmss_node::<Shake128Hash, WOTS_LEN>(
-            &sk_seed,
-            0,
-            H_PRIME as u32,
-            &pk_seed,
-            &root_adrs,
-        );
+        let expected_root =
+            xmss_node::<Shake128Hash, WOTS_LEN>(&sk_seed, 0, H_PRIME as u32, &pk_seed, &root_adrs);
 
         // Sign with idx=0
         let sign_adrs = Address::tree_node(0, 0, 0, 0);
         let sig = xmss_sign::<Shake128Hash, WOTS_LEN, WOTS_LEN1>(
-            &message,
-            &sk_seed,
-            idx,
-            &pk_seed,
-            &sign_adrs,
-            H_PRIME,
+            &message, &sk_seed, idx, &pk_seed, &sign_adrs, H_PRIME,
         );
 
         // Verify with wrong index

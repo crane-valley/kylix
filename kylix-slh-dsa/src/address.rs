@@ -134,8 +134,12 @@ impl Address {
         self.bytes[20..32].fill(0);
         // Restore key pair address for types that use it
         match adrs_type {
-            AdrsType::WotsHash | AdrsType::WotsPk | AdrsType::WotsPrf |
-            AdrsType::ForsTree | AdrsType::ForsPk | AdrsType::ForsPrf => {
+            AdrsType::WotsHash
+            | AdrsType::WotsPk
+            | AdrsType::WotsPrf
+            | AdrsType::ForsTree
+            | AdrsType::ForsPk
+            | AdrsType::ForsPrf => {
                 self.set_keypair(keypair);
             }
             AdrsType::Tree => {

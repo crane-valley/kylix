@@ -128,10 +128,11 @@ pub fn wots_sign<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
     let len2 = WOTS_LEN - WOTS_LEN1;
     let csum_bytes = ((csum as u64) << (8 - ((len2 * LG_W) % 8))) as u32;
     let csum_total_bits = len2 * LG_W;
-    let csum_bytes_needed = (csum_total_bits + 7) / 8;
+    let csum_bytes_needed = csum_total_bits.div_ceil(8);
 
     let mut csum_buf = [0u8; 4];
-    csum_buf[4 - csum_bytes_needed..].copy_from_slice(&csum_bytes.to_be_bytes()[4 - csum_bytes_needed..]);
+    csum_buf[4 - csum_bytes_needed..]
+        .copy_from_slice(&csum_bytes.to_be_bytes()[4 - csum_bytes_needed..]);
     let csum_digits = base_2b(&csum_buf[4 - csum_bytes_needed..], LG_W, len2);
     msg.extend(csum_digits);
 
@@ -187,10 +188,11 @@ pub fn wots_pk_from_sig<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: us
     let len2 = WOTS_LEN - WOTS_LEN1;
     let csum_bytes = ((csum as u64) << (8 - ((len2 * LG_W) % 8))) as u32;
     let csum_total_bits = len2 * LG_W;
-    let csum_bytes_needed = (csum_total_bits + 7) / 8;
+    let csum_bytes_needed = csum_total_bits.div_ceil(8);
 
     let mut csum_buf = [0u8; 4];
-    csum_buf[4 - csum_bytes_needed..].copy_from_slice(&csum_bytes.to_be_bytes()[4 - csum_bytes_needed..]);
+    csum_buf[4 - csum_bytes_needed..]
+        .copy_from_slice(&csum_bytes.to_be_bytes()[4 - csum_bytes_needed..]);
     let csum_digits = base_2b(&csum_buf[4 - csum_bytes_needed..], LG_W, len2);
     msg.extend(csum_digits);
 
@@ -288,12 +290,8 @@ mod tests {
         let pk = wots_pk_gen::<Shake128Hash, WOTS_LEN>(&sk_seed, &pk_seed, &mut pk_adrs);
 
         // Sign
-        let sig = wots_sign::<Shake128Hash, WOTS_LEN, WOTS_LEN1>(
-            &message,
-            &sk_seed,
-            &pk_seed,
-            &mut adrs,
-        );
+        let sig =
+            wots_sign::<Shake128Hash, WOTS_LEN, WOTS_LEN1>(&message, &sk_seed, &pk_seed, &mut adrs);
         assert_eq!(sig.len(), WOTS_LEN * N);
 
         // Recover public key from signature
@@ -321,12 +319,8 @@ mod tests {
         let pk = wots_pk_gen::<Shake128Hash, WOTS_LEN>(&sk_seed, &pk_seed, &mut pk_adrs);
 
         // Sign correct message
-        let sig = wots_sign::<Shake128Hash, WOTS_LEN, WOTS_LEN1>(
-            &message,
-            &sk_seed,
-            &pk_seed,
-            &mut adrs,
-        );
+        let sig =
+            wots_sign::<Shake128Hash, WOTS_LEN, WOTS_LEN1>(&message, &sk_seed, &pk_seed, &mut adrs);
 
         // Try to verify with wrong message
         let mut verify_adrs = Address::wots_hash(0, 0, 0, 0, 0);

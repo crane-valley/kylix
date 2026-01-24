@@ -134,8 +134,15 @@ pub fn fors_sign<H: HashSuite>(
         for j in 0..a {
             // Compute sibling node at height j
             let sibling_in_tree = (idx >> j) ^ 1;
-            let auth_node =
-                fors_tree_node::<H>(sk_seed, tree_idx, sibling_in_tree, j as u32, pk_seed, adrs, t);
+            let auth_node = fors_tree_node::<H>(
+                sk_seed,
+                tree_idx,
+                sibling_in_tree,
+                j as u32,
+                pk_seed,
+                adrs,
+                t,
+            );
             sig.extend_from_slice(&auth_node);
         }
     }

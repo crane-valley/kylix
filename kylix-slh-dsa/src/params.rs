@@ -55,7 +55,8 @@ pub trait Params {
     /// SIG = R (n bytes) + SIG_FORS + SIG_HT
     /// SIG_FORS = k * (a+1) * n bytes
     /// SIG_HT = (h + d * len) * n bytes
-    const SIG_BYTES: usize = Self::N + Self::K * (Self::A + 1) * Self::N
+    const SIG_BYTES: usize = Self::N
+        + Self::K * (Self::A + 1) * Self::N
         + (Self::H + Self::D * Self::WOTS_LEN) * Self::N;
 
     /// Message digest length for FORS: ceil((k*a + 7)/8) + ceil((h - h'/d + 7)/8) + ceil((h'/8))
@@ -103,6 +104,7 @@ pub mod slh_dsa_shake_128s {
     /// Signature size: n + k*(a+1)*n + (h + d*len)*n = 16 + 14*13*16 + (63 + 7*35)*16 = 7856
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes.
+    #[allow(clippy::manual_div_ceil)]
     pub const MD_BYTES: usize = (K * A + H + 7) / 8;
 
     /// Parameter set marker type.
@@ -155,6 +157,7 @@ pub mod slh_dsa_shake_128f {
     /// Signature size: n + k*(a+1)*n + (h + d*len)*n = 16 + 33*7*16 + (66 + 22*35)*16 = 17088
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes.
+    #[allow(clippy::manual_div_ceil)]
     pub const MD_BYTES: usize = (K * A + H + 7) / 8;
 
     /// Parameter set marker type.
@@ -207,6 +210,7 @@ pub mod slh_dsa_shake_192s {
     /// Signature size.
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes.
+    #[allow(clippy::manual_div_ceil)]
     pub const MD_BYTES: usize = (K * A + H + 7) / 8;
 
     /// Parameter set marker type.
@@ -259,6 +263,7 @@ pub mod slh_dsa_shake_192f {
     /// Signature size.
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes.
+    #[allow(clippy::manual_div_ceil)]
     pub const MD_BYTES: usize = (K * A + H + 7) / 8;
 
     /// Parameter set marker type.
@@ -311,6 +316,7 @@ pub mod slh_dsa_shake_256s {
     /// Signature size.
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes.
+    #[allow(clippy::manual_div_ceil)]
     pub const MD_BYTES: usize = (K * A + H + 7) / 8;
 
     /// Parameter set marker type.
@@ -363,6 +369,7 @@ pub mod slh_dsa_shake_256f {
     /// Signature size.
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes.
+    #[allow(clippy::manual_div_ceil)]
     pub const MD_BYTES: usize = (K * A + H + 7) / 8;
 
     /// Parameter set marker type.
