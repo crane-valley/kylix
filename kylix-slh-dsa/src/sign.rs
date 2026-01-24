@@ -9,12 +9,16 @@ use crate::address::{Address, AdrsType};
 use crate::hash::HashSuite;
 use crate::hypertree::{ht_root, ht_sign, ht_verify};
 
-// Use parallel versions when available
+// Use parallel versions for signing (where parallelization helps)
 #[cfg(feature = "parallel")]
-use crate::parallel::{fors_pk_from_sig_parallel, fors_sign_parallel};
+use crate::parallel::fors_sign_parallel;
+
+// Always use sequential fors_pk_from_sig for verification
+// (parallel overhead exceeds benefits for small workloads)
+use crate::fors::fors_pk_from_sig;
 
 #[cfg(not(feature = "parallel"))]
-use crate::fors::{fors_pk_from_sig, fors_sign};
+use crate::fors::fors_sign;
 
 use rand_core::CryptoRng;
 use zeroize::Zeroize;
@@ -301,11 +305,13 @@ fn slh_sign_impl<
         a
     };
 
-    // Generate FORS signature (parallel)
+    // Generate FORS signature (parallel - this is the expensive part)
     let sig_fors = fors_sign_parallel::<H>(&md, &sk.sk_seed, &sk.pk_seed, &adrs, K, A);
 
-    // Compute FORS public key for hypertree signing (parallel)
-    let pk_fors = fors_pk_from_sig_parallel::<H>(&sig_fors, &md, &sk.pk_seed, &adrs, K, A);
+    // Compute FORS public key for hypertree signing
+    // Use sequential version - pk recovery is fast and parallel overhead hurts
+    let mut adrs_pk = adrs;
+    let pk_fors = fors_pk_from_sig::<H>(&sig_fors, &md, &sk.pk_seed, &mut adrs_pk, K, A);
 
     // Generate hypertree signature
     let sig_ht = ht_sign::<H, WOTS_LEN, WOTS_LEN1>(
@@ -421,28 +427,11 @@ fn slh_sign_impl<
 ///
 /// # Returns
 /// true if signature is valid
+/// Verify an SLH-DSA signature.
+///
+/// Note: Verification always uses the sequential implementation because
+/// the parallel overhead exceeds benefits for this fast operation.
 #[allow(clippy::too_many_arguments)]
-#[cfg(feature = "parallel")]
-pub fn slh_verify<
-    H: HashSuite + Send + Sync,
-    const N: usize,
-    const WOTS_LEN: usize,
-    const WOTS_LEN1: usize,
-    const H_PRIME: usize,
-    const D: usize,
-    const K: usize,
-    const A: usize,
->(
-    pk: &PublicKey<N>,
-    message: &[u8],
-    signature: &[u8],
-) -> bool {
-    slh_verify_impl::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(pk, message, signature)
-}
-
-/// Verify an SLH-DSA signature (sequential version).
-#[allow(clippy::too_many_arguments)]
-#[cfg(not(feature = "parallel"))]
 pub fn slh_verify<
     H: HashSuite,
     const N: usize,
@@ -460,76 +449,9 @@ pub fn slh_verify<
     slh_verify_impl::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(pk, message, signature)
 }
 
+// Unified verify implementation - always uses sequential FORS pk recovery
+// because parallel overhead exceeds benefits for this fast operation.
 #[allow(clippy::too_many_arguments)]
-#[cfg(feature = "parallel")]
-fn slh_verify_impl<
-    H: HashSuite + Send + Sync,
-    const N: usize,
-    const WOTS_LEN: usize,
-    const WOTS_LEN1: usize,
-    const H_PRIME: usize,
-    const D: usize,
-    const K: usize,
-    const A: usize,
->(
-    pk: &PublicKey<N>,
-    message: &[u8],
-    signature: &[u8],
-) -> bool {
-    // Calculate expected signature size
-    let fors_sig_len = K * (A + 1) * N;
-    let ht_sig_len = D * (WOTS_LEN * N + H_PRIME * N);
-    let expected_sig_len = N + fors_sig_len + ht_sig_len;
-
-    if signature.len() != expected_sig_len {
-        return false;
-    }
-
-    // Parse signature: R || SIG_FORS || SIG_HT
-    let r = &signature[..N];
-    let sig_fors = &signature[N..N + fors_sig_len];
-    let sig_ht = &signature[N + fors_sig_len..];
-
-    // Calculate digest length: need enough bytes for md || idx_tree || idx_leaf
-    let md_bytes = (K * A).div_ceil(8);
-    let tree_bits = H_PRIME * (D - 1);
-    let tree_bytes = tree_bits.div_ceil(8);
-    let leaf_bytes = H_PRIME.div_ceil(8);
-    let digest_len = md_bytes + tree_bytes + leaf_bytes;
-
-    // Compute message digest
-    let digest = H::h_msg(r, &pk.pk_seed, &pk.pk_root, message, digest_len);
-
-    // Parse digest into (md, idx_tree, idx_leaf)
-    let (md, idx_tree, idx_leaf) = parse_digest::<K, A, H_PRIME, D>(&digest);
-
-    // Set up FORS address
-    let adrs = {
-        let mut a = Address::new();
-        a.set_type(AdrsType::ForsTree);
-        a.set_tree(idx_tree);
-        a.set_keypair(idx_leaf);
-        a
-    };
-
-    // Recover FORS public key from signature (parallel)
-    let pk_fors = fors_pk_from_sig_parallel::<H>(sig_fors, &md, &pk.pk_seed, &adrs, K, A);
-
-    // Verify hypertree signature
-    ht_verify::<H, WOTS_LEN, WOTS_LEN1>(
-        &pk_fors,
-        sig_ht,
-        &pk.pk_seed,
-        idx_tree,
-        idx_leaf,
-        &pk.pk_root,
-        H_PRIME,
-        D,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-#[cfg(not(feature = "parallel"))]
 fn slh_verify_impl<
     H: HashSuite,
     const N: usize,
