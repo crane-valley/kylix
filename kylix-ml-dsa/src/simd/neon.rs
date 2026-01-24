@@ -508,7 +508,6 @@ mod tests {
     fn test_ntt_roundtrip() {
         // Test NTT -> inv_NTT roundtrip
         let mut a = [0i32; N];
-        let original = [0i32; N].map(|_| 0);
 
         for i in 0..N {
             a[i] = (i as i32 * 12345) % Q;
