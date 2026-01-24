@@ -45,16 +45,16 @@ Kylix aims to provide a **pure Rust, high-performance, auditable** implementatio
 
 ### Benchmark Results (v0.3.0 + SIMD)
 
-Measured on Windows x86_64, 20 CPUs, Release build with `--features simd`:
+Measured on Windows x86_64 (Intel i5-13500), Release build with `--features simd` and `-C target-cpu=native`:
 
 | Operation | Target | Actual | Status |
 |-----------|--------|--------|--------|
 | ML-KEM-768 KeyGen | < 50 µs | 29.76 µs | ✅ |
 | ML-KEM-768 Encaps | < 60 µs | 29.54 µs | ✅ |
 | ML-KEM-768 Decaps | < 50 µs | 39.73 µs | ✅ |
-| ML-DSA-65 KeyGen | - | 102 µs | ✅ |
-| ML-DSA-65 Sign | < 200 µs | 270 µs | ❌ Over target |
-| ML-DSA-65 Verify | < 100 µs | 111 µs | ⚠️ Close |
+| ML-DSA-65 KeyGen | - | 86 µs | ✅ |
+| ML-DSA-65 Sign | < 200 µs | 155 µs | ✅ |
+| ML-DSA-65 Verify | < 100 µs | 95 µs | ✅ |
 
 #### ML-DSA Optimization Tasks
 
@@ -64,19 +64,17 @@ Measured on Windows x86_64, 20 CPUs, Release build with `--features simd`:
    - Loop unrolling
    - Cache-friendly memory access patterns
 
-2. **Polynomial Arithmetic** - Profile and optimize:
-   - `poly_pointwise_montgomery` multiplication
-   - `poly_reduce` and `poly_caddq` operations
-   - Batch operations where possible
+2. **Polynomial Arithmetic** - ✅ Completed with SIMD:
+   - ✅ `pointwise_acc` (matrix multiplication) using AVX2
+   - ✅ AVX2 detection result caching to avoid CPUID overhead
 
-3. **SIMD Acceleration** - AVX2 NTT complete:
-   - ✅ AVX2 for x86_64 (pointwise mul + NTT butterflies)
+3. **SIMD Acceleration** - ✅ AVX2 complete:
+   - ✅ AVX2 for x86_64 (pointwise mul + NTT butterflies + matrix mul)
    - ⚠️ NEON for ARM64 (pointwise mul only, NTT pending)
    - ⚠️ WASM-SIMD128 (pointwise mul only, NTT pending)
 
-4. **Signing Loop Optimization**:
-   - The rejection sampling loop in signing is the main bottleneck
-   - Profile to identify hot paths
+4. **Signing Loop Optimization** - No longer bottleneck:
+   - With SIMD matrix multiplication, Sign performance target achieved
 
 ---
 
