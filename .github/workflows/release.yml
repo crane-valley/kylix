@@ -48,5 +48,11 @@ jobs:
       - name: Wait for crates.io
         run: sleep 30
 
+      - name: Publish kylix-ml-dsa
+        run: cargo publish --package kylix-ml-dsa --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Wait for crates.io
+        run: sleep 30
+
       - name: Publish kylix-pqc
         run: cargo publish --package kylix-pqc --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
