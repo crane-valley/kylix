@@ -48,7 +48,7 @@ fuzz_target!(|input: SignInput| {
                     &input.message,
                     &input.rnd,
                 );
-                assert_eq!(sig, sig2.unwrap(), "Sign should be deterministic with same rnd");
+                assert_eq!(Some(sig), sig2, "Sign should be deterministic with same rnd");
             }
         }
         1 => {
@@ -70,7 +70,7 @@ fuzz_target!(|input: SignInput| {
                     &input.message,
                     &input.rnd,
                 );
-                assert_eq!(sig, sig2.unwrap(), "Sign should be deterministic with same rnd");
+                assert_eq!(Some(sig), sig2, "Sign should be deterministic with same rnd");
             }
         }
         _ => {
@@ -92,7 +92,7 @@ fuzz_target!(|input: SignInput| {
                     &input.message,
                     &input.rnd,
                 );
-                assert_eq!(sig, sig2.unwrap(), "Sign should be deterministic with same rnd");
+                assert_eq!(Some(sig), sig2, "Sign should be deterministic with same rnd");
             }
         }
     }
