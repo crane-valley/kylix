@@ -36,7 +36,6 @@ mod wasm;
 /// Check if AVX2 is available at runtime (x86_64 only).
 ///
 /// On x86_64, this uses CPUID to detect AVX2 support.
-/// The result is cached after the first call to avoid repeated CPUID overhead.
 /// On other architectures, this always returns false.
 #[cfg(target_arch = "x86_64")]
 #[inline]
@@ -48,12 +47,10 @@ pub fn has_avx2() -> bool {
     }
     #[cfg(not(target_feature = "avx2"))]
     {
-        // Runtime detection with caching
+        // Runtime detection (the macro caches internally)
         #[cfg(feature = "std")]
         {
-            use std::sync::OnceLock;
-            static AVX2_SUPPORTED: OnceLock<bool> = OnceLock::new();
-            *AVX2_SUPPORTED.get_or_init(|| std::arch::is_x86_feature_detected!("avx2"))
+            std::arch::is_x86_feature_detected!("avx2")
         }
         #[cfg(not(feature = "std"))]
         {
