@@ -15,10 +15,14 @@ A post-quantum cryptography library implementing NIST FIPS standards in pure Rus
   - ML-KEM-512 (Security Level 1)
   - ML-KEM-768 (Security Level 3)
   - ML-KEM-1024 (Security Level 5)
+- **ML-DSA** (FIPS 204): Module-Lattice-Based Digital Signature Algorithm
+  - ML-DSA-44 (Security Level 2)
+  - ML-DSA-65 (Security Level 3)
+  - ML-DSA-87 (Security Level 5)
 - `no_std` compatible for embedded systems
 - Constant-time implementations to prevent timing attacks
 - Secure memory handling with automatic zeroization
-- Comprehensive test coverage including known-answer tests
+- Comprehensive test coverage including NIST ACVP vectors
 
 ## Installation
 
@@ -26,10 +30,12 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-kylix-pqc = "0.2"
+kylix-pqc = "0.3"
 ```
 
 ## Usage
+
+### ML-KEM (Key Encapsulation)
 
 ```rust
 use kylix_pqc::ml_kem::{MlKem768, Kem};
@@ -52,6 +58,27 @@ fn main() -> kylix_pqc::Result<()> {
 }
 ```
 
+### ML-DSA (Digital Signatures)
+
+```rust
+use kylix_pqc::ml_dsa::{MlDsa65, Signer};
+use rand::rngs::OsRng;
+
+fn main() -> kylix_pqc::Result<()> {
+    // Generate a signing key pair
+    let (signing_key, verifying_key) = MlDsa65::keygen(&mut OsRng)?;
+
+    // Sign a message
+    let message = b"Hello, post-quantum world!";
+    let signature = MlDsa65::sign(&signing_key, message, &mut OsRng)?;
+
+    // Verify the signature
+    MlDsa65::verify(&verifying_key, message, &signature)?;
+
+    Ok(())
+}
+```
+
 ## Crate Structure
 
 | Crate | Description |
@@ -59,6 +86,7 @@ fn main() -> kylix_pqc::Result<()> {
 | `kylix-pqc` | Main crate with re-exports |
 | `kylix-core` | Core traits and utilities |
 | `kylix-ml-kem` | ML-KEM (FIPS 203) implementation |
+| `kylix-ml-dsa` | ML-DSA (FIPS 204) implementation |
 | `kylix-cli` | Command-line interface |
 
 ## Security
@@ -77,7 +105,7 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## Contributing
 
-Contributions are welcome! Please read our contributing guidelines before submitting PRs.
+Contributions are welcome! Please see [CLAUDE.md](CLAUDE.md) for project guidelines before submitting PRs.
 
 ## References
 
