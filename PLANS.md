@@ -32,6 +32,7 @@ Kylix aims to provide a **pure Rust, high-performance, auditable** implementatio
 | Fuzz Testing (ML-DSA) | ✅ Complete | Daily CI + 4 targets |
 | Benchmarks (ML-DSA) | ✅ Complete | Criterion-based |
 | SIMD Infrastructure | ✅ Complete | AVX2/NEON/WASM-SIMD128 |
+| SIMD NTT (AVX2) | ✅ Complete | 8-way parallel butterflies |
 
 ### Not Started
 
@@ -39,25 +40,27 @@ Kylix aims to provide a **pure Rust, high-performance, auditable** implementatio
 |-----------|---------------|----------|
 | SLH-DSA | FIPS 205 | MEDIUM |
 | CLI Bench Command | ✅ Complete | - |
-| SIMD Performance Tuning | - | HIGH |
+| SIMD NTT (NEON/WASM) | - | MEDIUM |
 | Security Audit | - | HIGH |
 
-### Benchmark Results (v0.3.0)
+### Benchmark Results (v0.3.0 + SIMD)
 
-Measured on Windows x86_64, 20 CPUs, Release build:
+Measured on Windows x86_64, 20 CPUs, Release build with `--features simd`:
 
 | Operation | Target | Actual | Status |
 |-----------|--------|--------|--------|
 | ML-KEM-768 KeyGen | < 50 µs | 29.76 µs | ✅ |
 | ML-KEM-768 Encaps | < 60 µs | 29.54 µs | ✅ |
 | ML-KEM-768 Decaps | < 50 µs | 39.73 µs | ✅ |
-| ML-DSA-65 Sign | < 200 µs | 210 µs | ⚠️ Close |
-| ML-DSA-65 Verify | < 100 µs | 120 µs | ⚠️ Close |
+| ML-DSA-65 KeyGen | - | 102 µs | ✅ |
+| ML-DSA-65 Sign | < 200 µs | 270 µs | ⚠️ Close |
+| ML-DSA-65 Verify | < 100 µs | 111 µs | ⚠️ Close |
 
 #### ML-DSA Optimization Tasks
 
-1. **NTT Optimization** - Current NTT is straightforward; consider:
-   - Precomputed twiddle factors
+1. **NTT Optimization** - ✅ Completed with SIMD:
+   - ✅ AVX2 vectorized butterfly operations (8-way parallel)
+   - Precomputed twiddle factors (already in use)
    - Loop unrolling
    - Cache-friendly memory access patterns
 
@@ -66,11 +69,10 @@ Measured on Windows x86_64, 20 CPUs, Release build:
    - `poly_reduce` and `poly_caddq` operations
    - Batch operations where possible
 
-3. **SIMD Acceleration** - Infrastructure complete, tuning needed:
-   - ✅ AVX2 for x86_64 (implemented)
-   - ✅ NEON for ARM64 (implemented)
-   - ✅ WASM-SIMD128 (implemented)
-   - ⚠️ Performance tuning required for Montgomery multiplication
+3. **SIMD Acceleration** - AVX2 NTT complete:
+   - ✅ AVX2 for x86_64 (pointwise mul + NTT butterflies)
+   - ⚠️ NEON for ARM64 (pointwise mul only, NTT pending)
+   - ⚠️ WASM-SIMD128 (pointwise mul only, NTT pending)
 
 4. **Signing Loop Optimization**:
    - The rejection sampling loop in signing is the main bottleneck
