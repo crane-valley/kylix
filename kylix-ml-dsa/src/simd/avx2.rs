@@ -257,12 +257,7 @@ pub unsafe fn caddq_avx2(a: &mut [i32; N]) {
 /// Requires AVX2 support.
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
-unsafe fn butterfly_avx2(
-    a: &mut [i32; N],
-    start: usize,
-    len: usize,
-    zeta: i32,
-) {
+unsafe fn butterfly_avx2(a: &mut [i32; N], start: usize, len: usize, zeta: i32) {
     let zeta_v = _mm256_set1_epi32(zeta);
     let q = _mm256_set1_epi32(Q);
     let qinv = _mm256_set1_epi32(QINV);
@@ -368,12 +363,7 @@ unsafe fn montgomery_reduce_with_params(
 /// Requires AVX2 support.
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
-unsafe fn inv_butterfly_avx2(
-    a: &mut [i32; N],
-    start: usize,
-    len: usize,
-    zeta: i32,
-) {
+unsafe fn inv_butterfly_avx2(a: &mut [i32; N], start: usize, len: usize, zeta: i32) {
     let zeta_v = _mm256_set1_epi32(zeta);
     let q = _mm256_set1_epi32(Q);
     let qinv = _mm256_set1_epi32(QINV);
