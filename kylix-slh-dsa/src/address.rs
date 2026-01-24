@@ -363,6 +363,7 @@ impl core::fmt::Debug for Address {
 }
 
 #[cfg(test)]
+#[allow(clippy::unreadable_literal)]
 mod tests {
     use super::*;
 

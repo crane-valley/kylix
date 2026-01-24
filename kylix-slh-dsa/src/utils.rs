@@ -144,6 +144,7 @@ pub fn concat(slices: &[&[u8]]) -> Vec<u8> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unreadable_literal)]
 mod tests {
     use super::*;
 
