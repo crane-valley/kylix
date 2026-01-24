@@ -29,15 +29,7 @@ fuzz_target!(|input: SignInput| {
     match input.variant % 3 {
         0 => {
             // ML-DSA-44
-            const K: usize = 4;
-            const L: usize = 4;
-            const ETA: usize = 2;
-            const BETA: i32 = 78;
-            const GAMMA1: i32 = 1 << 17;
-            const GAMMA2: i32 = 95232;
-            const TAU: usize = 39;
-            const OMEGA: usize = 80;
-            const C_TILDE_BYTES: usize = 32;
+            use kylix_ml_dsa::params::ml_dsa_44::*;
 
             let (sk, _pk) = ml_dsa_keygen::<K, L, ETA>(&input.seed);
             let sig = ml_dsa_sign::<K, L, ETA, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
@@ -48,7 +40,7 @@ fuzz_target!(|input: SignInput| {
 
             if let Some(sig) = sig {
                 // Verify signature size
-                assert_eq!(sig.len(), 2420, "ML-DSA-44 signature should be 2420 bytes");
+                assert_eq!(sig.len(), SIG_BYTES, "ML-DSA-44 signature size mismatch");
 
                 // Verify determinism with same rnd
                 let sig2 = ml_dsa_sign::<K, L, ETA, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
@@ -61,15 +53,7 @@ fuzz_target!(|input: SignInput| {
         }
         1 => {
             // ML-DSA-65
-            const K: usize = 6;
-            const L: usize = 5;
-            const ETA: usize = 4;
-            const BETA: i32 = 196;
-            const GAMMA1: i32 = 1 << 19;
-            const GAMMA2: i32 = 261888;
-            const TAU: usize = 49;
-            const OMEGA: usize = 55;
-            const C_TILDE_BYTES: usize = 48;
+            use kylix_ml_dsa::params::ml_dsa_65::*;
 
             let (sk, _pk) = ml_dsa_keygen::<K, L, ETA>(&input.seed);
             let sig = ml_dsa_sign::<K, L, ETA, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
@@ -79,7 +63,7 @@ fuzz_target!(|input: SignInput| {
             );
 
             if let Some(sig) = sig {
-                assert_eq!(sig.len(), 3309, "ML-DSA-65 signature should be 3309 bytes");
+                assert_eq!(sig.len(), SIG_BYTES, "ML-DSA-65 signature size mismatch");
 
                 let sig2 = ml_dsa_sign::<K, L, ETA, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
                     &sk,
@@ -91,15 +75,7 @@ fuzz_target!(|input: SignInput| {
         }
         _ => {
             // ML-DSA-87
-            const K: usize = 8;
-            const L: usize = 7;
-            const ETA: usize = 2;
-            const BETA: i32 = 120;
-            const GAMMA1: i32 = 1 << 19;
-            const GAMMA2: i32 = 261888;
-            const TAU: usize = 60;
-            const OMEGA: usize = 75;
-            const C_TILDE_BYTES: usize = 64;
+            use kylix_ml_dsa::params::ml_dsa_87::*;
 
             let (sk, _pk) = ml_dsa_keygen::<K, L, ETA>(&input.seed);
             let sig = ml_dsa_sign::<K, L, ETA, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
@@ -109,7 +85,7 @@ fuzz_target!(|input: SignInput| {
             );
 
             if let Some(sig) = sig {
-                assert_eq!(sig.len(), 4627, "ML-DSA-87 signature should be 4627 bytes");
+                assert_eq!(sig.len(), SIG_BYTES, "ML-DSA-87 signature size mismatch");
 
                 let sig2 = ml_dsa_sign::<K, L, ETA, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
                     &sk,

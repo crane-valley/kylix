@@ -21,33 +21,36 @@ struct KeyGenInput {
 fuzz_target!(|input: KeyGenInput| {
     match input.variant % 3 {
         0 => {
-            // ML-DSA-44: K=4, L=4, ETA=2
-            let (sk, pk) = ml_dsa_keygen::<4, 4, 2>(&input.seed);
+            // ML-DSA-44
+            use kylix_ml_dsa::params::ml_dsa_44::*;
+            let (sk, pk) = ml_dsa_keygen::<K, L, ETA>(&input.seed);
             // Verify determinism
-            let (sk2, pk2) = ml_dsa_keygen::<4, 4, 2>(&input.seed);
+            let (sk2, pk2) = ml_dsa_keygen::<K, L, ETA>(&input.seed);
             assert_eq!(sk, sk2, "KeyGen should be deterministic");
             assert_eq!(pk, pk2, "KeyGen should be deterministic");
             // Verify key sizes
-            assert_eq!(pk.len(), 1312, "ML-DSA-44 pk should be 1312 bytes");
-            assert_eq!(sk.len(), 2560, "ML-DSA-44 sk should be 2560 bytes");
+            assert_eq!(pk.len(), PK_BYTES, "ML-DSA-44 pk size mismatch");
+            assert_eq!(sk.len(), SK_BYTES, "ML-DSA-44 sk size mismatch");
         }
         1 => {
-            // ML-DSA-65: K=6, L=5, ETA=4
-            let (sk, pk) = ml_dsa_keygen::<6, 5, 4>(&input.seed);
-            let (sk2, pk2) = ml_dsa_keygen::<6, 5, 4>(&input.seed);
+            // ML-DSA-65
+            use kylix_ml_dsa::params::ml_dsa_65::*;
+            let (sk, pk) = ml_dsa_keygen::<K, L, ETA>(&input.seed);
+            let (sk2, pk2) = ml_dsa_keygen::<K, L, ETA>(&input.seed);
             assert_eq!(sk, sk2, "KeyGen should be deterministic");
             assert_eq!(pk, pk2, "KeyGen should be deterministic");
-            assert_eq!(pk.len(), 1952, "ML-DSA-65 pk should be 1952 bytes");
-            assert_eq!(sk.len(), 4032, "ML-DSA-65 sk should be 4032 bytes");
+            assert_eq!(pk.len(), PK_BYTES, "ML-DSA-65 pk size mismatch");
+            assert_eq!(sk.len(), SK_BYTES, "ML-DSA-65 sk size mismatch");
         }
         _ => {
-            // ML-DSA-87: K=8, L=7, ETA=2
-            let (sk, pk) = ml_dsa_keygen::<8, 7, 2>(&input.seed);
-            let (sk2, pk2) = ml_dsa_keygen::<8, 7, 2>(&input.seed);
+            // ML-DSA-87
+            use kylix_ml_dsa::params::ml_dsa_87::*;
+            let (sk, pk) = ml_dsa_keygen::<K, L, ETA>(&input.seed);
+            let (sk2, pk2) = ml_dsa_keygen::<K, L, ETA>(&input.seed);
             assert_eq!(sk, sk2, "KeyGen should be deterministic");
             assert_eq!(pk, pk2, "KeyGen should be deterministic");
-            assert_eq!(pk.len(), 2592, "ML-DSA-87 pk should be 2592 bytes");
-            assert_eq!(sk.len(), 4896, "ML-DSA-87 sk should be 4896 bytes");
+            assert_eq!(pk.len(), PK_BYTES, "ML-DSA-87 pk size mismatch");
+            assert_eq!(sk.len(), SK_BYTES, "ML-DSA-87 sk size mismatch");
         }
     }
 });
