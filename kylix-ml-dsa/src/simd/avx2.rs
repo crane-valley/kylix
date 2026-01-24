@@ -332,10 +332,7 @@ mod tests {
             return;
         }
 
-        let test_vals: [i32; N] = core::array::from_fn(|i| {
-            let v = (i as i32 * 7919) % (2 * Q) - Q;
-            v
-        });
+        let test_vals: [i32; N] = core::array::from_fn(|i| (i as i32 * 7919) % (2 * Q) - Q);
 
         // Scalar reference
         let mut expected = test_vals;

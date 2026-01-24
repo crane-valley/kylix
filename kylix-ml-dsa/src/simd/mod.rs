@@ -63,6 +63,7 @@ pub fn has_avx2() -> bool {
 /// NEON is always available on aarch64, so this returns true.
 #[cfg(target_arch = "aarch64")]
 #[inline]
+#[allow(dead_code)]
 pub const fn has_neon() -> bool {
     true
 }

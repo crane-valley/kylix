@@ -15,6 +15,7 @@
 
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::cast_sign_loss)]
+#![allow(dead_code)]
 
 #[cfg(target_arch = "aarch64")]
 use core::arch::aarch64::*;
