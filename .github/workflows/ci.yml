@@ -52,47 +52,8 @@ jobs:
       - name: Test CLI and integration
         run: cargo test -p kylix-pqc -p kylix-cli --all-features
 
-  # Full test matrix for main branch
-  test:
-    name: Test (${{ matrix.os }}, ${{ matrix.rust }})
-    if: github.event_name == 'push'
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        rust: [stable, "1.75"]
-        exclude:
-          # MSRV only on ubuntu to save time
-          - os: macos-latest
-            rust: "1.75"
-          - os: windows-latest
-            rust: "1.75"
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ matrix.rust }}
-      - uses: Swatinem/rust-cache@v2
-      # Exclude kylix-bench on MSRV - criterion requires newer Rust
-      - run: cargo test --workspace --exclude kylix-bench --all-features
-        if: matrix.rust == '1.75'
-      - run: cargo test --all-features
-        if: matrix.rust != '1.75'
-
-  test-arm64:
-    name: Test (ARM64 Linux)
-    if: github.event_name == 'push'
-    runs-on: ubuntu-24.04-arm
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo test --all-features
-      # Run SIMD-specific tests to verify NEON implementation
-      - run: cargo test -p kylix-ml-dsa --features simd -- simd
-
   test-no-std:
-    name: Test (no_std)
+    name: no_std
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -126,21 +87,3 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       # Exclude kylix-bench - criterion requires newer Rust
       - run: cargo check --workspace --exclude kylix-bench --all-features
-
-  # Coverage only on main branch pushes
-  coverage:
-    name: Coverage
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: llvm-tools-preview
-      - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@cargo-llvm-cov
-      - run: cargo llvm-cov --all-features --lcov --output-path lcov.info
-      - uses: codecov/codecov-action@v5
-        with:
-          files: lcov.info
-          fail_ci_if_error: false

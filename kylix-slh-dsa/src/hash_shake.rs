@@ -15,6 +15,9 @@ use sha3::{
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 
+#[cfg(not(feature = "std"))]
+use alloc::vec;
+
 /// SHAKE256-based hash suite for 128-bit security (n=16).
 pub struct Shake128Hash;
 
