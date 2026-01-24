@@ -81,7 +81,7 @@ fuzz_target!(|input: VerifyInput| {
                     Some(CorruptionType::RandomSignature { random_sig }) => {
                         if random_sig.len() == SIG_BYTES {
                             let _ = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-                                &pk, &msg, random_sig,
+                                &pk, &msg, random_sig.as_slice(),
                             );
                         }
                     }
@@ -129,7 +129,7 @@ fuzz_target!(|input: VerifyInput| {
                     Some(CorruptionType::RandomSignature { random_sig }) => {
                         if random_sig.len() == SIG_BYTES {
                             let _ = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-                                &pk, &msg, random_sig,
+                                &pk, &msg, random_sig.as_slice(),
                             );
                         }
                     }
@@ -177,7 +177,7 @@ fuzz_target!(|input: VerifyInput| {
                     Some(CorruptionType::RandomSignature { random_sig }) => {
                         if random_sig.len() == SIG_BYTES {
                             let _ = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-                                &pk, &msg, random_sig,
+                                &pk, &msg, random_sig.as_slice(),
                             );
                         }
                     }
