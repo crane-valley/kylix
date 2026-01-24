@@ -4,12 +4,14 @@ use anyhow::{anyhow, bail, Context, Result};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete::{generate, Shell};
+use kylix_bench::{BenchmarkReport, BenchmarkResult};
 use kylix_pqc::ml_dsa::{self, MlDsa44, MlDsa65, MlDsa87, Signer};
 use kylix_pqc::ml_kem::{self, Kem, MlKem1024, MlKem512, MlKem768};
 use rand::rng;
 use std::fs;
 use std::io::{self, Read};
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 use zeroize::Zeroize;
 
 // ML-KEM key size constants
@@ -141,6 +143,35 @@ enum Commands {
         #[arg(value_enum)]
         shell: Shell,
     },
+
+    /// Run performance benchmarks
+    Bench {
+        /// Algorithm to benchmark (defaults to all if not specified)
+        #[arg(short, long, value_enum)]
+        algo: Option<Algorithm>,
+
+        /// Number of iterations
+        #[arg(short, long, default_value = "1000")]
+        iterations: u64,
+
+        /// Output file for results (stdout if not specified)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Output format
+        #[arg(long, value_enum, default_value = "text")]
+        report: ReportFormat,
+    },
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
+enum ReportFormat {
+    /// Human-readable text
+    Text,
+    /// JSON format
+    Json,
+    /// Markdown table
+    Markdown,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
@@ -713,6 +744,213 @@ fn cmd_completions(shell: Shell) {
     generate(shell, &mut cmd, "kylix", &mut io::stdout());
 }
 
+/// Run a single benchmark and return timing data
+fn run_benchmark<F>(iterations: u64, mut f: F) -> Vec<Duration>
+where
+    F: FnMut(),
+{
+    // Warmup
+    for _ in 0..10 {
+        f();
+    }
+
+    // Actual benchmark
+    let mut times = Vec::with_capacity(iterations as usize);
+    for _ in 0..iterations {
+        let start = Instant::now();
+        f();
+        times.push(start.elapsed());
+    }
+    times
+}
+
+/// Generic benchmark for KEM algorithms
+fn bench_kem_variant<K: Kem>(algo_name: &str, iterations: u64) -> Vec<BenchmarkResult> {
+    let mut results = Vec::new();
+
+    // KeyGen - RNG initialized outside the loop
+    {
+        let mut bench_rng = rng();
+        let times = run_benchmark(iterations, || {
+            let _ = K::keygen(&mut bench_rng);
+        });
+        results.push(BenchmarkResult::new(
+            algo_name, "keygen", iterations, &times,
+        ));
+    }
+
+    // Encaps - RNG initialized outside the loop
+    {
+        let mut setup_rng = rng();
+        let (_dk, ek) = K::keygen(&mut setup_rng).unwrap();
+        let mut bench_rng = rng();
+        let times = run_benchmark(iterations, || {
+            let _ = K::encaps(&ek, &mut bench_rng);
+        });
+        results.push(BenchmarkResult::new(
+            algo_name, "encaps", iterations, &times,
+        ));
+    }
+
+    // Decaps
+    {
+        let mut setup_rng = rng();
+        let (dk, ek) = K::keygen(&mut setup_rng).unwrap();
+        let (ct, _) = K::encaps(&ek, &mut setup_rng).unwrap();
+        let times = run_benchmark(iterations, || {
+            let _ = K::decaps(&dk, &ct);
+        });
+        results.push(BenchmarkResult::new(
+            algo_name, "decaps", iterations, &times,
+        ));
+    }
+
+    results
+}
+
+/// Run benchmarks for ML-KEM algorithms
+fn bench_ml_kem(algo: Algorithm, iterations: u64) -> Vec<BenchmarkResult> {
+    let algo_name = algo.to_string();
+    match algo {
+        Algorithm::MlKem512 => bench_kem_variant::<MlKem512>(&algo_name, iterations),
+        Algorithm::MlKem768 => bench_kem_variant::<MlKem768>(&algo_name, iterations),
+        Algorithm::MlKem1024 => bench_kem_variant::<MlKem1024>(&algo_name, iterations),
+        _ => Vec::new(),
+    }
+}
+
+/// Generic benchmark for DSA algorithms
+fn bench_dsa_variant<S: Signer>(
+    algo_name: &str,
+    iterations: u64,
+    message: &[u8],
+) -> Vec<BenchmarkResult> {
+    let mut results = Vec::new();
+
+    // KeyGen - RNG initialized outside the loop
+    {
+        let mut bench_rng = rng();
+        let times = run_benchmark(iterations, || {
+            let _ = S::keygen(&mut bench_rng);
+        });
+        results.push(BenchmarkResult::new(
+            algo_name, "keygen", iterations, &times,
+        ));
+    }
+
+    // Sign
+    {
+        let mut setup_rng = rng();
+        let (sk, _vk) = S::keygen(&mut setup_rng).unwrap();
+        let times = run_benchmark(iterations, || {
+            let _ = S::sign(&sk, message);
+        });
+        results.push(BenchmarkResult::new(algo_name, "sign", iterations, &times));
+    }
+
+    // Verify
+    {
+        let mut setup_rng = rng();
+        let (sk, vk) = S::keygen(&mut setup_rng).unwrap();
+        let sig = S::sign(&sk, message).unwrap();
+        let times = run_benchmark(iterations, || {
+            let _ = S::verify(&vk, message, &sig);
+        });
+        results.push(BenchmarkResult::new(
+            algo_name, "verify", iterations, &times,
+        ));
+    }
+
+    results
+}
+
+/// Run benchmarks for ML-DSA algorithms
+fn bench_ml_dsa(algo: Algorithm, iterations: u64) -> Vec<BenchmarkResult> {
+    let algo_name = algo.to_string();
+    let message = b"The quick brown fox jumps over the lazy dog";
+
+    match algo {
+        Algorithm::MlDsa44 => bench_dsa_variant::<MlDsa44>(&algo_name, iterations, message),
+        Algorithm::MlDsa65 => bench_dsa_variant::<MlDsa65>(&algo_name, iterations, message),
+        Algorithm::MlDsa87 => bench_dsa_variant::<MlDsa87>(&algo_name, iterations, message),
+        _ => Vec::new(),
+    }
+}
+
+/// Run performance benchmarks
+fn cmd_bench(
+    algo: Option<Algorithm>,
+    iterations: u64,
+    output: Option<&PathBuf>,
+    report_format: ReportFormat,
+    verbose: bool,
+) -> Result<()> {
+    if iterations == 0 {
+        bail!("Iterations must be at least 1");
+    }
+
+    if verbose {
+        eprintln!("Running benchmarks with {} iterations...", iterations);
+    }
+
+    let mut report = BenchmarkReport::new("kylix");
+
+    let algorithms = if let Some(a) = algo {
+        vec![a]
+    } else {
+        vec![
+            Algorithm::MlKem512,
+            Algorithm::MlKem768,
+            Algorithm::MlKem1024,
+            Algorithm::MlDsa44,
+            Algorithm::MlDsa65,
+            Algorithm::MlDsa87,
+        ]
+    };
+
+    for algo in algorithms {
+        if verbose {
+            eprintln!("Benchmarking {}...", algo);
+        }
+
+        let results = if algo.is_kem() {
+            bench_ml_kem(algo, iterations)
+        } else {
+            bench_ml_dsa(algo, iterations)
+        };
+
+        for result in results {
+            report.add_result(result);
+        }
+    }
+
+    let output_content = match report_format {
+        ReportFormat::Text => {
+            let mut text = String::new();
+            text.push_str("Kylix Benchmark Results\n");
+            text.push_str("=======================\n\n");
+            for result in &report.results {
+                text.push_str(&result.format());
+                text.push('\n');
+            }
+            text
+        }
+        ReportFormat::Json => {
+            serde_json::to_string_pretty(&report).context("Failed to serialize report to JSON")?
+        }
+        ReportFormat::Markdown => report.to_markdown(),
+    };
+
+    if let Some(out_path) = output {
+        fs::write(out_path, &output_content).context("Failed to write benchmark report")?;
+        println!("Benchmark report written to: {}", out_path.display());
+    } else {
+        println!("{}", output_content);
+    }
+
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -756,5 +994,12 @@ fn main() -> Result<()> {
             cmd_completions(shell);
             Ok(())
         }
+
+        Commands::Bench {
+            algo,
+            iterations,
+            output,
+            report,
+        } => cmd_bench(algo, iterations, output.as_ref(), report, cli.verbose),
     }
 }
