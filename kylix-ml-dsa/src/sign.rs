@@ -153,6 +153,7 @@ pub fn ml_dsa_keygen<const K: usize, const L: usize, const ETA: usize>(
     }
 
     // Zeroize sensitive data
+    seed_input.zeroize();
     expanded.zeroize();
     rho_prime.zeroize();
     key_k.zeroize();

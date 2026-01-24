@@ -10,6 +10,7 @@ use rand::rng;
 use std::fs;
 use std::io::{self, Read};
 use std::path::PathBuf;
+use zeroize::Zeroize;
 
 // ML-KEM key size constants
 const ML_KEM_512_EK_SIZE: usize = MlKem512::ENCAPSULATION_KEY_SIZE;
@@ -125,6 +126,10 @@ enum Commands {
         /// Signature file
         #[arg(short, long)]
         signature: PathBuf,
+
+        /// Input format for key and signature files
+        #[arg(short, long, value_enum, default_value = "hex")]
+        format: OutputFormat,
     },
 
     /// Display information about supported algorithms
@@ -537,8 +542,11 @@ fn cmd_sign(
     format: OutputFormat,
     verbose: bool,
 ) -> Result<()> {
-    let sk_data = fs::read_to_string(key).context("Failed to read signing key file")?;
-    let sk_bytes = decode_input(&sk_data, format)?;
+    let mut sk_data = fs::read_to_string(key).context("Failed to read signing key file")?;
+    let mut sk_bytes = decode_input(&sk_data, format)?;
+
+    // Zeroize the raw string data immediately after decoding
+    sk_data.zeroize();
 
     let algo = detect_dsa_algorithm_from_sk(sk_bytes.len())?;
 
@@ -578,6 +586,9 @@ fn cmd_sign(
         _ => bail!("Algorithm {} does not support signing", algo),
     };
 
+    // Zeroize the decoded secret key bytes after signing
+    sk_bytes.zeroize();
+
     let sig_encoded = encode_output(&sig_bytes, format, "ML-DSA SIGNATURE");
     fs::write(output, &sig_encoded).context("Failed to write signature")?;
 
@@ -591,9 +602,15 @@ fn cmd_sign(
 }
 
 /// Verify a signature with ML-DSA
-fn cmd_verify(pubkey: &PathBuf, input: &PathBuf, signature: &PathBuf, verbose: bool) -> Result<()> {
+fn cmd_verify(
+    pubkey: &PathBuf,
+    input: &PathBuf,
+    signature: &PathBuf,
+    format: OutputFormat,
+    verbose: bool,
+) -> Result<()> {
     let pk_data = fs::read_to_string(pubkey).context("Failed to read public key file")?;
-    let pk_bytes = decode_input(&pk_data, OutputFormat::Hex)?;
+    let pk_bytes = decode_input(&pk_data, format)?;
 
     let algo = detect_dsa_algorithm_from_vk(pk_bytes.len())?;
 
@@ -604,7 +621,7 @@ fn cmd_verify(pubkey: &PathBuf, input: &PathBuf, signature: &PathBuf, verbose: b
 
     let message = fs::read(input).context("Failed to read input file")?;
     let sig_data = fs::read_to_string(signature).context("Failed to read signature file")?;
-    let sig_bytes = decode_input(&sig_data, OutputFormat::Hex)?;
+    let sig_bytes = decode_input(&sig_data, format)?;
 
     if verbose {
         eprintln!("Message size: {} bytes", message.len());
@@ -727,7 +744,8 @@ fn main() -> Result<()> {
             pubkey,
             input,
             signature,
-        } => cmd_verify(&pubkey, &input, &signature, cli.verbose),
+            format,
+        } => cmd_verify(&pubkey, &input, &signature, format, cli.verbose),
 
         Commands::Info => {
             cmd_info();

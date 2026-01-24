@@ -421,6 +421,7 @@ dependencies = [
  "hex",
  "kylix-pqc",
  "rand",
+ "zeroize",
 ]
 
 [[package]]
