@@ -22,8 +22,10 @@ Kylix aims to provide a **pure Rust, high-performance, auditable** implementatio
 | ML-KEM-512/768/1024 | ✅ Complete | FIPS 203 compliant |
 | ML-DSA-44/65/87 | ✅ Complete | FIPS 204 compliant |
 | NIST ACVP Tests (ML-KEM) | ✅ Complete | Official test vectors |
+| NIST ACVP Tests (ML-DSA) | ✅ Complete | KeyGen + SigVer |
 | Fuzz Testing | ✅ Complete | Daily CI + 4 targets |
 | CLI (keygen/encaps/decaps) | ✅ Complete | HEX/Base64/PEM support |
+| CLI (sign/verify) | ✅ Complete | ML-DSA support |
 | no_std Support | ✅ Complete | Embedded-ready |
 | Constant-time Operations | ✅ Complete | Using `subtle` crate |
 | Zeroization | ✅ Complete | Using `zeroize` crate |
@@ -32,8 +34,7 @@ Kylix aims to provide a **pure Rust, high-performance, auditable** implementatio
 
 | Component | FIPS Standard | Status |
 |-----------|---------------|--------|
-| NIST ACVP Tests (ML-DSA) | FIPS 204 | Pending |
-| CLI (sign/verify) | - | Pending |
+| ML-DSA Fuzz Targets | FIPS 204 | Pending |
 
 ### Not Started
 
@@ -152,9 +153,9 @@ Implemented FIPS 204 (Module-Lattice-Based Digital Signature Algorithm):
 3. ✅ Signing algorithm (Algorithm 2)
 4. ✅ Verification algorithm (Algorithm 3)
 5. ✅ Key generation (Algorithm 1)
-6. ⏳ NIST ACVP test vectors
+6. ✅ NIST ACVP test vectors (KeyGen + SigVer)
 7. ⏳ Fuzz targets
-8. ⏳ CLI integration (sign/verify commands)
+8. ✅ CLI integration (sign/verify commands)
 
 ### 2.3 Shared Infrastructure
 

@@ -421,6 +421,7 @@ dependencies = [
  "hex",
  "kylix-pqc",
  "rand",
+ "zeroize",
 ]
 
 [[package]]
@@ -468,6 +469,7 @@ name = "kylix-pqc"
 version = "0.3.0"
 dependencies = [
  "kylix-core",
+ "kylix-ml-dsa",
  "kylix-ml-kem",
 ]
 
