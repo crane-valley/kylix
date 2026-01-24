@@ -8,9 +8,9 @@ Benchmarks for SLH-DSA "fast" variants only. The "small" variants are significan
 
 | Algorithm | KeyGen | Sign | Verify |
 |-----------|--------|------|--------|
-| SLH-DSA-SHAKE-128f | 2.74 ms | 64.3 ms | 4.20 ms |
-| SLH-DSA-SHAKE-192f | 4.05 ms | 108.8 ms | 5.76 ms |
-| SLH-DSA-SHAKE-256f | 10.5 ms | 231.3 ms | 5.57 ms |
+| SLH-DSA-SHAKE-128f | 2.62 ms | 61.1 ms | 3.66 ms |
+| SLH-DSA-SHAKE-192f | 3.78 ms | 97.6 ms | 5.31 ms |
+| SLH-DSA-SHAKE-256f | 10.0 ms | 201.3 ms | 5.41 ms |
 
 ### Key/Signature Sizes
 
