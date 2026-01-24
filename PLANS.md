@@ -53,7 +53,7 @@ Measured on Windows x86_64, 20 CPUs, Release build with `--features simd`:
 | ML-KEM-768 Encaps | < 60 µs | 29.54 µs | ✅ |
 | ML-KEM-768 Decaps | < 50 µs | 39.73 µs | ✅ |
 | ML-DSA-65 KeyGen | - | 102 µs | ✅ |
-| ML-DSA-65 Sign | < 200 µs | 270 µs | ⚠️ Close |
+| ML-DSA-65 Sign | < 200 µs | 270 µs | ❌ Over target |
 | ML-DSA-65 Verify | < 100 µs | 111 µs | ⚠️ Close |
 
 #### ML-DSA Optimization Tasks

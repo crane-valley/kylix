@@ -303,7 +303,6 @@ unsafe fn montgomery_mul_8x_with_params(
 ) -> __m256i {
     // Even lanes (0, 2, 4, 6): _mm256_mul_epi32 does this directly
     let ab_even = _mm256_mul_epi32(a, b);
-    let ab_lo_even = ab_even;
     let ab_hi_even = _mm256_srli_epi64(ab_even, 32);
 
     // Odd lanes (1, 3, 5, 7): shift right by 32 to bring to even positions
@@ -311,11 +310,12 @@ unsafe fn montgomery_mul_8x_with_params(
     let b_odd = _mm256_srli_epi64(b, 32);
     let ab_odd = _mm256_mul_epi32(a_odd, b_odd);
     let ab_lo_odd = _mm256_slli_epi64(ab_odd, 32);
-    let ab_hi_odd = ab_odd;
 
     // Combine even and odd results
-    let ab_lo = _mm256_blend_epi32(ab_lo_even, ab_lo_odd, 0xAA);
-    let ab_hi = _mm256_blend_epi32(ab_hi_even, ab_hi_odd, 0xAA);
+    // ab_even already has low bits in correct position for even lanes
+    // ab_odd already has high bits in correct position for odd lanes
+    let ab_lo = _mm256_blend_epi32(ab_even, ab_lo_odd, 0xAA);
+    let ab_hi = _mm256_blend_epi32(ab_hi_even, ab_odd, 0xAA);
 
     // Montgomery reduce
     montgomery_reduce_with_params(ab_lo, ab_hi, q, qinv)
