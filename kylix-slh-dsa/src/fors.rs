@@ -335,7 +335,6 @@ mod tests {
         let sk_seed = [1u8; N];
         let pk_seed = [2u8; N];
         let md = [0x55u8; 8]; // Some arbitrary digest
-        let mut adrs = Address::fors_tree(0, 0, 0, 0, 0);
 
         // Compute expected public key
         let mut pk_adrs = Address::fors_tree(0, 0, 0, 0, 0);
