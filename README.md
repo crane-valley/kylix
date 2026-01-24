@@ -61,16 +61,16 @@ fn main() -> kylix_pqc::Result<()> {
 ### ML-DSA (Digital Signatures)
 
 ```rust
-use kylix_pqc::ml_dsa::{MlDsa65, Signer};
+use kylix_pqc::ml_dsa::MlDsa65;
 use rand::rngs::OsRng;
 
 fn main() -> kylix_pqc::Result<()> {
     // Generate a signing key pair
     let (signing_key, verifying_key) = MlDsa65::keygen(&mut OsRng)?;
 
-    // Sign a message
+    // Sign a message (deterministic signing, no RNG needed)
     let message = b"Hello, post-quantum world!";
-    let signature = MlDsa65::sign(&signing_key, message, &mut OsRng)?;
+    let signature = MlDsa65::sign(&signing_key, message)?;
 
     // Verify the signature
     MlDsa65::verify(&verifying_key, message, &signature)?;
