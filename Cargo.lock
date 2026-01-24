@@ -400,7 +400,7 @@ dependencies = [
 
 [[package]]
 name = "kylix-bench"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "criterion",
  "kylix-core",
@@ -412,7 +412,7 @@ dependencies = [
 
 [[package]]
 name = "kylix-cli"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "base64",
@@ -425,7 +425,7 @@ dependencies = [
 
 [[package]]
 name = "kylix-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "rand_core",
  "subtle",
@@ -434,8 +434,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "kylix-ml-dsa"
+version = "0.3.0"
+dependencies = [
+ "hex",
+ "kylix-core",
+ "rand",
+ "rand_core",
+ "serde",
+ "serde_json",
+ "sha3",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
 name = "kylix-ml-kem"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "hex",
  "kylix-core",
@@ -450,7 +465,7 @@ dependencies = [
 
 [[package]]
 name = "kylix-pqc"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "kylix-core",
  "kylix-ml-kem",
