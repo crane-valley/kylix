@@ -371,7 +371,7 @@ mod tests {
             let recovered_pk =
                 fors_pk_from_sig::<Shake128Hash>(&sig, &md, &pk_seed, &mut verify_adrs, K, A);
 
-            assert_eq!(expected_pk, recovered_pk, "Failed for md byte {}", byte);
+            assert_eq!(expected_pk, recovered_pk, "Failed for md byte {byte}");
         }
     }
 

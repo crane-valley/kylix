@@ -246,7 +246,7 @@ mod tests {
                 &message, &sig, &pk_seed, 0, idx_leaf, &pk_root, H_PRIME, D,
             );
 
-            assert!(valid, "Failed for idx_leaf = {}", idx_leaf);
+            assert!(valid, "Failed for idx_leaf = {idx_leaf}");
         }
     }
 

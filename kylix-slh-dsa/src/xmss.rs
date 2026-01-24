@@ -273,11 +273,7 @@ mod tests {
                 H_PRIME,
             );
 
-            assert_eq!(
-                expected_root, recovered_root,
-                "Failed for leaf index {}",
-                idx
-            );
+            assert_eq!(expected_root, recovered_root, "Failed for leaf index {idx}");
         }
     }
 
