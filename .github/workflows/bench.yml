@@ -1,0 +1,59 @@
+name: Benchmarks
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  bench-check:
+    name: Benchmark Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo bench --no-run
+
+  bench-compare:
+    name: Compare (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: x86_64-linux
+          - os: macos-latest
+            platform: arm64-macos
+          - os: ubuntu-24.04-arm
+            platform: arm64-linux
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run benchmarks
+        run: cargo bench -p kylix-bench --bench ml_dsa --features kylix-ml-dsa/simd -- --output-format bencher | tee output.txt
+
+      - name: Compare benchmark result
+        uses: benchmark-action/github-action-benchmark@4bdcce38c94cec68da58d012ac24b7b1155efe8b  # v1.20.7
+        with:
+          tool: 'cargo'
+          output-file-path: output.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          benchmark-data-dir-path: 'dev/bench'
+          name: 'Benchmark (${{ matrix.platform }})'
+          comment-on-alert: true
+          comment-always: true
+          alert-threshold: '150%'
+          fail-on-alert: false
+          summary-always: true
+          auto-push: false
