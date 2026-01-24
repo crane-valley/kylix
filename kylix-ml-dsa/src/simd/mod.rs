@@ -231,15 +231,41 @@ pub fn inv_ntt(a: &mut [i32; N]) -> bool {
     }
 }
 
-/// Forward NTT fallback for non-x86_64 architectures.
-#[cfg(not(target_arch = "x86_64"))]
+/// Forward NTT using SIMD (NEON).
+///
+/// Returns true if SIMD was used.
+#[cfg(target_arch = "aarch64")]
+#[inline]
+pub fn ntt(a: &mut [i32; N]) -> bool {
+    // SAFETY: NEON is always available on aarch64
+    unsafe {
+        neon::ntt_neon(a);
+    }
+    true
+}
+
+/// Inverse NTT using SIMD (NEON).
+///
+/// Returns true if SIMD was used.
+#[cfg(target_arch = "aarch64")]
+#[inline]
+pub fn inv_ntt(a: &mut [i32; N]) -> bool {
+    // SAFETY: NEON is always available on aarch64
+    unsafe {
+        neon::inv_ntt_neon(a);
+    }
+    true
+}
+
+/// Forward NTT fallback for unsupported architectures.
+#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
 #[inline]
 pub fn ntt(_a: &mut [i32; N]) -> bool {
     false
 }
 
-/// Inverse NTT fallback for non-x86_64 architectures.
-#[cfg(not(target_arch = "x86_64"))]
+/// Inverse NTT fallback for unsupported architectures.
+#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
 #[inline]
 pub fn inv_ntt(_a: &mut [i32; N]) -> bool {
     false
