@@ -98,9 +98,19 @@ jobs:
       - run: cargo bench --no-run
 
   bench-track:
-    name: Benchmark Tracking
-    runs-on: ubuntu-latest
+    name: Benchmark (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
     if: github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: x86_64-linux
+          - os: macos-latest
+            platform: arm64-macos
+          - os: ubuntu-24.04-arm
+            platform: arm64-linux
     permissions:
       contents: write
       deployments: write
@@ -122,11 +132,22 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
           benchmark-data-dir-path: 'dev/bench'
+          name: 'Benchmark (${{ matrix.platform }})'
 
   bench-compare:
-    name: Benchmark Comparison
-    runs-on: ubuntu-latest
+    name: Benchmark Compare (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
     if: github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: x86_64-linux
+          - os: macos-latest
+            platform: arm64-macos
+          - os: ubuntu-24.04-arm
+            platform: arm64-linux
     permissions:
       pull-requests: write
     env:
@@ -146,6 +167,7 @@ jobs:
           output-file-path: output.txt
           github-token: ${{ secrets.GITHUB_TOKEN }}
           benchmark-data-dir-path: 'dev/bench'
+          name: 'Benchmark (${{ matrix.platform }})'
           comment-on-alert: true
           comment-always: true
           alert-threshold: '150%'
