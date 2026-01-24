@@ -33,6 +33,7 @@ Kylix aims to provide a **pure Rust, high-performance, auditable** implementatio
 | Benchmarks (ML-DSA) | ✅ Complete | Criterion-based |
 | SIMD Infrastructure | ✅ Complete | AVX2/NEON/WASM-SIMD128 |
 | SIMD NTT (AVX2) | ✅ Complete | 8-way parallel butterflies |
+| SIMD NTT (NEON) | ✅ Complete | 4-way parallel butterflies |
 
 ### Not Started
 
@@ -40,7 +41,7 @@ Kylix aims to provide a **pure Rust, high-performance, auditable** implementatio
 |-----------|---------------|----------|
 | SLH-DSA | FIPS 205 | MEDIUM |
 | CLI Bench Command | ✅ Complete | - |
-| SIMD NTT (NEON/WASM) | - | MEDIUM |
+| SIMD NTT (WASM) | - | LOW |
 | Security Audit | - | HIGH |
 
 ### Benchmark Results (v0.3.0 + SIMD)
@@ -68,9 +69,9 @@ Measured on Windows x86_64 (Intel i5-13500), Release build with `--features simd
    - ✅ `pointwise_acc` (matrix multiplication) using AVX2
    - ✅ AVX2 detection result caching to avoid CPUID overhead
 
-3. **SIMD Acceleration** - ✅ AVX2 complete:
+3. **SIMD Acceleration** - ✅ AVX2 & NEON complete:
    - ✅ AVX2 for x86_64 (pointwise mul + NTT butterflies + matrix mul)
-   - ⚠️ NEON for ARM64 (pointwise mul only, NTT pending)
+   - ✅ NEON for ARM64 (pointwise mul + NTT butterflies + matrix mul)
    - ⚠️ WASM-SIMD128 (pointwise mul only, NTT pending)
 
 4. **Signing Loop Optimization** - No longer bottleneck:

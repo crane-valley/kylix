@@ -54,6 +54,17 @@ jobs:
       - run: cargo test --all-features
         if: matrix.rust != '1.75'
 
+  test-arm64:
+    name: Test (ARM64 Linux)
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --all-features
+      # Run SIMD-specific tests to verify NEON implementation
+      - run: cargo test -p kylix-ml-dsa --features simd -- simd
+
   test-no-std:
     name: Test (no_std)
     runs-on: ubuntu-latest
@@ -85,6 +96,68 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
       - run: cargo bench --no-run
+
+  bench-track:
+    name: Benchmark Tracking
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+      deployments: write
+    env:
+      RUSTFLAGS: ""  # Override -Dwarnings for benchmarks
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run benchmarks
+        run: cargo bench -p kylix-bench --bench ml_dsa --features kylix-ml-dsa/simd -- --output-format bencher | tee output.txt
+
+      - name: Store benchmark result
+        uses: benchmark-action/github-action-benchmark@4bdcce38c94cec68da58d012ac24b7b1155efe8b  # v1.20.7
+        with:
+          tool: 'cargo'
+          output-file-path: output.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          benchmark-data-dir-path: 'dev/bench'
+
+  bench-compare:
+    name: Benchmark Comparison
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      pull-requests: write
+    env:
+      RUSTFLAGS: ""  # Override -Dwarnings for benchmarks
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run benchmarks
+        run: cargo bench -p kylix-bench --bench ml_dsa --features kylix-ml-dsa/simd -- --output-format bencher | tee output.txt
+
+      - name: Download baseline from gh-pages
+        uses: actions/checkout@v6
+        with:
+          ref: gh-pages
+          path: gh-pages
+        continue-on-error: true
+
+      - name: Compare benchmark result
+        uses: benchmark-action/github-action-benchmark@4bdcce38c94cec68da58d012ac24b7b1155efe8b  # v1.20.7
+        with:
+          tool: 'cargo'
+          output-file-path: output.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          comment-on-alert: true
+          comment-always: true
+          alert-threshold: '150%'
+          fail-on-alert: false
+          summary-always: true
+          external-data-json-path: gh-pages/dev/bench/data.json
 
   msrv:
     name: MSRV
