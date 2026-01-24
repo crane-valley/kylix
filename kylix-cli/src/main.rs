@@ -764,88 +764,101 @@ where
     times
 }
 
+/// Generic benchmark for KEM algorithms
+fn bench_kem_variant<K: Kem>(algo_name: &str, iterations: u64) -> Vec<BenchmarkResult> {
+    let mut results = Vec::new();
+
+    // KeyGen - RNG initialized outside the loop
+    {
+        let mut bench_rng = rng();
+        let times = run_benchmark(iterations, || {
+            let _ = K::keygen(&mut bench_rng);
+        });
+        results.push(BenchmarkResult::new(
+            algo_name, "keygen", iterations, &times,
+        ));
+    }
+
+    // Encaps - RNG initialized outside the loop
+    {
+        let mut setup_rng = rng();
+        let (_dk, ek) = K::keygen(&mut setup_rng).unwrap();
+        let mut bench_rng = rng();
+        let times = run_benchmark(iterations, || {
+            let _ = K::encaps(&ek, &mut bench_rng);
+        });
+        results.push(BenchmarkResult::new(
+            algo_name, "encaps", iterations, &times,
+        ));
+    }
+
+    // Decaps
+    {
+        let mut setup_rng = rng();
+        let (dk, ek) = K::keygen(&mut setup_rng).unwrap();
+        let (ct, _) = K::encaps(&ek, &mut setup_rng).unwrap();
+        let times = run_benchmark(iterations, || {
+            let _ = K::decaps(&dk, &ct);
+        });
+        results.push(BenchmarkResult::new(
+            algo_name, "decaps", iterations, &times,
+        ));
+    }
+
+    results
+}
+
 /// Run benchmarks for ML-KEM algorithms
 fn bench_ml_kem(algo: Algorithm, iterations: u64) -> Vec<BenchmarkResult> {
-    let mut results = Vec::new();
     let algo_name = algo.to_string();
-
     match algo {
-        Algorithm::MlKem512 => {
-            // KeyGen
-            let times = run_benchmark(iterations, || {
-                let _ = MlKem512::keygen(&mut rng());
-            });
-            results.push(BenchmarkResult::new(
-                &algo_name, "keygen", iterations, &times,
-            ));
+        Algorithm::MlKem512 => bench_kem_variant::<MlKem512>(&algo_name, iterations),
+        Algorithm::MlKem768 => bench_kem_variant::<MlKem768>(&algo_name, iterations),
+        Algorithm::MlKem1024 => bench_kem_variant::<MlKem1024>(&algo_name, iterations),
+        _ => Vec::new(),
+    }
+}
 
-            // Encaps
-            let (dk, ek) = MlKem512::keygen(&mut rng()).unwrap();
-            let times = run_benchmark(iterations, || {
-                let _ = MlKem512::encaps(&ek, &mut rng());
-            });
-            results.push(BenchmarkResult::new(
-                &algo_name, "encaps", iterations, &times,
-            ));
+/// Generic benchmark for DSA algorithms
+fn bench_dsa_variant<S: Signer>(
+    algo_name: &str,
+    iterations: u64,
+    message: &[u8],
+) -> Vec<BenchmarkResult> {
+    let mut results = Vec::new();
 
-            // Decaps
-            let (ct, _) = MlKem512::encaps(&ek, &mut rng()).unwrap();
-            let times = run_benchmark(iterations, || {
-                let _ = MlKem512::decaps(&dk, &ct);
-            });
-            results.push(BenchmarkResult::new(
-                &algo_name, "decaps", iterations, &times,
-            ));
-        }
-        Algorithm::MlKem768 => {
-            let times = run_benchmark(iterations, || {
-                let _ = MlKem768::keygen(&mut rng());
-            });
-            results.push(BenchmarkResult::new(
-                &algo_name, "keygen", iterations, &times,
-            ));
+    // KeyGen - RNG initialized outside the loop
+    {
+        let mut bench_rng = rng();
+        let times = run_benchmark(iterations, || {
+            let _ = S::keygen(&mut bench_rng);
+        });
+        results.push(BenchmarkResult::new(
+            algo_name, "keygen", iterations, &times,
+        ));
+    }
 
-            let (dk, ek) = MlKem768::keygen(&mut rng()).unwrap();
-            let times = run_benchmark(iterations, || {
-                let _ = MlKem768::encaps(&ek, &mut rng());
-            });
-            results.push(BenchmarkResult::new(
-                &algo_name, "encaps", iterations, &times,
-            ));
+    // Sign
+    {
+        let mut setup_rng = rng();
+        let (sk, _vk) = S::keygen(&mut setup_rng).unwrap();
+        let times = run_benchmark(iterations, || {
+            let _ = S::sign(&sk, message);
+        });
+        results.push(BenchmarkResult::new(algo_name, "sign", iterations, &times));
+    }
 
-            let (ct, _) = MlKem768::encaps(&ek, &mut rng()).unwrap();
-            let times = run_benchmark(iterations, || {
-                let _ = MlKem768::decaps(&dk, &ct);
-            });
-            results.push(BenchmarkResult::new(
-                &algo_name, "decaps", iterations, &times,
-            ));
-        }
-        Algorithm::MlKem1024 => {
-            let times = run_benchmark(iterations, || {
-                let _ = MlKem1024::keygen(&mut rng());
-            });
-            results.push(BenchmarkResult::new(
-                &algo_name, "keygen", iterations, &times,
-            ));
-
-            let (dk, ek) = MlKem1024::keygen(&mut rng()).unwrap();
-            let times = run_benchmark(iterations, || {
-                let _ = MlKem1024::encaps(&ek, &mut rng());
-            });
-            results.push(BenchmarkResult::new(
-                &algo_name, "encaps", iterations, &times,
-            ));
-
-            let (ct, _) = MlKem1024::encaps(&ek, &mut rng()).unwrap();
-            let times = run_benchmark(iterations, || {
-                let _ = MlKem1024::decaps(&dk, &ct);
-            });
-            results.push(BenchmarkResult::new(
-                &algo_name, "decaps", iterations, &times,
-            ));
-        }
-        _ => {}
+    // Verify
+    {
+        let mut setup_rng = rng();
+        let (sk, vk) = S::keygen(&mut setup_rng).unwrap();
+        let sig = S::sign(&sk, message).unwrap();
+        let times = run_benchmark(iterations, || {
+            let _ = S::verify(&vk, message, &sig);
+        });
+        results.push(BenchmarkResult::new(
+            algo_name, "verify", iterations, &times,
+        ));
     }
 
     results
@@ -853,81 +866,15 @@ fn bench_ml_kem(algo: Algorithm, iterations: u64) -> Vec<BenchmarkResult> {
 
 /// Run benchmarks for ML-DSA algorithms
 fn bench_ml_dsa(algo: Algorithm, iterations: u64) -> Vec<BenchmarkResult> {
-    let mut results = Vec::new();
     let algo_name = algo.to_string();
     let message = b"The quick brown fox jumps over the lazy dog";
 
     match algo {
-        Algorithm::MlDsa44 => {
-            let times = run_benchmark(iterations, || {
-                let _ = MlDsa44::keygen(&mut rng());
-            });
-            results.push(BenchmarkResult::new(
-                &algo_name, "keygen", iterations, &times,
-            ));
-
-            let (sk, vk) = MlDsa44::keygen(&mut rng()).unwrap();
-            let times = run_benchmark(iterations, || {
-                let _ = MlDsa44::sign(&sk, message);
-            });
-            results.push(BenchmarkResult::new(&algo_name, "sign", iterations, &times));
-
-            let sig = MlDsa44::sign(&sk, message).unwrap();
-            let times = run_benchmark(iterations, || {
-                let _ = MlDsa44::verify(&vk, message, &sig);
-            });
-            results.push(BenchmarkResult::new(
-                &algo_name, "verify", iterations, &times,
-            ));
-        }
-        Algorithm::MlDsa65 => {
-            let times = run_benchmark(iterations, || {
-                let _ = MlDsa65::keygen(&mut rng());
-            });
-            results.push(BenchmarkResult::new(
-                &algo_name, "keygen", iterations, &times,
-            ));
-
-            let (sk, vk) = MlDsa65::keygen(&mut rng()).unwrap();
-            let times = run_benchmark(iterations, || {
-                let _ = MlDsa65::sign(&sk, message);
-            });
-            results.push(BenchmarkResult::new(&algo_name, "sign", iterations, &times));
-
-            let sig = MlDsa65::sign(&sk, message).unwrap();
-            let times = run_benchmark(iterations, || {
-                let _ = MlDsa65::verify(&vk, message, &sig);
-            });
-            results.push(BenchmarkResult::new(
-                &algo_name, "verify", iterations, &times,
-            ));
-        }
-        Algorithm::MlDsa87 => {
-            let times = run_benchmark(iterations, || {
-                let _ = MlDsa87::keygen(&mut rng());
-            });
-            results.push(BenchmarkResult::new(
-                &algo_name, "keygen", iterations, &times,
-            ));
-
-            let (sk, vk) = MlDsa87::keygen(&mut rng()).unwrap();
-            let times = run_benchmark(iterations, || {
-                let _ = MlDsa87::sign(&sk, message);
-            });
-            results.push(BenchmarkResult::new(&algo_name, "sign", iterations, &times));
-
-            let sig = MlDsa87::sign(&sk, message).unwrap();
-            let times = run_benchmark(iterations, || {
-                let _ = MlDsa87::verify(&vk, message, &sig);
-            });
-            results.push(BenchmarkResult::new(
-                &algo_name, "verify", iterations, &times,
-            ));
-        }
-        _ => {}
+        Algorithm::MlDsa44 => bench_dsa_variant::<MlDsa44>(&algo_name, iterations, message),
+        Algorithm::MlDsa65 => bench_dsa_variant::<MlDsa65>(&algo_name, iterations, message),
+        Algorithm::MlDsa87 => bench_dsa_variant::<MlDsa87>(&algo_name, iterations, message),
+        _ => Vec::new(),
     }
-
-    results
 }
 
 /// Run performance benchmarks
@@ -938,6 +885,10 @@ fn cmd_bench(
     report_format: ReportFormat,
     verbose: bool,
 ) -> Result<()> {
+    if iterations == 0 {
+        bail!("Iterations must be at least 1");
+    }
+
     if verbose {
         eprintln!("Running benchmarks with {} iterations...", iterations);
     }
