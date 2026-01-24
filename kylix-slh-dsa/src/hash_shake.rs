@@ -42,20 +42,28 @@ macro_rules! impl_shake_hash_suite {
 
             fn prf(pk_seed: &[u8], sk_seed: &[u8], adrs: &Address) -> Vec<u8> {
                 // PRF(PK.seed, SK.seed, ADRS) = SHAKE256(PK.seed || ADRS || SK.seed, 8n)
-                let mut input = Vec::with_capacity(pk_seed.len() + 32 + sk_seed.len());
-                input.extend_from_slice(pk_seed);
-                input.extend_from_slice(adrs.as_bytes());
-                input.extend_from_slice(sk_seed);
-                shake256(&input, $n)
+                // Use streaming API to avoid copying secret key to heap
+                let mut hasher = Shake256::default();
+                hasher.update(pk_seed);
+                hasher.update(adrs.as_bytes());
+                hasher.update(sk_seed);
+                let mut reader = hasher.finalize_xof();
+                let mut output = vec![0u8; $n];
+                reader.read(&mut output);
+                output
             }
 
             fn prf_msg(sk_prf: &[u8], opt_rand: &[u8], message: &[u8]) -> Vec<u8> {
                 // PRFmsg(SK.prf, OptRand, M) = SHAKE256(SK.prf || OptRand || M, 8n)
-                let mut input = Vec::with_capacity(sk_prf.len() + opt_rand.len() + message.len());
-                input.extend_from_slice(sk_prf);
-                input.extend_from_slice(opt_rand);
-                input.extend_from_slice(message);
-                shake256(&input, $n)
+                // Use streaming API to avoid copying secret key to heap
+                let mut hasher = Shake256::default();
+                hasher.update(sk_prf);
+                hasher.update(opt_rand);
+                hasher.update(message);
+                let mut reader = hasher.finalize_xof();
+                let mut output = vec![0u8; $n];
+                reader.read(&mut output);
+                output
             }
 
             fn h_msg(

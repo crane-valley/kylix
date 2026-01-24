@@ -14,6 +14,27 @@ use crate::utils::{base_2b, wots_checksum};
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 
+/// Encode checksum digits for WOTS+ message.
+///
+/// Computes and encodes the checksum as base-w digits to append to the message.
+/// This handles the bit alignment per FIPS 205 Algorithm 4.
+fn encode_checksum(msg: &[u32], wots_len: usize, wots_len1: usize) -> Vec<u32> {
+    let w = W as u32;
+    let csum = wots_checksum(msg, w);
+
+    let len2 = wots_len - wots_len1;
+    // Shift to align checksum bits; use modulo 8 to handle case when len2*LG_W is multiple of 8
+    let shift = (8 - ((len2 * LG_W) % 8)) % 8;
+    let csum_bytes = ((csum as u64) << shift) as u32;
+    let csum_total_bits = len2 * LG_W;
+    let csum_bytes_needed = csum_total_bits.div_ceil(8);
+
+    let mut csum_buf = [0u8; 4];
+    csum_buf[4 - csum_bytes_needed..]
+        .copy_from_slice(&csum_bytes.to_be_bytes()[4 - csum_bytes_needed..]);
+    base_2b(&csum_buf[4 - csum_bytes_needed..], LG_W, len2)
+}
+
 /// Compute a single step of the WOTS+ chain.
 ///
 /// FIPS 205, Algorithm 5: chain(X, i, s, PK.seed, ADRS)
@@ -116,25 +137,9 @@ pub fn wots_sign<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
     pk_seed: &[u8],
     adrs: &mut Address,
 ) -> Vec<u8> {
-    let w = W as u32;
-
-    // Convert message to base-w representation
+    // Convert message to base-w representation and append checksum
     let mut msg = base_2b(message, LG_W, WOTS_LEN1);
-
-    // Compute checksum
-    let csum = wots_checksum(&msg, w);
-
-    // Encode checksum and append
-    let len2 = WOTS_LEN - WOTS_LEN1;
-    let csum_bytes = ((csum as u64) << (8 - ((len2 * LG_W) % 8))) as u32;
-    let csum_total_bits = len2 * LG_W;
-    let csum_bytes_needed = csum_total_bits.div_ceil(8);
-
-    let mut csum_buf = [0u8; 4];
-    csum_buf[4 - csum_bytes_needed..]
-        .copy_from_slice(&csum_bytes.to_be_bytes()[4 - csum_bytes_needed..]);
-    let csum_digits = base_2b(&csum_buf[4 - csum_bytes_needed..], LG_W, len2);
-    msg.extend(csum_digits);
+    msg.extend(encode_checksum(&msg, WOTS_LEN, WOTS_LEN1));
 
     // Compute sk_adrs for secret key generation
     let mut sk_adrs = adrs.with_type(AdrsType::WotsPrf);
@@ -178,23 +183,9 @@ pub fn wots_pk_from_sig<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: us
     let w = W as u32;
     let n = H::N;
 
-    // Convert message to base-w representation
+    // Convert message to base-w representation and append checksum
     let mut msg = base_2b(message, LG_W, WOTS_LEN1);
-
-    // Compute checksum
-    let csum = wots_checksum(&msg, w);
-
-    // Encode checksum and append
-    let len2 = WOTS_LEN - WOTS_LEN1;
-    let csum_bytes = ((csum as u64) << (8 - ((len2 * LG_W) % 8))) as u32;
-    let csum_total_bits = len2 * LG_W;
-    let csum_bytes_needed = csum_total_bits.div_ceil(8);
-
-    let mut csum_buf = [0u8; 4];
-    csum_buf[4 - csum_bytes_needed..]
-        .copy_from_slice(&csum_bytes.to_be_bytes()[4 - csum_bytes_needed..]);
-    let csum_digits = base_2b(&csum_buf[4 - csum_bytes_needed..], LG_W, len2);
-    msg.extend(csum_digits);
+    msg.extend(encode_checksum(&msg, WOTS_LEN, WOTS_LEN1));
 
     // Compute wots_pk_adrs for public key compression
     let wots_pk_adrs = adrs.with_type(AdrsType::WotsPk);

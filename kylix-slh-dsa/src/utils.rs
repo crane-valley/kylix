@@ -118,20 +118,6 @@ pub fn encode_checksum(csum: u32, lg_w: usize, len2: usize) -> Vec<u32> {
 }
 
 /// Concatenate byte slices into a single vector.
-#[cfg(not(feature = "std"))]
-#[must_use]
-#[allow(dead_code)]
-pub fn concat(slices: &[&[u8]]) -> Vec<u8> {
-    let total_len: usize = slices.iter().map(|s| s.len()).sum();
-    let mut result = Vec::with_capacity(total_len);
-    for slice in slices {
-        result.extend_from_slice(slice);
-    }
-    result
-}
-
-/// Concatenate byte slices into a single vector.
-#[cfg(feature = "std")]
 #[must_use]
 #[allow(dead_code)]
 pub fn concat(slices: &[&[u8]]) -> Vec<u8> {

@@ -11,6 +11,7 @@ use crate::hash::HashSuite;
 use crate::hypertree::{ht_root, ht_sign, ht_verify};
 
 use rand_core::CryptoRng;
+use zeroize::Zeroize;
 
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
@@ -63,9 +64,9 @@ impl<const N: usize> SecretKey<N> {
 
 impl<const N: usize> Drop for SecretKey<N> {
     fn drop(&mut self) {
-        // Zeroize secret material
-        self.sk_seed.fill(0);
-        self.sk_prf.fill(0);
+        // Zeroize secret material using zeroize crate to prevent compiler optimization
+        self.sk_seed.zeroize();
+        self.sk_prf.zeroize();
     }
 }
 
