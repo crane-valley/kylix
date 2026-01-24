@@ -97,15 +97,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo bench --no-run
 
-  bench-comparison:
-    name: Benchmark (${{ matrix.os }}, SIMD=${{ matrix.simd }})
-    runs-on: ${{ matrix.os }}
-    if: github.event_name == 'pull_request'
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, ubuntu-24.04-arm]
-        simd: [true, false]
+  bench-track:
+    name: Benchmark Tracking
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+      deployments: write
     env:
       RUSTFLAGS: ""  # Override -Dwarnings for benchmarks
     steps:
@@ -113,86 +111,53 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
-      - name: Run ML-DSA benchmarks (SIMD=${{ matrix.simd }})
-        run: |
-          if [ "${{ matrix.simd }}" = "true" ]; then
-            cargo bench -p kylix-bench --bench ml_dsa --features kylix-ml-dsa/simd -- --noplot 2>&1 | tee bench-output.txt
-          else
-            cargo bench -p kylix-bench --bench ml_dsa -- --noplot 2>&1 | tee bench-output.txt
-          fi
-        shell: bash
+      - name: Run benchmarks
+        run: cargo bench -p kylix-bench --bench ml_dsa --features kylix-ml-dsa/simd -- --output-format bencher | tee output.txt
 
-      - name: Extract benchmark results
-        run: |
-          echo "## Benchmark Results (${{ matrix.os }}, SIMD=${{ matrix.simd }})" > results.md
-          echo "" >> results.md
-          echo "| Operation | Min | Median | Max |" >> results.md
-          echo "|-----------|-----|--------|-----|" >> results.md
-          # Match lines with operation name before "time:"
-          grep -E "^[A-Za-z].*time:" bench-output.txt | while read line; do
-            name=$(echo "$line" | sed 's/time:.*//' | xargs)
-            # Extract the three time values from [low median high]
-            times=$(echo "$line" | grep -oE '\[[^]]+\]' | head -1 | tr -d '[]')
-            min=$(echo "$times" | awk '{print $1" "$2}')
-            median=$(echo "$times" | awk '{print $3" "$4}')
-            max=$(echo "$times" | awk '{print $5" "$6}')
-            if [ -n "$name" ]; then
-              echo "| $name | $min | $median | $max |" >> results.md
-            fi
-          done
-          cat results.md
-        shell: bash
-
-      - name: Upload benchmark results
-        uses: actions/upload-artifact@v4
+      - name: Store benchmark result
+        uses: benchmark-action/github-action-benchmark@4bdcce38c94cec68da58d012ac24b7b1155efe8b  # v1.20.7
         with:
-          name: bench-${{ matrix.os }}-simd-${{ matrix.simd }}
-          path: |
-            results.md
-            bench-output.txt
+          tool: 'cargo'
+          output-file-path: output.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          benchmark-data-dir-path: 'dev/bench'
 
-  bench-summary:
-    name: Benchmark Summary
+  bench-compare:
+    name: Benchmark Comparison
     runs-on: ubuntu-latest
-    needs: bench-comparison
     if: github.event_name == 'pull_request'
     permissions:
       pull-requests: write
+    env:
+      RUSTFLAGS: ""  # Override -Dwarnings for benchmarks
     steps:
-      - name: Download all benchmark results
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run benchmarks
+        run: cargo bench -p kylix-bench --bench ml_dsa --features kylix-ml-dsa/simd -- --output-format bencher | tee output.txt
+
+      - name: Download baseline from gh-pages
+        uses: actions/checkout@v6
         with:
-          pattern: bench-*
-          merge-multiple: false
+          ref: gh-pages
+          path: gh-pages
+        continue-on-error: true
 
-      - name: Create summary comment
-        uses: actions/github-script@v7
+      - name: Compare benchmark result
+        uses: benchmark-action/github-action-benchmark@4bdcce38c94cec68da58d012ac24b7b1155efe8b  # v1.20.7
         with:
-          script: |
-            const fs = require('fs');
-            const path = require('path');
-
-            let comment = '## 📊 Benchmark Results\n\n';
-
-            const dirs = fs.readdirSync('.').filter(f => f.startsWith('bench-'));
-            dirs.sort();
-
-            for (const dir of dirs) {
-              const resultsPath = path.join(dir, 'results.md');
-              if (fs.existsSync(resultsPath)) {
-                const content = fs.readFileSync(resultsPath, 'utf8');
-                comment += content + '\n---\n\n';
-              }
-            }
-
-            comment += '\n*Benchmarks run on GitHub Actions runners*';
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
-            });
+          tool: 'cargo'
+          output-file-path: output.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          comment-on-alert: true
+          comment-always: true
+          alert-threshold: '150%'
+          fail-on-alert: false
+          summary-always: true
+          external-data-json-path: gh-pages/dev/bench/data.json
 
   msrv:
     name: MSRV
