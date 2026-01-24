@@ -3,6 +3,7 @@
 //! This module provides the `PolyVec` type representing a vector of K polynomials,
 //! along with arithmetic operations, NTT transforms, and serialization.
 
+// Vector operations are used internally; some methods unused in certain configurations.
 #![allow(dead_code)]
 #![allow(clippy::wrong_self_convention)]
 

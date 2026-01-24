@@ -3,6 +3,7 @@
 //! This module provides constant-time Barrett and Montgomery reduction
 //! for efficient modular arithmetic in the polynomial ring Z_q\[X\]/(X^256 + 1).
 
+// Reduction functions include both Barrett and Montgomery; not all always used.
 #![allow(dead_code)]
 #![allow(clippy::let_and_return)]
 
