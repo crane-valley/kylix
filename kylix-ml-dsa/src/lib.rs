@@ -91,8 +91,8 @@ mod hash;
 mod ntt;
 #[allow(dead_code)]
 mod packing;
-#[allow(dead_code)]
-mod params;
+/// ML-DSA parameter constants for all variants.
+pub mod params;
 #[allow(dead_code)]
 mod poly;
 #[allow(dead_code)]

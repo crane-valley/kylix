@@ -1,0 +1,47 @@
+[package]
+name = "kylix-ml-dsa-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+# Keep this crate out of the parent workspace
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+arbitrary = { version = "1.4", features = ["derive"] }
+
+[dependencies.kylix-ml-dsa]
+path = ".."
+features = ["ml-dsa-44", "ml-dsa-65", "ml-dsa-87"]
+
+[[bin]]
+name = "fuzz_keygen"
+path = "fuzz_targets/fuzz_keygen.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_sign"
+path = "fuzz_targets/fuzz_sign.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_verify"
+path = "fuzz_targets/fuzz_verify.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_roundtrip"
+path = "fuzz_targets/fuzz_roundtrip.rs"
+test = false
+doc = false
+bench = false
