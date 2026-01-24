@@ -20,6 +20,10 @@ A post-quantum cryptography library implementing NIST FIPS standards in pure Rus
   - ML-DSA-44 (Security Level 2)
   - ML-DSA-65 (Security Level 3)
   - ML-DSA-87 (Security Level 5)
+- **SLH-DSA** (FIPS 205): Stateless Hash-Based Digital Signature Algorithm
+  - SLH-DSA-SHAKE-128s/128f (Security Level 1)
+  - SLH-DSA-SHAKE-192s/192f (Security Level 3)
+  - SLH-DSA-SHAKE-256s/256f (Security Level 5)
 - `no_std` compatible for embedded systems
 - Constant-time implementations to prevent timing attacks
 - Secure memory handling with automatic zeroization
@@ -88,6 +92,7 @@ fn main() -> kylix_pqc::Result<()> {
 | `kylix-core` | Core traits and utilities |
 | `kylix-ml-kem` | ML-KEM (FIPS 203) implementation |
 | `kylix-ml-dsa` | ML-DSA (FIPS 204) implementation |
+| `kylix-slh-dsa` | SLH-DSA (FIPS 205) implementation |
 | `kylix-cli` | Command-line interface |
 
 ## Security
