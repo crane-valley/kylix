@@ -469,6 +469,7 @@ dependencies = [
  "kylix-core",
  "kylix-ml-dsa",
  "kylix-ml-kem",
+ "kylix-slh-dsa",
  "rand",
  "serde",
  "serde_json",
@@ -540,6 +541,22 @@ dependencies = [
  "kylix-core",
  "kylix-ml-dsa",
  "kylix-ml-kem",
+]
+
+[[package]]
+name = "kylix-slh-dsa"
+version = "0.3.0"
+dependencies = [
+ "hex",
+ "kylix-core",
+ "rand",
+ "rand_chacha",
+ "rand_core",
+ "serde",
+ "serde_json",
+ "sha3",
+ "subtle",
+ "zeroize",
 ]
 
 [[package]]

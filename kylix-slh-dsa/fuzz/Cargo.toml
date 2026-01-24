@@ -1,0 +1,51 @@
+[package]
+name = "kylix-slh-dsa-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+arbitrary = { version = "1", features = ["derive"] }
+sha3 = "0.10"
+rand_core = "0.9"
+
+[dependencies.kylix-slh-dsa]
+path = ".."
+features = ["slh-dsa-shake-128f"]
+
+[dependencies.kylix-core]
+path = "../../kylix-core"
+
+[[bin]]
+name = "fuzz_keygen"
+path = "fuzz_targets/fuzz_keygen.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_sign"
+path = "fuzz_targets/fuzz_sign.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_verify"
+path = "fuzz_targets/fuzz_verify.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_roundtrip"
+path = "fuzz_targets/fuzz_roundtrip.rs"
+test = false
+doc = false
+bench = false

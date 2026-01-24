@@ -16,6 +16,7 @@ simd = ["kylix-ml-dsa/simd"]
 [dependencies]
 kylix-ml-kem = { path = "../kylix-ml-kem", features = ["ml-kem-512", "ml-kem-768", "ml-kem-1024"] }
 kylix-ml-dsa = { path = "../kylix-ml-dsa", features = ["ml-dsa-44", "ml-dsa-65", "ml-dsa-87"] }
+kylix-slh-dsa = { path = "../kylix-slh-dsa", features = ["slh-dsa-shake-128f", "slh-dsa-shake-192f", "slh-dsa-shake-256f"] }
 kylix-core.workspace = true
 rand = "0.9"
 serde = { version = "1.0", features = ["derive"] }
@@ -30,4 +31,8 @@ harness = false
 
 [[bench]]
 name = "ml_dsa"
+harness = false
+
+[[bench]]
+name = "slh_dsa"
 harness = false
