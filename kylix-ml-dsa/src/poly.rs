@@ -106,6 +106,16 @@ impl Poly {
     #[must_use]
     pub fn pointwise_mul(&self, other: &Self) -> Self {
         let mut r = Self::zero();
+
+        // Try SIMD optimized path (safe wrapper handles unsafe internally)
+        #[cfg(feature = "simd")]
+        {
+            if crate::simd::pointwise_mul(&mut r.coeffs, &self.coeffs, &other.coeffs) {
+                return r;
+            }
+        }
+
+        // Scalar fallback
         for i in 0..N {
             r.coeffs[i] = montgomery_mul(self.coeffs[i], other.coeffs[i]);
         }
@@ -114,6 +124,15 @@ impl Poly {
 
     /// Pointwise multiply and accumulate: self += a * b (in NTT domain).
     pub fn pointwise_mul_acc(&mut self, a: &Self, b: &Self) {
+        // Try SIMD optimized path (safe wrapper handles unsafe internally)
+        #[cfg(feature = "simd")]
+        {
+            if crate::simd::pointwise_mul_acc(&mut self.coeffs, &a.coeffs, &b.coeffs) {
+                return;
+            }
+        }
+
+        // Scalar fallback
         for i in 0..N {
             self.coeffs[i] += montgomery_mul(a.coeffs[i], b.coeffs[i]);
         }

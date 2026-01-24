@@ -14,6 +14,7 @@ description = "ML-DSA (FIPS 204) implementation for the Kylix post-quantum crypt
 [features]
 default = ["std", "ml-dsa-65"]
 std = ["kylix-core/std"]
+simd = []  # Enable SIMD optimizations (AVX2/NEON/WASM-SIMD128)
 ml-dsa-44 = []
 ml-dsa-65 = []
 ml-dsa-87 = []
