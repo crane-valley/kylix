@@ -25,6 +25,8 @@ pub struct Shake192Hash;
 pub struct Shake256Hash;
 
 /// Internal helper to compute SHAKE256 hash with variable output length.
+/// Only used in tests now that all HashSuite methods use streaming API.
+#[cfg(test)]
 fn shake256(input: &[u8], out_len: usize) -> Vec<u8> {
     let mut hasher = Shake256::default();
     hasher.update(input);
@@ -74,41 +76,56 @@ macro_rules! impl_shake_hash_suite {
                 out_len: usize,
             ) -> Vec<u8> {
                 // Hmsg(R, PK.seed, PK.root, M) = SHAKE256(R || PK.seed || PK.root || M, 8*out_len)
-                let mut input =
-                    Vec::with_capacity(r.len() + pk_seed.len() + pk_root.len() + message.len());
-                input.extend_from_slice(r);
-                input.extend_from_slice(pk_seed);
-                input.extend_from_slice(pk_root);
-                input.extend_from_slice(message);
-                shake256(&input, out_len)
+                // Use streaming API to avoid intermediate heap allocation
+                let mut hasher = Shake256::default();
+                hasher.update(r);
+                hasher.update(pk_seed);
+                hasher.update(pk_root);
+                hasher.update(message);
+                let mut reader = hasher.finalize_xof();
+                let mut output = vec![0u8; out_len];
+                reader.read(&mut output);
+                output
             }
 
             fn f(pk_seed: &[u8], adrs: &Address, m1: &[u8]) -> Vec<u8> {
                 // F(PK.seed, ADRS, M1) = SHAKE256(PK.seed || ADRS || M1, 8n)
-                let mut input = Vec::with_capacity(pk_seed.len() + 32 + m1.len());
-                input.extend_from_slice(pk_seed);
-                input.extend_from_slice(adrs.as_bytes());
-                input.extend_from_slice(m1);
-                shake256(&input, $n)
+                // Use streaming API to avoid intermediate heap allocation
+                let mut hasher = Shake256::default();
+                hasher.update(pk_seed);
+                hasher.update(adrs.as_bytes());
+                hasher.update(m1);
+                let mut reader = hasher.finalize_xof();
+                let mut output = vec![0u8; $n];
+                reader.read(&mut output);
+                output
             }
 
             fn h(pk_seed: &[u8], adrs: &Address, m1: &[u8], m2: &[u8]) -> Vec<u8> {
                 // H(PK.seed, ADRS, M1 || M2) = SHAKE256(PK.seed || ADRS || M1 || M2, 8n)
-                let mut input = Vec::with_capacity(pk_seed.len() + 32 + m1.len() + m2.len());
-                input.extend_from_slice(pk_seed);
-                input.extend_from_slice(adrs.as_bytes());
-                input.extend_from_slice(m1);
-                input.extend_from_slice(m2);
-                shake256(&input, $n)
+                // Use streaming API to avoid intermediate heap allocation
+                let mut hasher = Shake256::default();
+                hasher.update(pk_seed);
+                hasher.update(adrs.as_bytes());
+                hasher.update(m1);
+                hasher.update(m2);
+                let mut reader = hasher.finalize_xof();
+                let mut output = vec![0u8; $n];
+                reader.read(&mut output);
+                output
             }
 
             fn t_l(pk_seed: &[u8], adrs: &Address, m: &[u8]) -> Vec<u8> {
                 // Tl(PK.seed, ADRS, M) = SHAKE256(PK.seed || ADRS || M, 8n)
-                let mut input = Vec::with_capacity(pk_seed.len() + 32 + m.len());
-                input.extend_from_slice(pk_seed);
-                input.extend_from_slice(adrs.as_bytes());
-                input.extend_from_slice(m);
-                shake256(&input, $n)
+                // Use streaming API to avoid intermediate heap allocation
+                let mut hasher = Shake256::default();
+                hasher.update(pk_seed);
+                hasher.update(adrs.as_bytes());
+                hasher.update(m);
+                let mut reader = hasher.finalize_xof();
+                let mut output = vec![0u8; $n];
+                reader.read(&mut output);
+                output
             }
         }
     };

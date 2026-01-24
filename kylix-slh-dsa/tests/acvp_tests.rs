@@ -190,8 +190,8 @@ mod keygen_shake_128s {
                 prompt.tc_id
             );
             assert_eq!(
-                sk.to_bytes(),
-                expected_sk,
+                sk.to_bytes().as_slice(),
+                expected_sk.as_slice(),
                 "SLH-DSA-SHAKE-128s KeyGen tcId={}: sk mismatch",
                 prompt.tc_id
             );
@@ -258,8 +258,8 @@ mod keygen_shake_128f {
                 prompt.tc_id
             );
             assert_eq!(
-                sk.to_bytes(),
-                expected_sk,
+                sk.to_bytes().as_slice(),
+                expected_sk.as_slice(),
                 "SLH-DSA-SHAKE-128f KeyGen tcId={}: sk mismatch",
                 prompt.tc_id
             );
@@ -326,8 +326,8 @@ mod keygen_shake_192s {
                 prompt.tc_id
             );
             assert_eq!(
-                sk.to_bytes(),
-                expected_sk,
+                sk.to_bytes().as_slice(),
+                expected_sk.as_slice(),
                 "SLH-DSA-SHAKE-192s KeyGen tcId={}: sk mismatch",
                 prompt.tc_id
             );
@@ -394,8 +394,8 @@ mod keygen_shake_192f {
                 prompt.tc_id
             );
             assert_eq!(
-                sk.to_bytes(),
-                expected_sk,
+                sk.to_bytes().as_slice(),
+                expected_sk.as_slice(),
                 "SLH-DSA-SHAKE-192f KeyGen tcId={}: sk mismatch",
                 prompt.tc_id
             );
@@ -462,8 +462,8 @@ mod keygen_shake_256s {
                 prompt.tc_id
             );
             assert_eq!(
-                sk.to_bytes(),
-                expected_sk,
+                sk.to_bytes().as_slice(),
+                expected_sk.as_slice(),
                 "SLH-DSA-SHAKE-256s KeyGen tcId={}: sk mismatch",
                 prompt.tc_id
             );
@@ -530,8 +530,8 @@ mod keygen_shake_256f {
                 prompt.tc_id
             );
             assert_eq!(
-                sk.to_bytes(),
-                expected_sk,
+                sk.to_bytes().as_slice(),
+                expected_sk.as_slice(),
                 "SLH-DSA-SHAKE-256f KeyGen tcId={}: sk mismatch",
                 prompt.tc_id
             );

@@ -31,8 +31,11 @@ pub struct SecretKey<const N: usize> {
 
 impl<const N: usize> SecretKey<N> {
     /// Serialize the secret key to bytes.
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(N * 4);
+    ///
+    /// Note: This method copies secret material to a new Vec.
+    /// The returned Vec should be zeroized after use.
+    pub fn to_bytes(&self) -> zeroize::Zeroizing<Vec<u8>> {
+        let mut bytes = zeroize::Zeroizing::new(Vec::with_capacity(N * 4));
         bytes.extend_from_slice(&self.sk_seed);
         bytes.extend_from_slice(&self.sk_prf);
         bytes.extend_from_slice(&self.pk_seed);
@@ -364,10 +367,12 @@ pub fn slh_verify<
 
 /// Parse digest into FORS message digest, tree index, and leaf index.
 ///
-/// The digest is split as follows:
-/// - First k*a bits: FORS message digest (determines which leaves to reveal)
-/// - Next (h - h') bits: Tree index in the bottom hypertree layer
-/// - Last h' bits: Leaf index within the tree
+/// FIPS 205, Section 9.2: The digest is split at byte boundaries:
+/// - First ceil(k*a/8) bytes: FORS message digest (md)
+/// - Next ceil(h'*(d-1)/8) bytes: Tree index (idx_tree)
+/// - Next ceil(h'/8) bytes: Leaf index (idx_leaf)
+///
+/// The tree and leaf indices are masked to their respective bit widths.
 fn parse_digest<const K: usize, const A: usize, const H_PRIME: usize, const D: usize>(
     digest: &[u8],
 ) -> (Vec<u8>, u64, u32) {

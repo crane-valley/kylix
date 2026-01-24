@@ -24,8 +24,11 @@ impl SigningKey {
     }
 
     /// Serialize the signing key to bytes.
+    ///
+    /// Note: The returned vector contains secret key material and should be
+    /// zeroized after use.
     pub fn to_bytes(&self) -> Vec<u8> {
-        self.0.to_bytes()
+        self.0.to_bytes().as_slice().to_vec()
     }
 
     /// Get the corresponding verification key.
