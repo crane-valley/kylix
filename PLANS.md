@@ -30,6 +30,7 @@ Kylix aims to provide a **pure Rust, high-performance, auditable** implementatio
 | Constant-time Operations | ✅ Complete | Using `subtle` crate |
 | Zeroization | ✅ Complete | Using `zeroize` crate |
 | Fuzz Testing (ML-DSA) | ✅ Complete | Daily CI + 4 targets |
+| Benchmarks (ML-DSA) | ✅ Complete | Criterion-based |
 
 ### Not Started
 
