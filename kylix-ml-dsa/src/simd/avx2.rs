@@ -395,6 +395,127 @@ unsafe fn inv_butterfly_avx2(a: &mut [i32; N], start: usize, len: usize, zeta: i
     }
 }
 
+/// Butterfly for len=4: process 2 groups at a time using AVX2.
+///
+/// Each group of 8 consecutive elements uses one zeta:
+/// - Elements [base..base+4] are the "low" half
+/// - Elements [base+4..base+8] are the "high" half
+///
+/// # Safety
+///
+/// Requires AVX2 support.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+unsafe fn butterfly_len4_avx2(a: &mut [i32; N], zetas: &[i32]) {
+    let q = _mm256_set1_epi32(Q);
+    let qinv = _mm256_set1_epi32(QINV);
+
+    // Process 32 groups of len=4 butterflies, 2 groups at a time
+    // Each group is 8 elements: [start..start+4] paired with [start+4..start+8]
+    for i in 0..16 {
+        let base = i * 16;
+        let zeta0 = zetas[i * 2];
+        let zeta1 = zetas[i * 2 + 1];
+
+        // Group 0: elements base..base+8
+        // Group 1: elements base+8..base+16
+
+        // Load low halves: a[base..base+4] and a[base+8..base+12]
+        let lo0 = _mm_loadu_si128(a.as_ptr().add(base).cast());
+        let lo1 = _mm_loadu_si128(a.as_ptr().add(base + 8).cast());
+        let a_lo = _mm256_set_m128i(lo1, lo0);
+
+        // Load high halves: a[base+4..base+8] and a[base+12..base+16]
+        let hi0 = _mm_loadu_si128(a.as_ptr().add(base + 4).cast());
+        let hi1 = _mm_loadu_si128(a.as_ptr().add(base + 12).cast());
+        let a_hi = _mm256_set_m128i(hi1, hi0);
+
+        // Zetas: lanes 0-3 use zeta0, lanes 4-7 use zeta1
+        let zeta_v = _mm256_set_epi32(zeta1, zeta1, zeta1, zeta1, zeta0, zeta0, zeta0, zeta0);
+
+        // t = zeta * a_hi (Montgomery multiplication)
+        let t = montgomery_mul_8x_with_params(a_hi, zeta_v, q, qinv);
+
+        // a[j] = a[j] + t
+        let new_lo = _mm256_add_epi32(a_lo, t);
+        // a[j+len] = a[j] - t
+        let new_hi = _mm256_sub_epi32(a_lo, t);
+
+        // Store back
+        _mm_storeu_si128(
+            a.as_mut_ptr().add(base).cast(),
+            _mm256_castsi256_si128(new_lo),
+        );
+        _mm_storeu_si128(
+            a.as_mut_ptr().add(base + 8).cast(),
+            _mm256_extracti128_si256(new_lo, 1),
+        );
+        _mm_storeu_si128(
+            a.as_mut_ptr().add(base + 4).cast(),
+            _mm256_castsi256_si128(new_hi),
+        );
+        _mm_storeu_si128(
+            a.as_mut_ptr().add(base + 12).cast(),
+            _mm256_extracti128_si256(new_hi, 1),
+        );
+    }
+}
+
+/// Inverse butterfly for len=4.
+///
+/// # Safety
+///
+/// Requires AVX2 support.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+unsafe fn inv_butterfly_len4_avx2(a: &mut [i32; N], zetas: &[i32]) {
+    let q = _mm256_set1_epi32(Q);
+    let qinv = _mm256_set1_epi32(QINV);
+
+    for group in 0..16 {
+        let base = group * 16;
+        let zeta0 = zetas[group * 2];
+        let zeta1 = zetas[group * 2 + 1];
+
+        // Load elements
+        let lo0 = _mm_loadu_si128(a.as_ptr().add(base).cast());
+        let lo1 = _mm_loadu_si128(a.as_ptr().add(base + 8).cast());
+        let t = _mm256_set_m128i(lo1, lo0);
+
+        let hi0 = _mm_loadu_si128(a.as_ptr().add(base + 4).cast());
+        let hi1 = _mm_loadu_si128(a.as_ptr().add(base + 12).cast());
+        let a_hi = _mm256_set_m128i(hi1, hi0);
+
+        // Zetas (negated for inverse)
+        let zeta_v = _mm256_set_epi32(zeta1, zeta1, zeta1, zeta1, zeta0, zeta0, zeta0, zeta0);
+
+        // a[j] = t + a[j+len]
+        let new_lo = _mm256_add_epi32(t, a_hi);
+
+        // a[j+len] = (t - a[j+len]) * zeta
+        let diff = _mm256_sub_epi32(t, a_hi);
+        let new_hi = montgomery_mul_8x_with_params(diff, zeta_v, q, qinv);
+
+        // Store back
+        _mm_storeu_si128(
+            a.as_mut_ptr().add(base).cast(),
+            _mm256_castsi256_si128(new_lo),
+        );
+        _mm_storeu_si128(
+            a.as_mut_ptr().add(base + 8).cast(),
+            _mm256_extracti128_si256(new_lo, 1),
+        );
+        _mm_storeu_si128(
+            a.as_mut_ptr().add(base + 4).cast(),
+            _mm256_castsi256_si128(new_hi),
+        );
+        _mm_storeu_si128(
+            a.as_mut_ptr().add(base + 12).cast(),
+            _mm256_extracti128_si256(new_hi, 1),
+        );
+    }
+}
+
 /// Forward NTT using AVX2.
 ///
 /// # Safety
@@ -417,8 +538,19 @@ pub unsafe fn ntt_avx2(a: &mut [i32; N]) {
         len >>= 1;
     }
 
-    // For len < 8, use scalar operations
-    while len >= 1 {
+    // len=4: use specialized SIMD function
+    {
+        // Collect zetas for len=4 layer
+        let mut zetas_len4 = [0i32; 32];
+        for i in 0..32 {
+            k += 1;
+            zetas_len4[i] = crate::ntt::ZETAS[k];
+        }
+        butterfly_len4_avx2(a, &zetas_len4);
+    }
+
+    // len=2 and len=1: use scalar operations
+    for len in [2usize, 1] {
         let mut start: usize = 0;
         while start < N {
             k += 1;
@@ -430,7 +562,6 @@ pub unsafe fn ntt_avx2(a: &mut [i32; N]) {
             }
             start += 2 * len;
         }
-        len >>= 1;
     }
 }
 
@@ -443,10 +574,9 @@ pub unsafe fn ntt_avx2(a: &mut [i32; N]) {
 #[target_feature(enable = "avx2")]
 pub unsafe fn inv_ntt_avx2(a: &mut [i32; N]) {
     let mut k: usize = 256;
-    let mut len: usize = 1;
 
-    // For len < 8, use scalar operations
-    while len < 8 {
+    // len=1 and len=2: use scalar operations
+    for len in [1usize, 2] {
         let mut start: usize = 0;
         while start < N {
             k -= 1;
@@ -458,10 +588,21 @@ pub unsafe fn inv_ntt_avx2(a: &mut [i32; N]) {
             }
             start += 2 * len;
         }
-        len <<= 1;
     }
 
-    // For len >= 8, use SIMD
+    // len=4: use specialized SIMD function
+    {
+        // Collect zetas for len=4 layer
+        let mut zetas_len4 = [0i32; 32];
+        for i in 0..32 {
+            k -= 1;
+            zetas_len4[i] = -crate::ntt::ZETAS[k];
+        }
+        inv_butterfly_len4_avx2(a, &zetas_len4);
+    }
+
+    // len >= 8: use SIMD
+    let mut len: usize = 8;
     while len < N {
         let mut start: usize = 0;
         while start < N {
