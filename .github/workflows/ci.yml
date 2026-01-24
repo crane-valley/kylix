@@ -126,12 +126,19 @@ jobs:
         run: |
           echo "## Benchmark Results (${{ matrix.os }}, SIMD=${{ matrix.simd }})" > results.md
           echo "" >> results.md
-          echo "| Operation | Time |" >> results.md
-          echo "|-----------|------|" >> results.md
-          grep -E "time:.*\[" bench-output.txt | while read line; do
+          echo "| Operation | Min | Median | Max |" >> results.md
+          echo "|-----------|-----|--------|-----|" >> results.md
+          # Match lines with operation name before "time:"
+          grep -E "^[A-Za-z].*time:" bench-output.txt | while read line; do
             name=$(echo "$line" | sed 's/time:.*//' | xargs)
-            time=$(echo "$line" | grep -oE '\[[^]]+\]' | head -1)
-            echo "| $name | $time |" >> results.md
+            # Extract the three time values from [low median high]
+            times=$(echo "$line" | grep -oE '\[[^]]+\]' | head -1 | tr -d '[]')
+            min=$(echo "$times" | awk '{print $1" "$2}')
+            median=$(echo "$times" | awk '{print $3" "$4}')
+            max=$(echo "$times" | awk '{print $5" "$6}')
+            if [ -n "$name" ]; then
+              echo "| $name | $min | $median | $max |" >> results.md
+            fi
           done
           cat results.md
         shell: bash
