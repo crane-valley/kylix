@@ -15,6 +15,8 @@
 
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::cast_sign_loss)]
+// Intentional scaffolding for future SIMD implementation; some functions
+// (poly_add, poly_sub, caddq_neon) are prepared but not yet exposed.
 #![allow(dead_code)]
 
 #[cfg(target_arch = "aarch64")]

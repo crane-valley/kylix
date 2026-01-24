@@ -198,32 +198,11 @@ pub unsafe fn poly_sub(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) {
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
 pub unsafe fn reduce_avx2(a: &mut [i32; N]) {
-    let q = _mm256_set1_epi32(Q);
-    let barrett_mul = _mm256_set1_epi64x(crate::reduce::BARRETT_MUL);
-
+    // TODO: Complete vectorized Barrett reduction.
+    // SIMD Barrett reduction requires careful handling of 64-bit arithmetic
+    // and packing results back to 32-bit. For now, use scalar fallback.
     for i in (0..N).step_by(8) {
         let va = _mm256_loadu_si256(a.as_ptr().add(i).cast());
-
-        // Process in two batches of 4 for 64-bit arithmetic
-        // Extract lower 4 elements
-        let va_lo = _mm256_cvtepi32_epi64(_mm256_castsi256_si128(va));
-        // Extract upper 4 elements
-        let va_hi = _mm256_cvtepi32_epi64(_mm256_extracti128_si256(va, 1));
-
-        // t = (a * BARRETT_MUL) >> 48
-        let t_lo = _mm256_srli_epi64(_mm256_mul_epi32(va_lo, barrett_mul), 48);
-        let t_hi = _mm256_srli_epi64(_mm256_mul_epi32(va_hi, barrett_mul), 48);
-
-        // r = a - t * q
-        let q_lo = _mm256_cvtepi32_epi64(_mm256_castsi256_si128(q));
-        let tq_lo = _mm256_mul_epi32(t_lo, q_lo);
-        let tq_hi = _mm256_mul_epi32(t_hi, q_lo);
-
-        let _r_lo = _mm256_sub_epi64(va_lo, tq_lo);
-        let _r_hi = _mm256_sub_epi64(va_hi, tq_hi);
-
-        // Pack back to 32-bit (simplified - may need adjustment for edge cases)
-        // For now, use scalar fallback for final reduction
         let mut temp = [0i32; 8];
         _mm256_storeu_si256(temp.as_mut_ptr().cast(), va);
         for j in 0..8 {
@@ -247,7 +226,6 @@ pub unsafe fn reduce_avx2(a: &mut [i32; N]) {
 #[target_feature(enable = "avx2")]
 pub unsafe fn caddq_avx2(a: &mut [i32; N]) {
     let q = _mm256_set1_epi32(Q);
-    let _zero = _mm256_setzero_si256();
 
     for i in (0..N).step_by(8) {
         let va = _mm256_loadu_si256(a.as_ptr().add(i).cast());
