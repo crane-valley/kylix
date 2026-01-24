@@ -86,22 +86,34 @@ fn bench_verify(c: &mut Criterion) {
 
     group.bench_function("ML-DSA-44", |b| {
         b.iter(|| {
-            MlDsa44::verify(black_box(&vk_44), black_box(TEST_MESSAGE), black_box(&sig_44))
-                .unwrap()
+            MlDsa44::verify(
+                black_box(&vk_44),
+                black_box(TEST_MESSAGE),
+                black_box(&sig_44),
+            )
+            .unwrap()
         })
     });
 
     group.bench_function("ML-DSA-65", |b| {
         b.iter(|| {
-            MlDsa65::verify(black_box(&vk_65), black_box(TEST_MESSAGE), black_box(&sig_65))
-                .unwrap()
+            MlDsa65::verify(
+                black_box(&vk_65),
+                black_box(TEST_MESSAGE),
+                black_box(&sig_65),
+            )
+            .unwrap()
         })
     });
 
     group.bench_function("ML-DSA-87", |b| {
         b.iter(|| {
-            MlDsa87::verify(black_box(&vk_87), black_box(TEST_MESSAGE), black_box(&sig_87))
-                .unwrap()
+            MlDsa87::verify(
+                black_box(&vk_87),
+                black_box(TEST_MESSAGE),
+                black_box(&sig_87),
+            )
+            .unwrap()
         })
     });
 
