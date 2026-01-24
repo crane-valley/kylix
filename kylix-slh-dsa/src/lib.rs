@@ -83,6 +83,10 @@ mod hypertree;
 mod wots;
 mod xmss;
 
+// Parallel implementations (requires rayon)
+#[cfg(feature = "parallel")]
+mod parallel;
+
 // Main signing module
 /// Core SLH-DSA signing algorithms.
 pub mod sign;

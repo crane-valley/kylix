@@ -6,6 +6,10 @@
 //!
 //! FIPS 205, Algorithms 15-17.
 
+// When parallel feature is enabled, the sign module uses parallel versions
+// from the parallel module. These functions are still used in tests.
+#![cfg_attr(feature = "parallel", allow(dead_code))]
+
 use crate::address::{Address, AdrsType};
 use crate::hash::HashSuite;
 use crate::utils::base_2b;

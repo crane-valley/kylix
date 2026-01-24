@@ -12,6 +12,7 @@ publish = false
 [features]
 default = []
 simd = ["kylix-ml-dsa/simd"]
+parallel = ["kylix-slh-dsa/parallel"]
 
 [dependencies]
 kylix-ml-kem = { path = "../kylix-ml-kem", features = ["ml-kem-512", "ml-kem-768", "ml-kem-1024"] }
