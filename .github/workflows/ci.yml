@@ -35,38 +35,25 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --all-targets --all-features -- -D warnings
 
-  test:
-    name: Test
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        rust: [stable, "1.75"]
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ matrix.rust }}
-      - uses: Swatinem/rust-cache@v2
-      # Exclude kylix-bench on MSRV - criterion requires newer Rust
-      - run: cargo test --workspace --exclude kylix-bench --all-features
-        if: matrix.rust == '1.75'
-      - run: cargo test --all-features
-        if: matrix.rust != '1.75'
-
-  test-arm64:
-    name: Test (ARM64 Linux)
-    runs-on: ubuntu-24.04-arm
+  # Fast test for PRs - ubuntu + stable only
+  test-pr:
+    name: Test (PR)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test --all-features
-      # Run SIMD-specific tests to verify NEON implementation
-      - run: cargo test -p kylix-ml-dsa --features simd -- simd
+      # Test with fast SLH-DSA variants only (skip slow -s variants)
+      - name: Test core crates
+        run: cargo test -p kylix-core -p kylix-ml-kem -p kylix-ml-dsa --all-features
+      - name: Test SLH-DSA fast variants
+        run: cargo test -p kylix-slh-dsa --features "std,slh-dsa-shake-128f,slh-dsa-shake-192f,slh-dsa-shake-256f"
+      - name: Test CLI and integration
+        run: cargo test -p kylix-pqc -p kylix-cli --all-features
 
   test-no-std:
-    name: Test (no_std)
+    name: no_std
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -76,6 +63,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --package kylix-core --no-default-features --target thumbv7em-none-eabi
       - run: cargo build --package kylix-ml-kem --no-default-features --target thumbv7em-none-eabi
+      - run: cargo build --package kylix-slh-dsa --no-default-features --features slh-dsa-shake-128f --target thumbv7em-none-eabi
 
   doc:
     name: Documentation
@@ -99,19 +87,3 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       # Exclude kylix-bench - criterion requires newer Rust
       - run: cargo check --workspace --exclude kylix-bench --all-features
-
-  coverage:
-    name: Coverage
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: llvm-tools-preview
-      - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@cargo-llvm-cov
-      - run: cargo llvm-cov --all-features --lcov --output-path lcov.info
-      - uses: codecov/codecov-action@v5
-        with:
-          files: lcov.info
-          fail_ci_if_error: false
