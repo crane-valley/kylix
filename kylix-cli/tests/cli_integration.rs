@@ -135,8 +135,8 @@ mod keygen_command {
 
         let pub_path = tmp.path().join("dsa_key.pub");
         let sec_path = tmp.path().join("dsa_key.sec");
-        assert!(pub_path.exists());
-        assert!(sec_path.exists());
+        assert!(pub_path.exists(), "Public key file should exist");
+        assert!(sec_path.exists(), "Secret key file should exist");
     }
 
     #[test]
@@ -240,7 +240,7 @@ mod encaps_decaps_roundtrip {
             .lines()
             .find(|l| l.starts_with("Shared secret:"))
             .map(|l| l.trim_start_matches("Shared secret:").trim())
-            .unwrap();
+            .expect("Should have shared secret in encaps output");
 
         let decaps_output = kylix()
             .args(["decaps", "--key"])
@@ -251,21 +251,27 @@ mod encaps_decaps_roundtrip {
             .success();
 
         let ss_decaps = String::from_utf8_lossy(&decaps_output.get_output().stdout);
-        assert_eq!(ss_encaps.trim(), ss_decaps.trim());
+        assert_eq!(
+            ss_encaps.trim(),
+            ss_decaps.trim(),
+            "Encapsulated and decapsulated shared secrets should match"
+        );
     }
 
-    #[test]
-    fn test_ml_kem_1024_roundtrip() {
+    /// Helper function to test ML-KEM roundtrip for any variant
+    fn test_ml_kem_roundtrip(algo: &str) {
         let tmp = TempDir::new().unwrap();
         let key_path = tmp.path().join("key");
         let ct_path = tmp.path().join("ciphertext");
 
+        // Generate keys
         kylix()
-            .args(["keygen", "-a", "ml-kem-1024", "-o"])
+            .args(["keygen", "-a", algo, "-o"])
             .arg(key_path.to_str().unwrap())
             .assert()
             .success();
 
+        // Encapsulate
         let encaps_output = kylix()
             .args(["encaps", "--pub"])
             .arg(tmp.path().join("key.pub").to_str().unwrap())
@@ -279,8 +285,9 @@ mod encaps_decaps_roundtrip {
             .lines()
             .find(|l| l.starts_with("Shared secret:"))
             .map(|l| l.trim_start_matches("Shared secret:").trim())
-            .unwrap();
+            .expect("Should have shared secret in encaps output");
 
+        // Decapsulate
         let decaps_output = kylix()
             .args(["decaps", "--key"])
             .arg(tmp.path().join("key.sec").to_str().unwrap())
@@ -290,26 +297,36 @@ mod encaps_decaps_roundtrip {
             .success();
 
         let ss_decaps = String::from_utf8_lossy(&decaps_output.get_output().stdout);
-        assert_eq!(ss_encaps.trim(), ss_decaps.trim());
+        assert_eq!(
+            ss_encaps.trim(),
+            ss_decaps.trim(),
+            "Encapsulated and decapsulated shared secrets should match for {}",
+            algo
+        );
+    }
+
+    #[test]
+    fn test_ml_kem_1024_roundtrip() {
+        test_ml_kem_roundtrip("ml-kem-1024");
     }
 }
 
 mod sign_verify_roundtrip {
     use super::*;
 
-    #[test]
-    fn test_ml_dsa_65_roundtrip() {
+    /// Helper function to test ML-DSA roundtrip for any variant
+    fn test_ml_dsa_roundtrip(algo: &str, message: &[u8]) {
         let tmp = TempDir::new().unwrap();
         let key_path = tmp.path().join("key");
         let msg_path = tmp.path().join("message.txt");
         let sig_path = tmp.path().join("signature");
 
         // Create test message
-        fs::write(&msg_path, b"Hello, post-quantum world!").unwrap();
+        fs::write(&msg_path, message).unwrap();
 
         // Generate keys
         kylix()
-            .args(["keygen", "-a", "ml-dsa-65", "-o"])
+            .args(["keygen", "-a", algo, "-o"])
             .arg(key_path.to_str().unwrap())
             .assert()
             .success();
@@ -340,77 +357,18 @@ mod sign_verify_roundtrip {
     }
 
     #[test]
+    fn test_ml_dsa_65_roundtrip() {
+        test_ml_dsa_roundtrip("ml-dsa-65", b"Hello, post-quantum world!");
+    }
+
+    #[test]
     fn test_ml_dsa_44_roundtrip() {
-        let tmp = TempDir::new().unwrap();
-        let key_path = tmp.path().join("key");
-        let msg_path = tmp.path().join("message.txt");
-        let sig_path = tmp.path().join("signature");
-
-        fs::write(&msg_path, b"Test message for ML-DSA-44").unwrap();
-
-        kylix()
-            .args(["keygen", "-a", "ml-dsa-44", "-o"])
-            .arg(key_path.to_str().unwrap())
-            .assert()
-            .success();
-
-        kylix()
-            .args(["sign", "--key"])
-            .arg(tmp.path().join("key.sec").to_str().unwrap())
-            .arg("-i")
-            .arg(msg_path.to_str().unwrap())
-            .arg("-o")
-            .arg(sig_path.to_str().unwrap())
-            .assert()
-            .success();
-
-        kylix()
-            .args(["verify", "--pub"])
-            .arg(tmp.path().join("key.pub").to_str().unwrap())
-            .arg("-i")
-            .arg(msg_path.to_str().unwrap())
-            .arg("-s")
-            .arg(sig_path.to_str().unwrap())
-            .assert()
-            .success()
-            .stdout(predicate::str::contains("Signature is valid"));
+        test_ml_dsa_roundtrip("ml-dsa-44", b"Test message for ML-DSA-44");
     }
 
     #[test]
     fn test_ml_dsa_87_roundtrip() {
-        let tmp = TempDir::new().unwrap();
-        let key_path = tmp.path().join("key");
-        let msg_path = tmp.path().join("message.txt");
-        let sig_path = tmp.path().join("signature");
-
-        fs::write(&msg_path, b"Test message for ML-DSA-87").unwrap();
-
-        kylix()
-            .args(["keygen", "-a", "ml-dsa-87", "-o"])
-            .arg(key_path.to_str().unwrap())
-            .assert()
-            .success();
-
-        kylix()
-            .args(["sign", "--key"])
-            .arg(tmp.path().join("key.sec").to_str().unwrap())
-            .arg("-i")
-            .arg(msg_path.to_str().unwrap())
-            .arg("-o")
-            .arg(sig_path.to_str().unwrap())
-            .assert()
-            .success();
-
-        kylix()
-            .args(["verify", "--pub"])
-            .arg(tmp.path().join("key.pub").to_str().unwrap())
-            .arg("-i")
-            .arg(msg_path.to_str().unwrap())
-            .arg("-s")
-            .arg(sig_path.to_str().unwrap())
-            .assert()
-            .success()
-            .stdout(predicate::str::contains("Signature is valid"));
+        test_ml_dsa_roundtrip("ml-dsa-87", b"Test message for ML-DSA-87");
     }
 
     #[test]
