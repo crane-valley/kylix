@@ -39,13 +39,12 @@ Kylix aims to provide a **pure Rust, high-performance, auditable** implementatio
 
 | Component | FIPS Standard | Status |
 |-----------|---------------|--------|
-| SLH-DSA | FIPS 205 | ✅ Core complete (PR #40), optimization pending |
+| SLH-DSA | FIPS 205 | ✅ Complete (core + CLI), optimization pending |
 
 ### Not Started
 
 | Component | FIPS Standard | Priority |
 |-----------|---------------|----------|
-| SLH-DSA CLI Integration | - | MEDIUM |
 | SLH-DSA SIMD/Parallelization | - | MEDIUM |
 | SIMD NTT (WASM) | - | LOW |
 | Security Audit | - | HIGH |
@@ -236,7 +235,7 @@ Implemented FIPS 205 (Stateless Hash-Based Digital Signature Standard):
 6. ✅ NIST ACVP test vectors (KeyGen, SigGen, SigVer)
 7. ✅ Fuzz targets (4 targets)
 8. ✅ Benchmarks (fast variants)
-9. ⚠️ CLI integration (pending)
+9. ✅ CLI integration (keygen/sign/verify/info/bench)
 10. ⚠️ AVX2/SIMD optimization (pending)
 11. ⚠️ Tree parallelization (pending)
 

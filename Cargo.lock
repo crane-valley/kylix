@@ -541,6 +541,7 @@ dependencies = [
  "kylix-core",
  "kylix-ml-dsa",
  "kylix-ml-kem",
+ "kylix-slh-dsa",
 ]
 
 [[package]]

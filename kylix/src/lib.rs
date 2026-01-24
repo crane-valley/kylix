@@ -61,3 +61,10 @@ pub mod ml_dsa {
     pub use kylix_core::Signer;
     pub use kylix_ml_dsa::*;
 }
+
+/// SLH-DSA (FIPS 205) stateless hash-based digital signature algorithm.
+#[cfg(feature = "slh-dsa")]
+pub mod slh_dsa {
+    pub use kylix_core::Signer;
+    pub use kylix_slh_dsa::*;
+}

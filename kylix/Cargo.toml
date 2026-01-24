@@ -13,12 +13,22 @@ description = "Post-quantum cryptography library implementing NIST FIPS standard
 readme = "../README.md"
 
 [features]
-default = ["std", "ml-kem", "ml-dsa"]
-std = ["kylix-core/std", "kylix-ml-kem?/std", "kylix-ml-dsa?/std"]
+default = ["std", "ml-kem", "ml-dsa", "slh-dsa"]
+std = ["kylix-core/std", "kylix-ml-kem?/std", "kylix-ml-dsa?/std", "kylix-slh-dsa?/std"]
 ml-kem = ["dep:kylix-ml-kem", "kylix-ml-kem/ml-kem-512", "kylix-ml-kem/ml-kem-768", "kylix-ml-kem/ml-kem-1024"]
 ml-dsa = ["dep:kylix-ml-dsa", "kylix-ml-dsa/ml-dsa-44", "kylix-ml-dsa/ml-dsa-65", "kylix-ml-dsa/ml-dsa-87"]
+slh-dsa = [
+    "dep:kylix-slh-dsa",
+    "kylix-slh-dsa/slh-dsa-shake-128s",
+    "kylix-slh-dsa/slh-dsa-shake-128f",
+    "kylix-slh-dsa/slh-dsa-shake-192s",
+    "kylix-slh-dsa/slh-dsa-shake-192f",
+    "kylix-slh-dsa/slh-dsa-shake-256s",
+    "kylix-slh-dsa/slh-dsa-shake-256f",
+]
 
 [dependencies]
 kylix-core.workspace = true
 kylix-ml-kem = { workspace = true, optional = true }
 kylix-ml-dsa = { workspace = true, optional = true }
+kylix-slh-dsa = { workspace = true, optional = true }
