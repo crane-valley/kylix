@@ -5,12 +5,14 @@ members = [
     "kylix-core",
     "kylix-ml-kem",
     "kylix-ml-dsa",
+    "kylix-slh-dsa",
     "kylix-cli",
     "kylix-bench",
 ]
 exclude = [
     "kylix-ml-kem/fuzz",
     "kylix-ml-dsa/fuzz",
+    "kylix-slh-dsa/fuzz",
 ]
 
 [workspace.package]
@@ -30,10 +32,11 @@ kylix-pqc = { path = "kylix", version = "0.3.0" }
 kylix-core = { path = "kylix-core", version = "0.3.0", default-features = false }
 kylix-ml-kem = { path = "kylix-ml-kem", version = "0.3.0", default-features = false }
 kylix-ml-dsa = { path = "kylix-ml-dsa", version = "0.3.0", default-features = false }
+kylix-slh-dsa = { path = "kylix-slh-dsa", version = "0.3.0", default-features = false }
 
 # External dependencies
 thiserror = "2.0"
-zeroize = { version = "1.8", default-features = false, features = ["derive"] }
+zeroize = { version = "1.8", default-features = false, features = ["derive", "alloc"] }
 rand_core = { version = "0.9", default-features = false }
 subtle = { version = "2.5", default-features = false }
 clap = { version = "4.5", features = ["derive"] }

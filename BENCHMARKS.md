@@ -1,5 +1,34 @@
 # Kylix Benchmark Results
 
+## SLH-DSA Performance
+
+Benchmarks for SLH-DSA "fast" variants only. The "small" variants are significantly slower.
+
+### Summary
+
+| Algorithm | KeyGen | Sign | Verify |
+|-----------|--------|------|--------|
+| SLH-DSA-SHAKE-128f | 2.62 ms | 61.1 ms | 3.66 ms |
+| SLH-DSA-SHAKE-192f | 3.78 ms | 97.6 ms | 5.31 ms |
+| SLH-DSA-SHAKE-256f | 10.0 ms | 201.3 ms | 5.41 ms |
+
+### Key/Signature Sizes
+
+| Algorithm | Public Key | Secret Key | Signature |
+|-----------|------------|------------|-----------|
+| SLH-DSA-SHAKE-128f | 32 bytes | 64 bytes | 17,088 bytes |
+| SLH-DSA-SHAKE-192f | 48 bytes | 96 bytes | 35,664 bytes |
+| SLH-DSA-SHAKE-256f | 64 bytes | 128 bytes | 49,856 bytes |
+
+### Notes
+
+- SLH-DSA is hash-intensive and significantly slower than lattice-based ML-DSA
+- Signing is the slowest operation due to hypertree computation
+- "Small" variants (128s/192s/256s) have smaller signatures but are ~10x slower
+- Performance can be improved with SIMD hash acceleration and tree parallelization
+
+---
+
 ## ML-KEM Performance
 
 Benchmarks run with `cargo bench -p kylix-bench` using Criterion.

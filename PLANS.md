@@ -35,12 +35,18 @@ Kylix aims to provide a **pure Rust, high-performance, auditable** implementatio
 | SIMD NTT (AVX2) | ✅ Complete | 8-way parallel butterflies + len=4 optimization |
 | SIMD NTT (NEON) | ✅ Complete | 4-way parallel butterflies |
 
+### In Progress
+
+| Component | FIPS Standard | Status |
+|-----------|---------------|--------|
+| SLH-DSA | FIPS 205 | ✅ Core complete (PR #40), optimization pending |
+
 ### Not Started
 
 | Component | FIPS Standard | Priority |
 |-----------|---------------|----------|
-| SLH-DSA | FIPS 205 | MEDIUM |
-| CLI Bench Command | ✅ Complete | - |
+| SLH-DSA CLI Integration | - | MEDIUM |
+| SLH-DSA SIMD/Parallelization | - | MEDIUM |
 | SIMD NTT (WASM) | - | LOW |
 | Security Audit | - | HIGH |
 
@@ -205,27 +211,42 @@ Evaluate code sharing between ML-KEM and ML-DSA:
 
 ---
 
-## Phase 3: SLH-DSA Implementation
+## Phase 3: SLH-DSA Implementation ✅
 
 ### 3.1 New Crate: kylix-slh-dsa
 
-Implement FIPS 205 (Stateless Hash-Based Digital Signature Standard):
+Implemented FIPS 205 (Stateless Hash-Based Digital Signature Standard):
 
-| Variant | Security | Signature Size | Notes |
-|---------|----------|----------------|-------|
-| SLH-DSA-128s | Level 1 | 7,856 bytes | Small, slow |
-| SLH-DSA-128f | Level 1 | 17,088 bytes | Fast |
-| SLH-DSA-192s | Level 3 | 16,224 bytes | Small, slow |
-| SLH-DSA-192f | Level 3 | 35,664 bytes | Fast |
-| SLH-DSA-256s | Level 5 | 29,792 bytes | Small, slow |
-| SLH-DSA-256f | Level 5 | 49,856 bytes | Fast |
+| Variant | Security | Signature Size | Status |
+|---------|----------|----------------|--------|
+| SLH-DSA-SHAKE-128s | Level 1 | 7,856 bytes | ✅ Complete |
+| SLH-DSA-SHAKE-128f | Level 1 | 17,088 bytes | ✅ Complete |
+| SLH-DSA-SHAKE-192s | Level 3 | 16,224 bytes | ✅ Complete |
+| SLH-DSA-SHAKE-192f | Level 3 | 35,664 bytes | ✅ Complete |
+| SLH-DSA-SHAKE-256s | Level 5 | 29,792 bytes | ✅ Complete |
+| SLH-DSA-SHAKE-256f | Level 5 | 49,856 bytes | ✅ Complete |
 
-### 3.2 Architecture Considerations
+### 3.2 Implementation Status
+
+1. ✅ WOTS+ one-time signature (Algorithms 5-8)
+2. ✅ XMSS single-layer Merkle tree (Algorithms 9-11)
+3. ✅ FORS few-time signature (Algorithms 15-17)
+4. ✅ Hypertree multi-layer structure (Algorithms 12-14)
+5. ✅ KeyGen/Sign/Verify (Algorithms 18-20)
+6. ✅ NIST ACVP test vectors (KeyGen, SigGen, SigVer)
+7. ✅ Fuzz targets (4 targets)
+8. ✅ Benchmarks (fast variants)
+9. ⚠️ CLI integration (pending)
+10. ⚠️ AVX2/SIMD optimization (pending)
+11. ⚠️ Tree parallelization (pending)
+
+### 3.3 Architecture Notes
 
 - Completely different from lattice-based schemes
-- Based on hash functions (SHA2 or SHAKE)
+- Based on hash functions (SHAKE128/256)
 - Larger signatures but well-understood security
 - Good diversity option alongside ML-DSA
+- SHA2 variants not yet implemented
 
 ---
 
