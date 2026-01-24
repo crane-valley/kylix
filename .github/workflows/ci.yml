@@ -139,25 +139,20 @@ jobs:
       - name: Run benchmarks
         run: cargo bench -p kylix-bench --bench ml_dsa --features kylix-ml-dsa/simd -- --output-format bencher | tee output.txt
 
-      - name: Download baseline from gh-pages
-        uses: actions/checkout@v6
-        with:
-          ref: gh-pages
-          path: gh-pages
-        continue-on-error: true
-
       - name: Compare benchmark result
         uses: benchmark-action/github-action-benchmark@4bdcce38c94cec68da58d012ac24b7b1155efe8b  # v1.20.7
         with:
           tool: 'cargo'
           output-file-path: output.txt
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          benchmark-data-dir-path: 'dev/bench'
           comment-on-alert: true
           comment-always: true
           alert-threshold: '150%'
           fail-on-alert: false
           summary-always: true
-          external-data-json-path: gh-pages/dev/bench/data.json
+          # Don't push from PR, just compare against gh-pages baseline
+          auto-push: false
 
   msrv:
     name: MSRV
