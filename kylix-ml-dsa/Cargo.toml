@@ -12,9 +12,9 @@ keywords.workspace = true
 description = "ML-DSA (FIPS 204) implementation for the Kylix post-quantum cryptography library"
 
 [features]
-default = ["std", "ml-dsa-65"]
+default = ["std", "ml-dsa-65", "simd"]
 std = ["kylix-core/std"]
-simd = []  # Enable SIMD optimizations (AVX2/NEON/WASM-SIMD128)
+simd = []  # Enable SIMD optimizations (AVX2/NEON/WASM-SIMD128) - runtime detection for safety
 ml-dsa-44 = []
 ml-dsa-65 = []
 ml-dsa-87 = []
