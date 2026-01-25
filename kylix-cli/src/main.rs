@@ -1463,7 +1463,9 @@ fn run_openssl_sig_benchmark(
     for _ in 0..iterations {
         run_openssl_command(
             &tool.path,
-            &["pkeyutl", "-sign", "-inkey", &key_str, "-in", &msg_str, "-out", &sig_str],
+            &[
+                "pkeyutl", "-sign", "-inkey", &key_str, "-in", &msg_str, "-out", &sig_str,
+            ],
         )?;
     }
     let sign_total = start.elapsed();
@@ -1645,7 +1647,8 @@ fn format_comparison_markdown(
     output.push_str("# Kylix Benchmark Comparison\n\n");
 
     // Add fairness note
-    output.push_str("> **Note:** OpenSSL benchmarks include process startup and file I/O overhead\n");
+    output
+        .push_str("> **Note:** OpenSSL benchmarks include process startup and file I/O overhead\n");
     output.push_str("> (each operation spawns a new process). liboqs uses its native\n");
     output.push_str("> `speed_kem`/`speed_sig` tools for fair in-process comparison.\n");
     output.push_str("> Kylix benchmarks run in-process with no I/O overhead.\n\n");
