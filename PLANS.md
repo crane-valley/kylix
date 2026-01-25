@@ -13,7 +13,7 @@ Kylix aims to provide a **pure Rust, high-performance, auditable** implementatio
 
 ---
 
-## Current Status (v0.3.0)
+## Current Status (v0.4.1)
 
 ### Completed
 
@@ -34,12 +34,7 @@ Kylix aims to provide a **pure Rust, high-performance, auditable** implementatio
 | SIMD Infrastructure | ✅ Complete | AVX2/NEON/WASM-SIMD128 |
 | SIMD NTT (AVX2) | ✅ Complete | 8-way parallel butterflies + len=4 optimization |
 | SIMD NTT (NEON) | ✅ Complete | 4-way parallel butterflies |
-
-### In Progress
-
-| Component | FIPS Standard | Status |
-|-----------|---------------|--------|
-| SLH-DSA | FIPS 205 | ✅ Complete (core + CLI + parallel) |
+| SLH-DSA (SHAKE) | ✅ Complete | FIPS 205, 6 variants, parallel feature |
 
 ### Not Started
 
@@ -366,7 +361,7 @@ Based on the OpenSSL critique, aim for:
 
 ---
 
-## Release Plan: v0.4.0
+## Release Plan: v0.4.0 ✅ Released
 
 ### New Features
 - [x] SLH-DSA Rayon parallelization (`--features parallel`)
@@ -379,8 +374,17 @@ Based on the OpenSSL critique, aim for:
 ### Release Checklist
 - [x] Update version numbers in Cargo.toml files
 - [x] Update CHANGELOG.md
-- [ ] Create GitHub release
-- [ ] Publish to crates.io
+- [x] Create GitHub release
+- [x] Publish to crates.io
+
+## Release: v0.4.1 ✅ Released
+
+### Changes
+- [x] Reduced package sizes by excluding ACVP test vectors from published crates
+  - kylix-ml-kem: 695KB → 32KB
+  - kylix-ml-dsa: 6.3MB → 38KB
+  - kylix-slh-dsa: 16.7MB → excluded
+- [x] Added skip logic for ACVP tests when vectors unavailable (crates.io compatibility)
 
 ---
 
