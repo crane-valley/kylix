@@ -67,15 +67,15 @@ Benchmarks run with `cargo bench -p kylix-bench --bench ml_dsa` using Criterion 
 
 ## ML-KEM Performance
 
-Benchmarks run with `cargo bench -p kylix-bench` using Criterion.
+Benchmarks run with `cargo bench -p kylix-bench` using Criterion with SIMD enabled (default).
 
 ### Summary
 
 | Algorithm | KeyGen | Encaps | Decaps | Roundtrip |
 |-----------|--------|--------|--------|-----------|
-| ML-KEM-512 | 18.4 µs | 17.6 µs | 24.3 µs | 62.4 µs |
-| ML-KEM-768 | 31.3 µs | 28.7 µs | 38.2 µs | 104.1 µs |
-| ML-KEM-1024 | 49.5 µs | 43.5 µs | 55.9 µs | 161.0 µs |
+| ML-KEM-512 | 18.1 µs | 15.1 µs | 20.5 µs | 53.0 µs |
+| ML-KEM-768 | 29.3 µs | 27.4 µs | 31.2 µs | 88.7 µs |
+| ML-KEM-1024 | 53.7 µs | 39.7 µs | 47.0 µs | 140.0 µs |
 
 ### Key/Ciphertext Sizes
 
@@ -91,17 +91,32 @@ Based on [PLANS.md](PLANS.md) performance goals:
 
 | Operation | Kylix | Target | Status |
 |-----------|-------|--------|--------|
-| ML-KEM-768 KeyGen | 31.3 µs | < 50 µs | ✅ Pass |
-| ML-KEM-768 Encaps | 28.7 µs | < 60 µs | ✅ Pass |
-| ML-KEM-768 Decaps | 38.2 µs | < 50 µs | ✅ Pass |
+| ML-KEM-768 KeyGen | 29.3 µs | < 50 µs | ✅ Pass |
+| ML-KEM-768 Encaps | 27.4 µs | < 60 µs | ✅ Pass |
+| ML-KEM-768 Decaps | 31.2 µs | < 50 µs | ✅ Pass |
+
+### Library Comparison (ML-KEM-768)
+
+| Library | KeyGen | Encaps | Decaps |
+|---------|--------|--------|--------|
+| libcrux | 12.0 µs | 10.8 µs | 10.9 µs |
+| **Kylix** | **29.3 µs** | **27.4 µs** | **31.2 µs** |
+| RustCrypto | 36.3 µs | 32.8 µs | 48.5 µs |
+| pqcrypto | 41.5 µs | 41.5 µs | 52.2 µs |
+
+### Notes
+
+> - SIMD optimizations (AVX2/NEON) are enabled by default for significant performance gains
+> - Results measured on Intel i5-13500 with `-C target-cpu=native`
+> - Kylix is faster than RustCrypto and pqcrypto, but still 2.5x slower than libcrux
 
 ### Throughput
 
 | Algorithm | KeyGen | Encaps | Decaps |
 |-----------|--------|--------|--------|
-| ML-KEM-512 | 54,320 ops/sec | 56,735 ops/sec | 41,096 ops/sec |
-| ML-KEM-768 | 31,944 ops/sec | 34,788 ops/sec | 26,191 ops/sec |
-| ML-KEM-1024 | 20,207 ops/sec | 22,976 ops/sec | 17,895 ops/sec |
+| ML-KEM-512 | 55,200 ops/sec | 66,200 ops/sec | 48,800 ops/sec |
+| ML-KEM-768 | 34,100 ops/sec | 36,500 ops/sec | 32,100 ops/sec |
+| ML-KEM-1024 | 18,600 ops/sec | 25,200 ops/sec | 21,300 ops/sec |
 
 ## Comparison Benchmarks
 
