@@ -13,7 +13,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 - SLH-DSA-SHAKE all variants (FIPS 205) with parallel feature
 - NIST ACVP tests, fuzz testing, CLI, no_std, constant-time, zeroization
 
-See CHANGELOG.md for release history, BENCHMARKS.md for performance data.
+> See `CHANGELOG.md` for release history and `BENCHMARKS.md` for performance data.
 
 ### Not Started
 
@@ -87,7 +87,7 @@ impl MlDsa65 {
 | Aspect | Current | With Expansion |
 |--------|---------|----------------|
 | Memory | ~2KB | ~50KB |
-| Single verify | 106 µs | ~156 µs (expand+verify) |
+| Single verify | 106 µs | ~156 µs (= ~106 µs expand + ~50 µs verify) |
 | Repeated verify | 106 µs each | ~50 µs each |
 | Break-even | - | N=2 verifications |
 
