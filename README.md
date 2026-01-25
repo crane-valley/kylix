@@ -106,6 +106,37 @@ fn main() -> kylix_pqc::Result<()> {
 }
 ```
 
+## Command-Line Interface
+
+The `kylix` CLI provides convenient access to all cryptographic operations:
+
+```bash
+# Install the CLI
+cargo install kylix-cli
+
+# Generate ML-KEM-768 key pair
+kylix keygen --algo ml-kem-768 --output mykey
+
+# Encapsulate a shared secret
+kylix encaps --pub mykey.pub --output ciphertext.bin
+
+# Decapsulate the shared secret
+kylix decaps --key mykey.sec --input ciphertext.bin
+
+# Generate ML-DSA-65 key pair and sign a file
+kylix keygen --algo ml-dsa-65 --output signing_key
+kylix sign --key signing_key.sec --input document.txt --output document.sig
+
+# Verify a signature
+kylix verify --pub signing_key.pub --input document.txt --signature document.sig
+
+# Run benchmarks
+kylix bench --algo ml-kem-768 --iterations 10000
+
+# Compare with external PQC libraries (OpenSSL, liboqs)
+kylix bench --compare --algo ml-kem-768
+```
+
 ## Crate Structure
 
 | Crate | Description |
