@@ -40,6 +40,7 @@ Kylix aims to provide a **pure Rust, high-performance, auditable** implementatio
 
 | Component | FIPS Standard | Priority |
 |-----------|---------------|----------|
+| ML-DSA Verify Optimization | FIPS 204 | HIGH |
 | ML-KEM SIMD (Phase 2) | FIPS 203 | MEDIUM |
 | SLH-DSA SHA2 Variants | FIPS 205 | LOW |
 | SIMD NTT (WASM) | - | LOW |
@@ -576,6 +577,104 @@ Further significant improvements require optimizing sampling/hashing operations 
 
 - [libcrux-ml-kem](https://github.com/cryspen/libcrux) - Study their AVX2 implementation
 - [PQClean](https://github.com/PQClean/PQClean) - Reference optimized implementations
+
+---
+
+## Phase 8: ML-DSA Verify Optimization
+
+### Problem
+
+ML-DSA-65 Verify is ~2x slower than RustCrypto (106µs vs 48µs).
+
+| Library | Verify | Notes |
+|---------|--------|-------|
+| libcrux | 34.6 µs | Formally verified |
+| RustCrypto | 47.6 µs | Pure Rust |
+| **Kylix** | **106.3 µs** | Pure Rust |
+| pqcrypto | 119.2 µs | C bindings |
+
+### Root Cause
+
+Kylix's `VerificationKey` stores only raw bytes:
+```rust
+pub struct VerificationKey {
+    bytes: [u8; PK_BYTES],
+}
+```
+
+Every `verify()` call recomputes:
+1. `expand_a()` - Generate K×L polynomials from SHAKE128 (**most expensive**)
+2. `hash_pk()` - SHA3-512 hash of public key
+3. `t1 << D` + `ntt()` - Scale and NTT transform
+
+RustCrypto pre-computes these in `VerifyingKey`:
+```rust
+pub struct VerifyingKey<P> {
+    A_hat: NttMatrix<P::K, P::L>,  // expand_a result
+    t1_2d_hat: NttVector<P::K>,    // t1*2^d NTT
+    tr: B64,                        // hash_pk result
+}
+```
+
+### Solution: ExpandedVerificationKey
+
+Add a new structure for repeated verification:
+
+```rust
+pub struct ExpandedVerificationKey {
+    rho: [u8; 32],
+    t1: PolyVecK<K>,
+    // Pre-computed values
+    a_hat: MatrixK<K, L>,           // expand_a result (NTT domain)
+    t1_2d_hat: PolyVecK<K>,         // t1 * 2^D in NTT domain
+    tr: [u8; 64],                   // H(pk)
+}
+
+impl VerificationKey {
+    /// Expand for fast repeated verification
+    pub fn expand(&self) -> ExpandedVerificationKey { ... }
+}
+
+impl MlDsa65 {
+    /// Fast verify using pre-expanded key
+    pub fn verify_expanded(
+        pk: &ExpandedVerificationKey,
+        message: &[u8],
+        signature: &Signature,
+    ) -> Result<()> { ... }
+}
+```
+
+### Tasks
+
+- [ ] Add `ExpandedVerificationKey` struct with pre-computed fields
+- [ ] Implement `VerificationKey::expand()` method
+- [ ] Add `verify_expanded()` function using pre-computed values
+- [ ] Add benchmarks comparing regular vs expanded verify
+- [ ] Update documentation with usage examples
+
+### Trade-offs
+
+| Aspect | Current | With Expansion |
+|--------|---------|----------------|
+| Memory | ~2KB (bytes only) | ~50KB (with A_hat) |
+| First verify | 106 µs | ~106 µs (expand) + ~50 µs (verify) |
+| Repeated verify | 106 µs each | ~50 µs each |
+| API complexity | Simple | Two verify methods |
+
+### Use Cases
+
+Best for scenarios with repeated verification:
+- Certificate validation (same CA key, many certs)
+- Batch signature verification
+- Long-lived server verification keys
+
+### Expected Results
+
+After optimization:
+- `verify_expanded()`: ~50 µs (matching RustCrypto)
+- Total for N verifications: 106 + 50×(N-1) µs vs 106×N µs
+- Break-even point: N=2 verifications
 
 ---
 
