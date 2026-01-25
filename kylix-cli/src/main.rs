@@ -1101,26 +1101,66 @@ fn detect_liboqs() -> Option<ExternalTool> {
 
 /// Detect OpenSSL 3.5+ with PQC support
 fn detect_openssl() -> Option<ExternalTool> {
-    let path = which::which("openssl").ok()?;
+    // Try PATH first, then common installation locations
+    let candidates: Vec<std::path::PathBuf> = {
+        let mut paths = vec![];
 
-    let output = Command::new(&path).arg("version").output().ok()?;
-    let version_str = String::from_utf8_lossy(&output.stdout);
+        // Check PATH
+        if let Ok(p) = which::which("openssl") {
+            paths.push(p);
+        }
 
-    // Check for OpenSSL 3.5+ (which has native PQC support)
-    if version_str.contains("OpenSSL 3.5") || version_str.contains("OpenSSL 3.6") {
-        // Verify PQC algorithms are available
-        let list_output = Command::new(&path)
-            .args(["list", "-kem-algorithms"])
-            .output()
-            .ok()?;
-        let kem_list = String::from_utf8_lossy(&list_output.stdout);
+        // Windows: FireDaemon OpenSSL
+        #[cfg(target_os = "windows")]
+        {
+            paths.push(std::path::PathBuf::from(
+                r"C:\Program Files\FireDaemon OpenSSL 3\bin\openssl.exe",
+            ));
+        }
 
-        if kem_list.contains("ML-KEM") {
-            return Some(ExternalTool {
-                name: "OpenSSL".to_string(),
-                path,
-                version: version_str.trim().to_string(),
-            });
+        // macOS/Linux: Homebrew, common locations
+        #[cfg(not(target_os = "windows"))]
+        {
+            paths.push(std::path::PathBuf::from("/opt/homebrew/bin/openssl"));
+            paths.push(std::path::PathBuf::from("/usr/local/bin/openssl"));
+        }
+
+        paths
+    };
+
+    for path in candidates {
+        if !path.exists() {
+            continue;
+        }
+
+        let output = match Command::new(&path).arg("version").output() {
+            Ok(o) => o,
+            Err(_) => continue,
+        };
+        let version_str = String::from_utf8_lossy(&output.stdout);
+
+        // Check for OpenSSL 3.5+ (which has native PQC support)
+        if version_str.contains("OpenSSL 3.5")
+            || version_str.contains("OpenSSL 3.6")
+            || version_str.contains("OpenSSL 3.7")
+        {
+            // Verify PQC algorithms are available
+            let list_output = match Command::new(&path)
+                .args(["list", "-kem-algorithms"])
+                .output()
+            {
+                Ok(o) => o,
+                Err(_) => continue,
+            };
+            let kem_list = String::from_utf8_lossy(&list_output.stdout);
+
+            if kem_list.contains("ML-KEM") {
+                return Some(ExternalTool {
+                    name: "OpenSSL".to_string(),
+                    path,
+                    version: version_str.trim().to_string(),
+                });
+            }
         }
     }
 
