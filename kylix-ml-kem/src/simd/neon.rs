@@ -34,16 +34,40 @@ const Q: i16 = 3329;
 /// Q inverse mod 2^16: q^(-1) mod 2^16 = -3327
 const QINV: i16 = -3327i16;
 
-/// Barrett constant: floor(2^26 / q) + 1 = 20159
-const BARRETT_MUL: i32 = 20159;
+/// Barrett constant V: floor(2^26 / q + 0.5) = 20159
+const BARRETT_V: i16 = 20159;
 
 // ============================================================================
 // Core reduction operations for 16-bit coefficients
 // ============================================================================
 
-/// Barrett reduction on 8 values in parallel.
+/// Compute high 16 bits of signed 16x16->32 multiply for 8 values.
 ///
-/// Computes a mod q for each value in the vector.
+/// Returns (a * b) >> 16 for each pair.
+#[cfg(target_arch = "aarch64")]
+#[target_feature(enable = "neon")]
+#[inline]
+unsafe fn mulhi_s16(a: int16x8_t, b: int16x8_t) -> int16x8_t {
+    // Split into halves
+    let a_lo = vget_low_s16(a);
+    let a_hi = vget_high_s16(a);
+    let b_lo = vget_low_s16(b);
+    let b_hi = vget_high_s16(b);
+
+    // Widening multiply: 16x16 -> 32
+    let prod_lo = vmull_s16(a_lo, b_lo); // 4x i32
+    let prod_hi = vmull_s16(a_hi, b_hi); // 4x i32
+
+    // Extract high 16 bits (>> 16)
+    let hi_lo = vshrn_n_s32(prod_lo, 16); // 4x i16
+    let hi_hi = vshrn_n_s32(prod_hi, 16); // 4x i16
+    vcombine_s16(hi_lo, hi_hi)
+}
+
+/// Efficient Barrett reduction on 8 values in parallel.
+///
+/// Uses pqcrystals/kyber-style approach with 16-bit operations.
+/// Pattern: mulhi -> shift -> mul -> sub
 ///
 /// # Safety
 ///
@@ -52,30 +76,20 @@ const BARRETT_MUL: i32 = 20159;
 #[target_feature(enable = "neon")]
 #[inline]
 unsafe fn barrett_reduce_8x(a: int16x8_t) -> int16x8_t {
-    let v = BARRETT_MUL;
-    let round = 1i32 << 25;
-    let q32 = Q as i32;
+    let v = vdupq_n_s16(BARRETT_V);
+    let q = vdupq_n_s16(Q);
 
-    // Extend to 32-bit for each half
-    let a_lo = vmovl_s16(vget_low_s16(a)); // 4x i32
-    let a_hi = vmovl_s16(vget_high_s16(a)); // 4x i32
+    // t = (a * v) >> 16 (high 16 bits of signed multiply)
+    let t = mulhi_s16(a, v);
 
-    let v_vec = vdupq_n_s32(v);
-    let round_vec = vdupq_n_s32(round);
-    let q_vec = vdupq_n_s32(q32);
+    // t = t >> 10 (total shift: >> 26)
+    let t = vshrq_n_s16(t, 10);
 
-    // t = (a * v + 2^25) >> 26
-    let t_lo = vshrq_n_s32(vaddq_s32(vmulq_s32(a_lo, v_vec), round_vec), 26);
-    let t_hi = vshrq_n_s32(vaddq_s32(vmulq_s32(a_hi, v_vec), round_vec), 26);
+    // t = t * q (low 16 bits)
+    let t = vmulq_s16(t, q);
 
-    // r = a - t * q
-    let r_lo = vsubq_s32(a_lo, vmulq_s32(t_lo, q_vec));
-    let r_hi = vsubq_s32(a_hi, vmulq_s32(t_hi, q_vec));
-
-    // Pack back to 16-bit (narrowing)
-    let r_lo_16 = vmovn_s32(r_lo); // 4x i16
-    let r_hi_16 = vmovn_s32(r_hi); // 4x i16
-    vcombine_s16(r_lo_16, r_hi_16)
+    // result = a - t
+    vsubq_s16(a, t)
 }
 
 // ============================================================================

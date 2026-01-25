@@ -36,16 +36,20 @@ const Q: i16 = 3329;
 /// Q inverse mod 2^16: q^(-1) mod 2^16 = -3327
 const QINV: i16 = -3327i16;
 
-/// Barrett constant: floor(2^26 / q) + 1 = 20159
-const BARRETT_MUL: i32 = 20159;
+/// Barrett constant V: floor(2^26 / q + 0.5) = 20159
+/// This fits in i16 (20159 < 32768)
+const BARRETT_V: i16 = 20159;
 
 // ============================================================================
-// Core Montgomery operations for 16-bit coefficients
+// Core reduction operations for 16-bit coefficients
 // ============================================================================
 
-/// Barrett reduction on 16 values in parallel.
+/// Efficient Barrett reduction on 16 values in parallel (16-bit only).
 ///
-/// Computes a mod q for each value in the vector.
+/// Uses the pqcrystals/kyber approach: only 16-bit SIMD operations.
+/// Pattern: vpmulhw -> vpsraw -> vpmullw -> vpsubw
+///
+/// For input a in range [-2^15, 2^15], computes a mod q.
 ///
 /// # Safety
 ///
@@ -54,27 +58,20 @@ const BARRETT_MUL: i32 = 20159;
 #[target_feature(enable = "avx2")]
 #[inline]
 unsafe fn barrett_reduce_16x(a: __m256i) -> __m256i {
-    // Use 32-bit arithmetic for precision to avoid overflow
-    // Extend to 32-bit, multiply, shift
-    let a_lo = _mm256_cvtepi16_epi32(_mm256_castsi256_si128(a));
-    let a_hi = _mm256_cvtepi16_epi32(_mm256_extracti128_si256(a, 1));
+    let v = _mm256_set1_epi16(BARRETT_V);
+    let q = _mm256_set1_epi16(Q);
 
-    let v32 = _mm256_set1_epi32(BARRETT_MUL);
-    let round = _mm256_set1_epi32(1 << 25);
-    let q32 = _mm256_set1_epi32(Q as i32);
+    // t = (a * v) >> 16 (high 16 bits of signed multiply)
+    let t = _mm256_mulhi_epi16(a, v);
 
-    // t = (a * v + 2^25) >> 26
-    let t_lo = _mm256_srai_epi32(_mm256_add_epi32(_mm256_mullo_epi32(a_lo, v32), round), 26);
-    let t_hi = _mm256_srai_epi32(_mm256_add_epi32(_mm256_mullo_epi32(a_hi, v32), round), 26);
+    // t = t >> 10 (total shift: >> 26, since mulhi already gives >> 16)
+    let t = _mm256_srai_epi16(t, 10);
 
-    // r = a - t * q
-    let r_lo = _mm256_sub_epi32(a_lo, _mm256_mullo_epi32(t_lo, q32));
-    let r_hi = _mm256_sub_epi32(a_hi, _mm256_mullo_epi32(t_hi, q32));
+    // t = t * q (low 16 bits)
+    let t = _mm256_mullo_epi16(t, q);
 
-    // Pack back to 16-bit
-    let r_lo_16 = _mm256_packs_epi32(r_lo, r_hi);
-    // packs interleaves, need to permute to get correct order
-    _mm256_permute4x64_epi64(r_lo_16, 0b11_01_10_00)
+    // result = a - t
+    _mm256_sub_epi16(a, t)
 }
 
 /// Montgomery multiplication on 16 values in parallel.
