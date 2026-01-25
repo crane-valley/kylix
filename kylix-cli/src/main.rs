@@ -1140,10 +1140,27 @@ fn detect_openssl() -> Option<ExternalTool> {
         let version_str = String::from_utf8_lossy(&output.stdout);
 
         // Check for OpenSSL 3.5+ (which has native PQC support)
-        if version_str.contains("OpenSSL 3.5")
-            || version_str.contains("OpenSSL 3.6")
-            || version_str.contains("OpenSSL 3.7")
-        {
+        // Parse version to support future releases (3.8, 4.0, etc.)
+        let is_supported_version = {
+            let mut supported = false;
+            let mut tokens = version_str.split_whitespace();
+            while let Some(token) = tokens.next() {
+                if token == "OpenSSL" {
+                    if let Some(ver_token) = tokens.next() {
+                        let mut parts = ver_token.split('.');
+                        let major = parts.next().and_then(|p| p.parse::<u64>().ok());
+                        let minor = parts.next().and_then(|p| p.parse::<u64>().ok());
+                        if let (Some(maj), Some(min)) = (major, minor) {
+                            supported = maj > 3 || (maj == 3 && min >= 5);
+                        }
+                    }
+                    break;
+                }
+            }
+            supported
+        };
+
+        if is_supported_version {
             // Verify PQC algorithms are available
             let list_output = match Command::new(&path)
                 .args(["list", "-kem-algorithms"])
@@ -1168,6 +1185,9 @@ fn detect_openssl() -> Option<ExternalTool> {
 }
 
 /// Run liboqs KEM benchmark
+///
+/// Note: The iterations argument is passed to liboqs speed_kem tool.
+/// liboqs speed_kem accepts an optional iterations count as the last argument.
 fn run_liboqs_kem_benchmark(
     tool: &ExternalTool,
     algo: &str,
@@ -1181,7 +1201,7 @@ fn run_liboqs_kem_benchmark(
         _ => return Ok(vec![]),
     };
 
-    // Run speed_kem with the algorithm
+    // Run speed_kem with the algorithm and iteration count
     let output = Command::new(&tool.path)
         .args(["--alg", liboqs_algo, &iterations.to_string()])
         .output()
@@ -1192,6 +1212,9 @@ fn run_liboqs_kem_benchmark(
 }
 
 /// Run liboqs signature benchmark
+///
+/// Note: The iterations argument is passed to liboqs speed_sig tool.
+/// liboqs speed_sig accepts an optional iterations count as the last argument.
 fn run_liboqs_sig_benchmark(
     tool: &ExternalTool,
     algo: &str,
@@ -1572,7 +1595,17 @@ fn format_comparison_text(
                 let speedup = if *tool != "Kylix" {
                     kylix_times
                         .get(op)
-                        .map(|kt| format!(" (Kylix {:.1}x faster)", time / kt))
+                        .filter(|kt| **kt > 0.0)
+                        .map(|kt| {
+                            let ratio = time / kt;
+                            if ratio >= 1.0 {
+                                format!(" (Kylix {:.1}x faster)", ratio)
+                            } else if ratio > 0.0 {
+                                format!(" ({} {:.1}x faster)", tool, 1.0 / ratio)
+                            } else {
+                                String::new()
+                            }
+                        })
                         .unwrap_or_default()
                 } else {
                     String::new()
