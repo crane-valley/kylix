@@ -20,8 +20,8 @@
 use core::arch::aarch64::*;
 
 use crate::ntt::ZETAS;
-use crate::reduce::INV_N_MONT;
 use crate::params::common::N;
+use crate::reduce::INV_N_MONT;
 
 /// ML-KEM modulus q = 3329
 const Q: i16 = 3329;
@@ -43,11 +43,16 @@ const QINV: i16 = -3327i16;
 #[cfg(target_arch = "aarch64")]
 #[target_feature(enable = "neon")]
 #[inline]
-unsafe fn montgomery_mul_8x(a: int16x8_t, b: int16x8_t, q: int16x8_t, qinv: int16x8_t) -> int16x8_t {
+unsafe fn montgomery_mul_8x(
+    a: int16x8_t,
+    b: int16x8_t,
+    q: int16x8_t,
+    qinv: int16x8_t,
+) -> int16x8_t {
     // Step 1-2: Compute a * b, get low and high 16 bits
     // vqdmulhq_s16 gives approximately (a * b * 2) >> 16, but we need exact high bits
     // Use widening multiply instead
-    let ab_lo = vmulq_s16(a, b);  // Low 16 bits of each product
+    let ab_lo = vmulq_s16(a, b); // Low 16 bits of each product
 
     // For high bits, we need to do widening multiply and extract high parts
     // Split into low and high halves
@@ -57,12 +62,12 @@ unsafe fn montgomery_mul_8x(a: int16x8_t, b: int16x8_t, q: int16x8_t, qinv: int1
     let b_hi = vget_high_s16(b);
 
     // Widening multiply: 16x16 -> 32
-    let ab_wide_lo = vmull_s16(a_lo, b_lo);  // 4x i32
-    let ab_wide_hi = vmull_s16(a_hi, b_hi);  // 4x i32
+    let ab_wide_lo = vmull_s16(a_lo, b_lo); // 4x i32
+    let ab_wide_hi = vmull_s16(a_hi, b_hi); // 4x i32
 
     // Extract high 16 bits
-    let ab_hi_lo = vshrn_n_s32(ab_wide_lo, 16);  // 4x i16
-    let ab_hi_hi = vshrn_n_s32(ab_wide_hi, 16);  // 4x i16
+    let ab_hi_lo = vshrn_n_s32(ab_wide_lo, 16); // 4x i16
+    let ab_hi_hi = vshrn_n_s32(ab_wide_hi, 16); // 4x i16
     let ab_hi = vcombine_s16(ab_hi_lo, ab_hi_hi);
 
     // Step 3: t = ab_lo * QINV mod 2^16

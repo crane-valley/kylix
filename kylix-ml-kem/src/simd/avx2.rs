@@ -22,8 +22,8 @@
 use core::arch::x86_64::*;
 
 use crate::ntt::ZETAS;
-use crate::reduce::INV_N_MONT;
 use crate::params::common::N;
+use crate::reduce::INV_N_MONT;
 
 /// ML-KEM modulus q = 3329
 const Q: i16 = 3329;
@@ -56,8 +56,8 @@ const QINV: i16 = -3327i16;
 #[inline]
 unsafe fn montgomery_mul_16x(a: __m256i, b: __m256i, q: __m256i, qinv: __m256i) -> __m256i {
     // Step 1-2: Compute a * b, get low and high 16 bits
-    let ab_lo = _mm256_mullo_epi16(a, b);  // Low 16 bits of each product
-    let ab_hi = _mm256_mulhi_epi16(a, b);  // High 16 bits (signed)
+    let ab_lo = _mm256_mullo_epi16(a, b); // Low 16 bits of each product
+    let ab_hi = _mm256_mulhi_epi16(a, b); // High 16 bits (signed)
 
     // Step 3: t = ab_lo * QINV mod 2^16
     let t = _mm256_mullo_epi16(ab_lo, qinv);
@@ -113,7 +113,7 @@ unsafe fn butterfly_avx2(a: &mut [i16; N], start: usize, len: usize, zeta: i16) 
     while j < start + len {
         let t = crate::reduce::montgomery_mul(zeta, a[j + len]);
         a[j + len] = a[j] - t;
-        a[j] = a[j] + t;
+        a[j] += t;
         j += 1;
     }
 }
@@ -195,10 +195,7 @@ unsafe fn butterfly_len8_avx2(a: &mut [i16; N], zetas: &[i16]) {
         let a_hi = _mm256_set_m128i(hi1, hi0);
 
         // Zetas: low 8 lanes use zeta0, high 8 lanes use zeta1
-        let zeta_v = _mm256_set_m128i(
-            _mm_set1_epi16(zeta1),
-            _mm_set1_epi16(zeta0),
-        );
+        let zeta_v = _mm256_set_m128i(_mm_set1_epi16(zeta1), _mm_set1_epi16(zeta0));
 
         // t = zeta * a_hi (Montgomery multiplication)
         let t = montgomery_mul_16x(zeta_v, a_hi, q, qinv);
@@ -254,10 +251,7 @@ unsafe fn inv_butterfly_len8_avx2(a: &mut [i16; N], zetas: &[i16]) {
         let a_hi = _mm256_set_m128i(hi1, hi0);
 
         // Zetas (already negated by caller)
-        let zeta_v = _mm256_set_m128i(
-            _mm_set1_epi16(zeta1),
-            _mm_set1_epi16(zeta0),
-        );
+        let zeta_v = _mm256_set_m128i(_mm_set1_epi16(zeta1), _mm_set1_epi16(zeta0));
 
         // a[j] = t + a[j+len]
         let new_lo = _mm256_add_epi16(t, a_hi);
@@ -319,10 +313,10 @@ pub unsafe fn ntt_avx2(a: &mut [i16; N]) {
     // len=8: use specialized half-vector operations
     {
         let mut zetas_len8 = [0i16; 16];
-        for i in 0..16 {
-            zetas_len8[i] = ZETAS[k];
-            k += 1;
+        for (i, zeta) in zetas_len8.iter_mut().enumerate() {
+            *zeta = ZETAS[k + i];
         }
+        k += 16;
         butterfly_len8_avx2(a, &zetas_len8);
     }
 
@@ -335,7 +329,7 @@ pub unsafe fn ntt_avx2(a: &mut [i16; N]) {
             for j in start..(start + len) {
                 let t = crate::reduce::montgomery_mul(zeta, a[j + len]);
                 a[j + len] = a[j] - t;
-                a[j] = a[j] + t;
+                a[j] += t;
             }
             start += 2 * len;
         }
@@ -373,10 +367,10 @@ pub unsafe fn inv_ntt_avx2(a: &mut [i16; N]) {
     // len=8: use specialized half-vector operations
     {
         let mut zetas_len8 = [0i16; 16];
-        for i in 0..16 {
-            zetas_len8[i] = -ZETAS[k];
-            k = k.wrapping_sub(1);
+        for (i, zeta) in zetas_len8.iter_mut().enumerate() {
+            *zeta = -ZETAS[k - i];
         }
+        k = k.wrapping_sub(16);
         inv_butterfly_len8_avx2(a, &zetas_len8);
     }
 
@@ -464,12 +458,10 @@ mod tests {
         }
 
         let a: [i16; 16] = [
-            123, 234, 345, 456, 567, 678, 789, 890,
-            901, 1012, 1123, 1234, 1345, 1456, 1567, 1678,
+            123, 234, 345, 456, 567, 678, 789, 890, 901, 1012, 1123, 1234, 1345, 1456, 1567, 1678,
         ];
         let b: [i16; 16] = [
-            111, 222, 333, 444, 555, 666, 777, 888,
-            999, 1110, 1221, 1332, 1443, 1554, 1665, 1776,
+            111, 222, 333, 444, 555, 666, 777, 888, 999, 1110, 1221, 1332, 1443, 1554, 1665, 1776,
         ];
 
         // Scalar reference

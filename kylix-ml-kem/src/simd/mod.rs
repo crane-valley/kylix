@@ -158,6 +158,7 @@ pub fn inv_ntt(_poly: &mut Poly) -> bool {
 /// Returns true if SIMD was used, false if caller should use scalar fallback.
 #[cfg(target_arch = "x86_64")]
 #[inline]
+#[allow(dead_code)]
 pub fn poly_add(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) -> bool {
     if has_avx2() {
         // SAFETY: AVX2 availability confirmed by has_avx2()
@@ -175,6 +176,7 @@ pub fn poly_add(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) -> bool {
 /// Returns true if SIMD was used, false if caller should use scalar fallback.
 #[cfg(target_arch = "x86_64")]
 #[inline]
+#[allow(dead_code)]
 pub fn poly_sub(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) -> bool {
     if has_avx2() {
         // SAFETY: AVX2 availability confirmed by has_avx2()
@@ -190,6 +192,7 @@ pub fn poly_sub(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) -> bool {
 /// Polynomial addition using SIMD (NEON).
 #[cfg(target_arch = "aarch64")]
 #[inline]
+#[allow(dead_code)]
 pub fn poly_add(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) -> bool {
     // SAFETY: NEON is always available on aarch64
     unsafe {
@@ -201,6 +204,7 @@ pub fn poly_add(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) -> bool {
 /// Polynomial subtraction using SIMD (NEON).
 #[cfg(target_arch = "aarch64")]
 #[inline]
+#[allow(dead_code)]
 pub fn poly_sub(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) -> bool {
     // SAFETY: NEON is always available on aarch64
     unsafe {
