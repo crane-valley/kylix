@@ -61,6 +61,11 @@ const SLH_DSA_256F_VK_SIZE: usize = SlhDsaShake256f::VERIFICATION_KEY_SIZE;
 const SLH_DSA_256F_SK_SIZE: usize = SlhDsaShake256f::SIGNING_KEY_SIZE;
 const SLH_DSA_256F_SIG_SIZE: usize = SlhDsaShake256f::SIGNATURE_SIZE;
 
+// liboqs benchmark duration estimation constants
+// Assumed operations per second for converting iteration count to duration
+const LIBOQS_KEM_OPS_PER_SEC: u64 = 10000;
+const LIBOQS_SIG_OPS_PER_SEC: u64 = 1000;
+
 /// Post-quantum cryptography CLI tool
 #[derive(Parser)]
 #[command(name = "kylix")]
@@ -1094,10 +1099,19 @@ fn detect_liboqs() -> Option<ExternalTool> {
         // Windows: check common vcpkg build locations
         #[cfg(target_os = "windows")]
         {
-            // Try common vcpkg paths with known version patterns
-            let vcpkg_roots = ["E:\\vcpkg", "C:\\vcpkg", "D:\\vcpkg"];
-            for root in vcpkg_roots {
-                let base = std::path::Path::new(root).join("buildtrees\\liboqs\\src");
+            // Check VCPKG_ROOT environment variable first, then common paths
+            let mut vcpkg_roots_to_check: Vec<std::path::PathBuf> = Vec::new();
+            if let Ok(vcpkg_root) = std::env::var("VCPKG_ROOT") {
+                vcpkg_roots_to_check.push(std::path::PathBuf::from(vcpkg_root));
+            }
+            vcpkg_roots_to_check.extend(
+                ["E:\\vcpkg", "C:\\vcpkg", "D:\\vcpkg"]
+                    .iter()
+                    .map(std::path::PathBuf::from),
+            );
+
+            for root in vcpkg_roots_to_check {
+                let base = root.join("buildtrees\\liboqs\\src");
                 if let Ok(entries) = std::fs::read_dir(&base) {
                     for entry in entries.flatten() {
                         if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
@@ -1202,12 +1216,10 @@ fn detect_openssl() -> Option<ExternalTool> {
                         let mut parts = ver_token.split('.');
                         let major = parts.next().and_then(|p| p.parse::<u64>().ok());
                         // Handle versions with suffixes like "5-alpha" by taking only digits
+                        // Parse directly from slice to avoid allocation
                         let minor = parts.next().and_then(|p| {
-                            p.chars()
-                                .take_while(|c| c.is_ascii_digit())
-                                .collect::<String>()
-                                .parse::<u64>()
-                                .ok()
+                            let end = p.find(|c: char| !c.is_ascii_digit()).unwrap_or(p.len());
+                            p[..end].parse::<u64>().ok()
                         });
                         if let (Some(maj), Some(min)) = (major, minor) {
                             supported = maj > 3 || (maj == 3 && min >= 5);
@@ -1260,8 +1272,8 @@ fn run_liboqs_kem_benchmark(
         _ => return Ok(vec![]),
     };
 
-    // Convert iterations to approximate duration (assume ~10000 ops/sec, min 1s)
-    let duration = std::cmp::max(1, iterations / 10000);
+    // Convert iterations to approximate duration (min 1s)
+    let duration = std::cmp::max(1, iterations / LIBOQS_KEM_OPS_PER_SEC);
 
     // Run speed_kem with the algorithm (liboqs syntax: speed_kem [-d duration] <algorithm>)
     let output = Command::new(&tool.path)
@@ -1291,7 +1303,13 @@ fn run_liboqs_sig_benchmark(
     };
 
     // Find speed_sig (should be in same directory as speed_kem)
-    let speed_sig_path = tool.path.parent().map(|p| p.join("speed_sig.exe"));
+    // Use platform-appropriate executable name
+    let speed_sig_name = if cfg!(windows) {
+        "speed_sig.exe"
+    } else {
+        "speed_sig"
+    };
+    let speed_sig_path = tool.path.parent().map(|p| p.join(speed_sig_name));
     let speed_sig = speed_sig_path
         .filter(|p| p.exists())
         .or_else(|| which::which("speed_sig").ok());
@@ -1300,8 +1318,8 @@ fn run_liboqs_sig_benchmark(
         return Ok(vec![]);
     };
 
-    // Convert iterations to approximate duration (assume ~1000 ops/sec for signatures, min 1s)
-    let duration = std::cmp::max(1, iterations / 1000);
+    // Convert iterations to approximate duration (min 1s)
+    let duration = std::cmp::max(1, iterations / LIBOQS_SIG_OPS_PER_SEC);
 
     // Run speed_sig with the algorithm (liboqs syntax: speed_sig [-d duration] <algorithm>)
     let output = Command::new(&sig_path)
