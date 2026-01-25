@@ -502,13 +502,7 @@ pub unsafe fn poly_basemul_acc_avx2(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
 #[inline]
-unsafe fn basemul_8x(
-    a: __m256i,
-    b: __m256i,
-    zeta: __m256i,
-    q: __m256i,
-    qinv: __m256i,
-) -> __m256i {
+unsafe fn basemul_8x(a: __m256i, b: __m256i, zeta: __m256i, q: __m256i, qinv: __m256i) -> __m256i {
     // Extract even indices: [a0, a2, a4, a6, a8, a10, a12, a14]
     // Extract odd indices:  [a1, a3, a5, a7, a9, a11, a13, a15]
     let a_even = shuffle_even_16(a);
@@ -608,9 +602,9 @@ unsafe fn interleave_16(even: __m256i, odd: __m256i) -> __m256i {
     let odd_128 = _mm256_castsi256_si128(odd);
 
     // Unpack low: interleave first 4 pairs
-    let lo = _mm_unpacklo_epi16(even_128, odd_128); // [e0,o0,e1,o1,e2,o2,e3,o3]
+    let lo = _mm_unpacklo_epi16(even_128, odd_128);
     // Unpack high: interleave last 4 pairs
-    let hi = _mm_unpackhi_epi16(even_128, odd_128); // [e4,o4,e5,o5,e6,o6,e7,o7]
+    let hi = _mm_unpackhi_epi16(even_128, odd_128);
 
     // Combine into 256-bit register
     _mm256_set_m128i(hi, lo)
