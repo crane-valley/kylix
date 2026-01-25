@@ -56,13 +56,8 @@ pub fn wots_pk_gen_parallel<H: HashSuite + Send + Sync, const WOTS_LEN: usize>(
         })
         .collect();
 
-    // Flatten results
-    let mut tmp = Vec::with_capacity(WOTS_LEN * H::N);
-    for chain_end in chain_results {
-        tmp.extend_from_slice(&chain_end);
-    }
-
-    // Compress to get public key
+    // Flatten results and compress to get public key
+    let tmp: Vec<u8> = chain_results.into_iter().flatten().collect();
     H::t_l(pk_seed, &wots_pk_adrs, &tmp)
 }
 
@@ -102,12 +97,7 @@ pub fn wots_sign_parallel<
         .collect();
 
     // Flatten results
-    let mut sig = Vec::with_capacity(WOTS_LEN * H::N);
-    for part in sig_parts {
-        sig.extend_from_slice(&part);
-    }
-
-    sig
+    sig_parts.into_iter().flatten().collect()
 }
 
 /// Compute WOTS+ public key from signature in parallel.
@@ -143,13 +133,8 @@ pub fn wots_pk_from_sig_parallel<
         })
         .collect();
 
-    // Flatten results
-    let mut tmp = Vec::with_capacity(WOTS_LEN * n);
-    for chain_end in chain_results {
-        tmp.extend_from_slice(&chain_end);
-    }
-
-    // Compress to get public key
+    // Flatten results and compress to get public key
+    let tmp: Vec<u8> = chain_results.into_iter().flatten().collect();
     H::t_l(pk_seed, &wots_pk_adrs, &tmp)
 }
 
@@ -212,12 +197,7 @@ pub fn fors_sign_parallel<H: HashSuite + Send + Sync>(
         .collect();
 
     // Flatten results
-    let mut sig = Vec::with_capacity(k * (n + a * n));
-    for tree_sig in tree_sigs {
-        sig.extend_from_slice(&tree_sig);
-    }
-
-    sig
+    tree_sigs.into_iter().flatten().collect()
 }
 
 /// Compute FORS public key from signature in parallel.
@@ -278,13 +258,8 @@ pub fn fors_pk_from_sig_parallel<H: HashSuite + Send + Sync>(
         })
         .collect();
 
-    // Flatten roots
-    let mut all_roots = Vec::with_capacity(k * n);
-    for root in roots {
-        all_roots.extend_from_slice(&root);
-    }
-
-    // Compress all roots to get public key
+    // Flatten roots and compress to get public key
+    let all_roots: Vec<u8> = roots.into_iter().flatten().collect();
     let fors_pk_adrs = adrs.with_type(AdrsType::ForsPk);
     H::t_l(pk_seed, &fors_pk_adrs, &all_roots)
 }
@@ -356,12 +331,9 @@ pub fn xmss_sign_parallel<
         })
         .collect();
 
-    // Build result
+    // Build result: WOTS signature + authentication path
     let mut sig = sig_wots;
-    for node in auth_nodes {
-        sig.extend_from_slice(&node);
-    }
-
+    sig.extend(auth_nodes.into_iter().flatten());
     sig
 }
 
