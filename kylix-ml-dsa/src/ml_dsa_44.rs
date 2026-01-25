@@ -1,7 +1,7 @@
 //! ML-DSA-44 (NIST Level 2) implementation
 
 use crate::params::ml_dsa_44::*;
-use crate::sign::{ml_dsa_keygen, ml_dsa_sign, ml_dsa_verify};
+use crate::sign::{expand_verification_key, ml_dsa_keygen, ml_dsa_sign, ml_dsa_verify, ml_dsa_verify_expanded};
 use kylix_core::{Error, Result, Signer};
 use rand_core::CryptoRng;
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -59,7 +59,18 @@ impl VerificationKey {
     pub fn as_bytes(&self) -> &[u8; PK_BYTES] {
         &self.bytes
     }
+
+    /// Expand the verification key for fast repeated verification.
+    ///
+    /// See [`crate::ml_dsa_65::VerificationKey::expand`] for details.
+    pub fn expand(&self) -> Result<ExpandedVerificationKey> {
+        expand_verification_key::<K, L>(self.as_bytes())
+            .ok_or(Error::EncodingError)
+    }
 }
+
+/// Expanded verification key with pre-computed values for fast repeated verification.
+pub type ExpandedVerificationKey = crate::sign::ExpandedVerificationKey<K, L>;
 
 /// ML-DSA-44 signature.
 #[derive(Clone)]
@@ -143,6 +154,29 @@ impl Signer for MlDsa44 {
     }
 }
 
+impl MlDsa44 {
+    /// Verify signature using pre-expanded verification key.
+    ///
+    /// See [`crate::ml_dsa_65::MlDsa65::verify_expanded`] for details.
+    pub fn verify_expanded(
+        expanded: &ExpandedVerificationKey,
+        message: &[u8],
+        signature: &Signature,
+    ) -> Result<()> {
+        let valid = ml_dsa_verify_expanded::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
+            expanded,
+            message,
+            signature.as_bytes(),
+        );
+
+        if valid {
+            Ok(())
+        } else {
+            Err(Error::VerificationFailed)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -163,5 +197,31 @@ mod tests {
         let (sk, pk) = result.unwrap();
         assert_eq!(sk.as_bytes().len(), SK_BYTES);
         assert_eq!(pk.as_bytes().len(), PK_BYTES);
+    }
+
+    #[test]
+    fn test_roundtrip() {
+        let mut rng = rand::rng();
+        let (sk, pk) = MlDsa44::keygen(&mut rng).unwrap();
+
+        let message = b"Hello, ML-DSA-44!";
+        let signature = MlDsa44::sign(&sk, message).unwrap();
+
+        let result = MlDsa44::verify(&pk, message, &signature);
+        assert!(result.is_ok(), "Verification failed: {:?}", result);
+    }
+
+    #[test]
+    fn test_expanded_verify() {
+        let mut rng = rand::rng();
+        let (sk, pk) = MlDsa44::keygen(&mut rng).unwrap();
+
+        let expanded = pk.expand().expect("expand should succeed");
+
+        let message = b"Test expanded verification";
+        let signature = MlDsa44::sign(&sk, message).unwrap();
+
+        let result = MlDsa44::verify_expanded(&expanded, message, &signature);
+        assert!(result.is_ok(), "Expanded verification failed: {:?}", result);
     }
 }
