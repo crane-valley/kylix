@@ -84,6 +84,27 @@ fn main() -> kylix_pqc::Result<()> {
 }
 ```
 
+### SLH-DSA (Stateless Hash-Based Signatures)
+
+```rust
+use kylix_pqc::slh_dsa::SlhDsaShake128f;
+use rand::rngs::OsRng;
+
+fn main() -> kylix_pqc::Result<()> {
+    // Generate a signing key pair
+    let (signing_key, verifying_key) = SlhDsaShake128f::keygen(&mut OsRng)?;
+
+    // Sign a message
+    let message = b"Hello, post-quantum world!";
+    let signature = SlhDsaShake128f::sign(&signing_key, message)?;
+
+    // Verify the signature
+    SlhDsaShake128f::verify(&verifying_key, message, &signature)?;
+
+    Ok(())
+}
+```
+
 ## Crate Structure
 
 | Crate | Description |
