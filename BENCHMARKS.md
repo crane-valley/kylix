@@ -74,13 +74,25 @@ Benchmarks run with `cargo bench -p kylix-bench --bench ml_dsa` using Criterion 
 | pqcrypto | 135.2 µs | 451.3 µs | 119.2 µs |
 | RustCrypto | 264.0 µs | 293.8 µs | 47.6 µs |
 
+### Expanded Verification (Pre-computed Keys)
+
+For repeated verification with the same public key, use `expand()` + `verify_expanded()`:
+
+| Variant | expand() | regular | expanded | Speedup |
+|---------|----------|---------|----------|---------|
+| ML-DSA-44 | 37.7 µs | 63.5 µs | 30.4 µs | 2.1x |
+| ML-DSA-65 | 68.1 µs | 100.5 µs | 38.4 µs | 2.6x |
+| ML-DSA-87 | 162.8 µs | 164.6 µs | 55.6 µs | 3.0x |
+
+Break-even: 2 verifications with the same key.
+
 ### Notes
 
 - SIMD optimizations (AVX2/NEON) are enabled by default for significant performance gains
 - Results measured on Intel i5-13500 with `-C target-cpu=native`
 - Sign performance includes rejection sampling loop iterations
 - All benchmarks include RNG cost for fair comparison
-- RustCrypto Verify is fast due to pre-computed expanded verification key
+- RustCrypto Verify is fast due to pre-computed expanded verification key (similar to Kylix `verify_expanded`)
 
 ---
 

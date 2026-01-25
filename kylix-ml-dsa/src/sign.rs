@@ -15,6 +15,244 @@ use crate::sample::{sample_eta, sample_in_ball, sample_mask, sample_ntt};
 
 use zeroize::Zeroize;
 
+/// Expanded verification key with pre-computed values for fast repeated verification.
+///
+/// This structure stores pre-computed values that would otherwise be
+/// recomputed on every `verify()` call:
+/// - `a_hat`: Expanded matrix A in NTT domain
+/// - `t1_2d_hat`: t1 * 2^D in NTT domain
+/// - `tr`: Hash of public key (H(pk))
+///
+/// # Usage
+///
+/// ```ignore
+/// let pk = VerificationKey::from_bytes(&pk_bytes)?;
+/// let expanded = pk.expand()?;
+///
+/// // Fast repeated verification of multiple signatures
+/// for (msg, sig) in messages_and_signatures {
+///     MlDsa65::verify_expanded(&expanded, msg, &sig)?;
+/// }
+/// ```
+///
+/// # Performance
+///
+/// Timings vary by parameter set. Example for ML-DSA-65:
+///
+/// | Operation | Time |
+/// |-----------|------|
+/// | `expand()` | ~68 µs |
+/// | `verify_expanded()` | ~38 µs |
+/// | `verify()` (regular) | ~101 µs |
+///
+/// Break-even point: 2 verifications with the same key.
+pub struct ExpandedVerificationKey<const K: usize, const L: usize> {
+    /// Expanded matrix A in NTT domain
+    pub(crate) a_hat: Matrix<K, L>,
+    /// t1 * 2^D in NTT domain
+    pub(crate) t1_2d_hat: PolyVecK<K>,
+    /// Hash of public key: tr = H(pk)
+    pub(crate) tr: [u8; 64],
+}
+
+/// Expand a verification key for fast repeated verification.
+///
+/// Pre-computes:
+/// - `expand_a()`: K×L polynomials from SHAKE128 (most expensive)
+/// - `hash_pk()`: SHA3-512 hash of public key
+/// - `t1 * 2^D` in NTT domain
+pub fn expand_verification_key<const K: usize, const L: usize>(
+    pk: &[u8],
+) -> Option<ExpandedVerificationKey<K, L>> {
+    if pk.len() < 32 + K * 320 {
+        return None;
+    }
+
+    // Parse rho from public key
+    let rho: [u8; 32] = pk[0..32].try_into().ok()?;
+
+    // Unpack t1
+    let mut t1 = PolyVecK::<K>::zero();
+    for i in 0..K {
+        let offset = 32 + i * 320;
+        unpack_t1(&pk[offset..offset + 320], &mut t1.polys[i]);
+    }
+
+    // Pre-compute expand_a
+    let a_hat = expand_a::<K, L>(&rho);
+
+    // Pre-compute t1 * 2^D in NTT domain
+    let mut t1_2d_hat = t1;
+    for p in &mut t1_2d_hat.polys {
+        for c in &mut p.coeffs {
+            *c <<= D;
+        }
+    }
+    t1_2d_hat.ntt();
+
+    // Pre-compute tr = H(pk)
+    let tr = hash_pk(pk);
+
+    Some(ExpandedVerificationKey {
+        a_hat,
+        t1_2d_hat,
+        tr,
+    })
+}
+
+/// ML-DSA Verify using pre-expanded verification key.
+///
+/// This is faster than `ml_dsa_verify` when verifying multiple signatures
+/// with the same public key.
+pub fn ml_dsa_verify_expanded<
+    const K: usize,
+    const L: usize,
+    const BETA: i32,
+    const GAMMA1: i32,
+    const GAMMA2: i32,
+    const TAU: usize,
+    const OMEGA: usize,
+    const C_TILDE_BYTES: usize,
+>(
+    expanded: &ExpandedVerificationKey<K, L>,
+    message: &[u8],
+    sig: &[u8],
+) -> bool {
+    let gamma1_bits = if GAMMA1 == (1 << 17) { 17 } else { 19 };
+    let z_bytes = if gamma1_bits == 17 { 576 } else { 640 };
+    let expected_sig_len = C_TILDE_BYTES + L * z_bytes + OMEGA + K;
+
+    if sig.len() != expected_sig_len {
+        return false;
+    }
+
+    // Parse signature - c_tilde has variable length based on security level
+    let c_tilde = &sig[0..C_TILDE_BYTES];
+
+    let mut z = PolyVecL::<L>::zero();
+    for i in 0..L {
+        let offset = C_TILDE_BYTES + i * z_bytes;
+        if gamma1_bits == 17 {
+            unpack_z_17(&sig[offset..offset + z_bytes], &mut z.polys[i]);
+        } else {
+            unpack_z_19(&sig[offset..offset + z_bytes], &mut z.polys[i]);
+        }
+    }
+
+    // Parse hints
+    let h_start = C_TILDE_BYTES + L * z_bytes;
+    let h = &sig[h_start..];
+
+    // Check z norm
+    if !z.check_norm(GAMMA1 - BETA) {
+        return false;
+    }
+
+    // Check hint count and validate hint positions are strictly increasing
+    let mut hint_count = 0;
+    for i in 0..K {
+        let start = if i == 0 { 0 } else { h[OMEGA + i - 1] as usize };
+        let end = h[OMEGA + i] as usize;
+
+        if end > OMEGA || end < start {
+            return false;
+        }
+
+        let mut prev_pos: Option<u8> = None;
+        for idx in start..end {
+            let pos = h[idx];
+            if pos as usize >= N {
+                return false;
+            }
+            if let Some(p) = prev_pos {
+                if pos <= p {
+                    return false;
+                }
+            }
+            prev_pos = Some(pos);
+        }
+
+        hint_count = end;
+    }
+    if hint_count > OMEGA {
+        return false;
+    }
+
+    // Verify unused hint slots are zero
+    for i in hint_count..OMEGA {
+        if h[i] != 0 {
+            return false;
+        }
+    }
+
+    // Use pre-computed tr
+    let mu = hash_message(&expanded.tr, message);
+
+    // c = SampleInBall(c_tilde)
+    let c = sample_in_ball(c_tilde, TAU);
+
+    // NTT of c, z
+    let mut c_hat = c.clone();
+    c_hat.ntt();
+
+    let mut z_hat = z.clone();
+    z_hat.ntt();
+
+    // Use pre-computed a_hat and t1_2d_hat
+    // w' = A*z - c * (t1 * 2^d) (in NTT domain)
+    let mut az = expanded.a_hat.mul_vec(&z_hat);
+    az.reduce();
+
+    let mut ct1_2d = PolyVecK::<K>::zero();
+    for i in 0..K {
+        ct1_2d.polys[i] = c_hat.pointwise_mul(&expanded.t1_2d_hat.polys[i]);
+    }
+    ct1_2d.reduce();
+
+    let mut w_prime_hat = az.sub(&ct1_2d);
+
+    w_prime_hat.reduce();
+    w_prime_hat.inv_ntt();
+    w_prime_hat.caddq();
+
+    let w_prime = w_prime_hat;
+
+    // Apply hints to get w'1
+    let mut w1_prime = PolyVecK::<K>::zero();
+    let mut hint_idx = 0;
+    for i in 0..K {
+        let end = h[OMEGA + i] as usize;
+        for j in 0..N {
+            let mut hint_val = 0;
+            while hint_idx < end && h[hint_idx] as usize == j {
+                hint_val = 1;
+                hint_idx += 1;
+            }
+            w1_prime.polys[i].coeffs[j] =
+                use_hint(hint_val, freeze(w_prime.polys[i].coeffs[j]), GAMMA2);
+        }
+        hint_idx = end;
+    }
+
+    // Encode w'1
+    let w1_bytes = if GAMMA2 == 261888 { 128 } else { 192 };
+    let mut w1_encoded = vec![0u8; K * w1_bytes];
+    for i in 0..K {
+        pack_w1(
+            &w1_prime.polys[i],
+            GAMMA2,
+            &mut w1_encoded[i * w1_bytes..(i + 1) * w1_bytes],
+        );
+    }
+
+    // c_tilde' = H(mu || w1Encode(w'1))
+    let mut c_tilde_prime = [0u8; 64];
+    h2(&mu, &w1_encoded, &mut c_tilde_prime);
+
+    // Verify c_tilde == c_tilde'
+    c_tilde == &c_tilde_prime[..C_TILDE_BYTES]
+}
+
 /// Expand matrix A from seed rho.
 pub fn expand_a<const K: usize, const L: usize>(rho: &[u8; 32]) -> Matrix<K, L> {
     let mut a = Matrix::<K, L>::zero();

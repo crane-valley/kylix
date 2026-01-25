@@ -19,7 +19,6 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 
 | Component | Priority | Notes |
 |-----------|----------|-------|
-| ML-DSA Verify Optimization | HIGH | See Phase 8 |
 | SLH-DSA SHA2 Variants | LOW | FIPS 205 |
 | SIMD NTT (WASM) | LOW | - |
 | Property-based Tests | LOW | proptest |
@@ -46,50 +45,19 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 
 ---
 
-## Phase 8: ML-DSA Verify Optimization
+## Phase 8: ML-DSA Verify Optimization ✓
 
-### Problem
+**Completed.** Added `ExpandedVerificationKey` with pre-computed values for fast repeated verification.
 
-ML-DSA-65 Verify: Kylix 106µs vs RustCrypto 48µs (~2x slower)
+### Results
 
-### Root Cause
+| Variant | expand() | regular | expanded | Speedup |
+|---------|----------|---------|----------|---------|
+| ML-DSA-44 | 37.7 µs | 63.5 µs | 30.4 µs | 2.1x |
+| ML-DSA-65 | 68.1 µs | 100.5 µs | 38.4 µs | 2.6x |
+| ML-DSA-87 | 162.8 µs | 164.6 µs | 55.6 µs | 3.0x |
 
-Kylix recomputes on every `verify()`:
-1. `expand_a()` - K×L polynomials from SHAKE128 (most expensive)
-2. `hash_pk()` - SHA3-512 hash
-3. `t1 << D` + `ntt()` - Scale and NTT
-
-RustCrypto pre-computes these in `VerifyingKey` structure.
-
-### Solution
-
-Add `ExpandedVerificationKey` with pre-computed `a_hat`, `t1_2d_hat`, `tr`:
-
-```rust
-impl VerificationKey {
-    pub fn expand(&self) -> ExpandedVerificationKey { ... }
-}
-
-impl MlDsa65 {
-    pub fn verify_expanded(pk: &ExpandedVerificationKey, msg: &[u8], sig: &Signature) -> Result<()>
-}
-```
-
-### Tasks
-
-- [ ] Add `ExpandedVerificationKey` struct
-- [ ] Implement `VerificationKey::expand()`
-- [ ] Add `verify_expanded()` function
-- [ ] Add benchmarks (regular vs expanded)
-
-### Trade-offs
-
-| Aspect | Current | With Expansion |
-|--------|---------|----------------|
-| Memory | ~2KB | ~50KB |
-| Single verify | 106 µs | ~156 µs (= ~106 µs expand + ~50 µs verify) |
-| Repeated verify | 106 µs each | ~50 µs each |
-| Break-even | - | N=2 verifications |
+Break-even: 2 verifications with the same key.
 
 ---
 
