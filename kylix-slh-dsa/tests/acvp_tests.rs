@@ -23,7 +23,9 @@ fn acvp_vectors_available() -> bool {
 macro_rules! skip_if_no_vectors {
     () => {
         if !acvp_vectors_available() {
-            eprintln!("Skipping ACVP test: test vectors not available (excluded from crates.io package)");
+            eprintln!(
+                "Skipping ACVP test: test vectors not available (excluded from crates.io package)"
+            );
             return;
         }
     };
