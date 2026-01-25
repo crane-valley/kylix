@@ -13,10 +13,12 @@
 #![allow(dead_code)]
 
 use crate::address::{Address, AdrsType};
+use crate::fors::fors_tree_node;
 use crate::hash::HashSuite;
 use crate::params::common::{LG_W, W};
-use crate::utils::{base_2b, wots_checksum};
-use crate::wots::wots_chain;
+use crate::utils::base_2b;
+use crate::wots::{encode_checksum, wots_chain};
+use crate::xmss::xmss_node;
 
 use rayon::prelude::*;
 use std::vec::Vec;
@@ -24,23 +26,6 @@ use std::vec::Vec;
 // ============================================================================
 // WOTS+ Parallel Implementation
 // ============================================================================
-
-/// Encode checksum digits for WOTS+ message.
-fn encode_checksum(msg: &[u32], wots_len: usize, wots_len1: usize) -> Vec<u32> {
-    let w = W as u32;
-    let csum = wots_checksum(msg, w);
-
-    let len2 = wots_len - wots_len1;
-    let shift = (8 - ((len2 * LG_W) % 8)) % 8;
-    let csum_bytes = ((csum as u64) << shift) as u32;
-    let csum_total_bits = len2 * LG_W;
-    let csum_bytes_needed = csum_total_bits.div_ceil(8);
-
-    let mut csum_buf = [0u8; 4];
-    csum_buf[4 - csum_bytes_needed..]
-        .copy_from_slice(&csum_bytes.to_be_bytes()[4 - csum_bytes_needed..]);
-    base_2b(&csum_buf[4 - csum_bytes_needed..], LG_W, len2)
-}
 
 /// Generate a WOTS+ public key in parallel.
 ///
@@ -171,42 +156,6 @@ pub fn wots_pk_from_sig_parallel<
 // ============================================================================
 // FORS Parallel Implementation
 // ============================================================================
-
-/// Compute a node in a single FORS tree (sequential, used by parallel FORS).
-fn fors_tree_node<H: HashSuite>(
-    sk_seed: &[u8],
-    tree_idx: u32,
-    i: u32,
-    z: u32,
-    pk_seed: &[u8],
-    adrs: &mut Address,
-    t: u32,
-) -> Vec<u8> {
-    if z == 0 {
-        let global_idx = tree_idx * t + i;
-
-        let mut sk_adrs = adrs.with_type(AdrsType::ForsPrf);
-        sk_adrs.set_tree_height(0);
-        sk_adrs.set_tree_index(global_idx);
-        let sk = H::prf(pk_seed, sk_seed, &sk_adrs);
-
-        adrs.set_type(AdrsType::ForsTree);
-        adrs.set_tree_height(0);
-        adrs.set_tree_index(global_idx);
-        H::f(pk_seed, adrs, &sk)
-    } else {
-        let left = fors_tree_node::<H>(sk_seed, tree_idx, 2 * i, z - 1, pk_seed, adrs, t);
-        let right = fors_tree_node::<H>(sk_seed, tree_idx, 2 * i + 1, z - 1, pk_seed, adrs, t);
-
-        let nodes_at_level = t >> z;
-        let global_idx = tree_idx * nodes_at_level + i;
-
-        adrs.set_type(AdrsType::ForsTree);
-        adrs.set_tree_height(z);
-        adrs.set_tree_index(global_idx);
-        H::h(pk_seed, adrs, &left, &right)
-    }
-}
 
 /// Generate a FORS signature in parallel.
 ///
@@ -362,38 +311,13 @@ pub fn xmss_node_parallel<H: HashSuite + Send + Sync, const WOTS_LEN: usize>(
         wots_pk_gen_parallel::<H, WOTS_LEN>(sk_seed, pk_seed, &mut leaf_adrs)
     } else if z <= 2 {
         // Small subtrees: compute sequentially to avoid Rayon overhead
-        xmss_node_sequential::<H, WOTS_LEN>(sk_seed, i, z, pk_seed, adrs)
+        xmss_node::<H, WOTS_LEN>(sk_seed, i, z, pk_seed, adrs)
     } else {
         // Large subtrees: parallelize left and right
         let (left, right) = rayon::join(
             || xmss_node_parallel::<H, WOTS_LEN>(sk_seed, 2 * i, z - 1, pk_seed, adrs),
             || xmss_node_parallel::<H, WOTS_LEN>(sk_seed, 2 * i + 1, z - 1, pk_seed, adrs),
         );
-
-        let mut node_adrs = *adrs;
-        node_adrs.set_type(AdrsType::Tree);
-        node_adrs.set_tree_height(z);
-        node_adrs.set_tree_index(i);
-        H::h(pk_seed, &node_adrs, &left, &right)
-    }
-}
-
-/// Sequential XMSS node computation (for small subtrees).
-fn xmss_node_sequential<H: HashSuite, const WOTS_LEN: usize>(
-    sk_seed: &[u8],
-    i: u32,
-    z: u32,
-    pk_seed: &[u8],
-    adrs: &Address,
-) -> Vec<u8> {
-    if z == 0 {
-        let mut leaf_adrs = *adrs;
-        leaf_adrs.set_type(AdrsType::WotsHash);
-        leaf_adrs.set_keypair(i);
-        crate::wots::wots_pk_gen::<H, WOTS_LEN>(sk_seed, pk_seed, &mut leaf_adrs)
-    } else {
-        let left = xmss_node_sequential::<H, WOTS_LEN>(sk_seed, 2 * i, z - 1, pk_seed, adrs);
-        let right = xmss_node_sequential::<H, WOTS_LEN>(sk_seed, 2 * i + 1, z - 1, pk_seed, adrs);
 
         let mut node_adrs = *adrs;
         node_adrs.set_type(AdrsType::Tree);

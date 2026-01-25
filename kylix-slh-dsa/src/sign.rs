@@ -410,6 +410,9 @@ fn slh_sign_impl<
 ///
 /// FIPS 205, Algorithm 22: slh_verify(M, SIG, PK)
 ///
+/// Note: Verification always uses the sequential implementation because
+/// the parallel overhead exceeds benefits for this fast operation.
+///
 /// # Type Parameters
 /// * `H` - Hash suite
 /// * `N` - Security parameter
@@ -427,10 +430,6 @@ fn slh_sign_impl<
 ///
 /// # Returns
 /// true if signature is valid
-/// Verify an SLH-DSA signature.
-///
-/// Note: Verification always uses the sequential implementation because
-/// the parallel overhead exceeds benefits for this fast operation.
 #[allow(clippy::too_many_arguments)]
 pub fn slh_verify<
     H: HashSuite,

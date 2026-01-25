@@ -51,7 +51,7 @@ pub fn fors_sk_gen<H: HashSuite>(sk_seed: &[u8], pk_seed: &[u8], adrs: &Address)
 ///
 /// # Returns
 /// Node value (n bytes)
-fn fors_tree_node<H: HashSuite>(
+pub(crate) fn fors_tree_node<H: HashSuite>(
     sk_seed: &[u8],
     tree_idx: u32,
     i: u32,
