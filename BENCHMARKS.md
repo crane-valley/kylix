@@ -103,6 +103,25 @@ Based on [PLANS.md](PLANS.md) performance goals:
 | ML-KEM-768 | 31,944 ops/sec | 34,788 ops/sec | 26,191 ops/sec |
 | ML-KEM-1024 | 20,207 ops/sec | 22,976 ops/sec | 17,895 ops/sec |
 
+## Comparison Benchmarks
+
+Compare Kylix with other ML-KEM implementations:
+
+```bash
+# Compare with pqcrypto (C bindings to PQClean)
+cargo bench -p kylix-bench --features compare-pqcrypto --bench comparison
+
+# Compare with libcrux (formally verified Rust)
+cargo bench -p kylix-bench --features compare-libcrux --bench comparison
+
+# Compare with all available libraries
+cargo bench -p kylix-bench --features compare-all --bench comparison
+```
+
+> **Note**: RustCrypto ml-kem comparison is currently disabled due to rand_core version incompatibility.
+
+---
+
 ## Running Benchmarks
 
 ```bash
