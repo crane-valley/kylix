@@ -366,11 +366,85 @@ Based on the OpenSSL critique, aim for:
 
 ---
 
+## Release Plan: v0.4.0
+
+### New Features
+- [x] SLH-DSA Rayon parallelization (`--features parallel`)
+- [x] SIMD enabled by default for ML-DSA
+
+### Documentation
+- [x] SLH-DSA usage example in README
+- [x] ML-DSA benchmark results in BENCHMARKS.md
+
+### Release Checklist
+- [x] Update version numbers in Cargo.toml files
+- [x] Update CHANGELOG.md
+- [ ] Create GitHub release
+- [ ] Publish to crates.io
+
+---
+
+## Phase 6: Competitive Benchmarking
+
+### Goal
+Establish Kylix as a high-performance PQC library by comparing with competitors.
+
+### Phase 6.1: Pure Rust Comparison
+
+**Target Libraries:**
+
+| Library | Crate | Type | Notes |
+|---------|-------|------|-------|
+| RustCrypto | `ml-kem` | Pure Rust | FIPS 203, requires Rust 1.81 |
+| RustCrypto | `ml-dsa` | Pure Rust | FIPS 204 |
+| pqcrypto | `pqcrypto-mlkem` | C bindings | PQClean, replaces pqcrypto-kyber |
+| pqcrypto | `pqcrypto-mldsa` | C bindings | PQClean |
+| Cryspen | `libcrux-ml-kem` | Verified Rust | Formally verified |
+
+**Implementation:**
+- Add comparison benchmarks to `kylix-bench`
+- Feature-gated dependencies for comparison targets
+- Criterion-based measurement for consistency
+
+**Output:**
+```
+| Library     | ML-KEM-768 KeyGen | Encaps | Decaps |
+|-------------|-------------------|--------|--------|
+| Kylix       | ?? µs             | ?? µs  | ?? µs  |
+| RustCrypto  | ?? µs             | ?? µs  | ?? µs  |
+| pqcrypto    | ?? µs             | ?? µs  | ?? µs  |
+```
+
+### Phase 6.2: CLI Comparison
+
+**Target Tools:**
+- liboqs CLI (`oqs-keygen`, `oqs-sign`)
+- OpenSSL 3.x with PQC provider
+
+**Method:**
+- Use `hyperfine` for CLI benchmarking
+- Measure end-to-end operation time
+
+### Phase 6.3: Results Publication
+
+**Venues:**
+- `kylix-pqc.dev` landing page (visual graphs, highlights)
+- `BENCHMARKS.md` (detailed numbers)
+- GitHub Pages (CI-updated trend graphs)
+
+**Presentation:**
+- Interactive charts (Chart.js or similar)
+- "X times faster than Y" highlights
+- Environment details (CPU, OS, compiler)
+
+---
+
 ## Contributing
 
 Priority areas for contribution:
 
 1. Performance optimization
-2. Platform-specific testing
-3. Documentation improvements
-4. Integration examples
+2. Competitive benchmarking
+3. Platform-specific testing
+4. Documentation improvements
+5. Integration examples
