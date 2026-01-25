@@ -20,12 +20,20 @@ Benchmarks for SLH-DSA "fast" variants only. The "small" variants are significan
 | SLH-DSA-SHAKE-192f | 48 bytes | 96 bytes | 35,664 bytes |
 | SLH-DSA-SHAKE-256f | 64 bytes | 128 bytes | 49,856 bytes |
 
+### Library Comparison (SLH-DSA-SHAKE-128f)
+
+| Library | KeyGen | Sign | Verify |
+|---------|--------|------|--------|
+| RustCrypto | 2.35 ms | 56.3 ms | 3.34 ms |
+| **Kylix** | **2.82 ms** | **61.4 ms** | **3.68 ms** |
+
 ### Notes
 
 - SLH-DSA is hash-intensive and significantly slower than lattice-based ML-DSA
 - Signing is the slowest operation due to hypertree computation
 - "Small" variants (128s/192s/256s) have smaller signatures but are ~10x slower
 - Enable `--features parallel` for multi-threaded FORS computation (improves signing performance)
+- Kylix is ~10% slower than RustCrypto (room for optimization)
 
 ---
 
@@ -57,11 +65,22 @@ Benchmarks run with `cargo bench -p kylix-bench --bench ml_dsa` using Criterion 
 | ML-DSA-65 Sign | 165 µs | < 200 µs | ✅ Pass |
 | ML-DSA-65 Verify | 102 µs | < 100 µs | ⚠️ Close |
 
+### Library Comparison (ML-DSA-65)
+
+| Library | KeyGen | Sign | Verify |
+|---------|--------|------|--------|
+| libcrux | 45.3 µs | 117.3 µs | 34.5 µs |
+| **Kylix** | **108.5 µs** | **274.8 µs** | **115.2 µs** |
+| pqcrypto | 135.2 µs | 451.3 µs | 119.2 µs |
+| RustCrypto | 264.0 µs | 293.8 µs | 47.6 µs |
+
 ### Notes
 
 - SIMD optimizations (AVX2/NEON) are enabled by default for significant performance gains
 - Results measured on Intel i5-13500 with `-C target-cpu=native`
 - Sign performance includes rejection sampling loop iterations
+- All benchmarks include RNG cost for fair comparison
+- RustCrypto Verify is fast due to pre-computed expanded verification key
 
 ---
 
@@ -99,8 +118,8 @@ Based on [PLANS.md](PLANS.md) performance goals:
 
 | Library | KeyGen | Encaps | Decaps |
 |---------|--------|--------|--------|
-| libcrux | 12.0 µs | 10.8 µs | 10.9 µs |
-| **Kylix** | **29.3 µs** | **27.4 µs** | **31.2 µs** |
+| libcrux | 11.8 µs | 11.1 µs | 11.3 µs |
+| **Kylix** | **29.8 µs** | **22.6 µs** | **28.5 µs** |
 | RustCrypto | 36.3 µs | 32.8 µs | 48.5 µs |
 | pqcrypto | 41.5 µs | 41.5 µs | 52.2 µs |
 
@@ -108,7 +127,8 @@ Based on [PLANS.md](PLANS.md) performance goals:
 
 > - SIMD optimizations (AVX2/NEON) are enabled by default for significant performance gains
 > - Results measured on Intel i5-13500 with `-C target-cpu=native`
-> - Kylix is faster than RustCrypto and pqcrypto, but still 2.5x slower than libcrux
+> - All benchmarks include RNG cost for fair comparison
+> - Kylix is faster than RustCrypto and pqcrypto, ~2.5x slower than libcrux (which uses formally verified, platform-specific assembly)
 
 ### Throughput
 

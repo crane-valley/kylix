@@ -79,16 +79,15 @@ fn bench_keygen_comparison(c: &mut Criterion) {
         });
     }
 
-    // libcrux-ml-kem
+    // libcrux-ml-kem (include RNG cost for fair comparison)
     #[cfg(feature = "compare-libcrux")]
     {
         use libcrux_ml_kem::mlkem768;
         group.bench_function(BenchmarkId::new("libcrux", ""), |b| {
-            b.iter_batched(
-                rand::random::<[u8; 64]>,
-                |randomness| black_box(mlkem768::generate_key_pair(randomness)),
-                criterion::BatchSize::SmallInput,
-            )
+            b.iter(|| {
+                let randomness: [u8; 64] = rand::random();
+                black_box(mlkem768::generate_key_pair(randomness))
+            })
         });
     }
 
@@ -133,7 +132,7 @@ fn bench_encaps_comparison(c: &mut Criterion) {
         });
     }
 
-    // libcrux-ml-kem
+    // libcrux-ml-kem (include RNG cost for fair comparison)
     #[cfg(feature = "compare-libcrux")]
     {
         use libcrux_ml_kem::mlkem768;
@@ -141,11 +140,10 @@ fn bench_encaps_comparison(c: &mut Criterion) {
         let keypair = mlkem768::generate_key_pair(randomness);
         let pk = keypair.public_key();
         group.bench_function(BenchmarkId::new("libcrux", ""), |b| {
-            b.iter_batched(
-                rand::random::<[u8; 32]>,
-                |randomness| black_box(mlkem768::encapsulate(pk, randomness)),
-                criterion::BatchSize::SmallInput,
-            )
+            b.iter(|| {
+                let randomness: [u8; 32] = rand::random();
+                black_box(mlkem768::encapsulate(pk, randomness))
+            })
         });
     }
 
