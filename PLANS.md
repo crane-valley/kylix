@@ -21,6 +21,12 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 |-----------|----------|-------|
 | CLI Bench Compare CI | MEDIUM | Test OpenSSL/liboqs detection on Linux/macOS |
 | CLI Refactor: Separate Module | LOW | Move bench comparison logic to `src/bench_compare.rs` |
+| CLI Refactor: OpenSSL Dedup | LOW | Extract common logic from `run_openssl_kem_benchmark`/`run_openssl_sig_benchmark` |
+| CLI Refactor: Speedup Helper | LOW | Extract speedup calculation into shared helper function |
+| CLI: liboqs Header Parsing | LOW | Parse column headers for robustness against format changes |
+| CLI: Test Message Constant | LOW | Define module-level constant for test phrases |
+| CLI: Trait-based Tool Design | LOW | Consider if more external tools are added |
+| CLI: wolfSSL Support | LOW | Add wolfSSL as external benchmark tool |
 | SLH-DSA SHA2 Variants | LOW | FIPS 205 |
 | SIMD NTT (WASM) | LOW | - |
 | Property-based Tests | LOW | proptest |
