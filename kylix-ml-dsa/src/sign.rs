@@ -27,15 +27,17 @@ use zeroize::Zeroize;
 ///
 /// ```ignore
 /// let pk = VerificationKey::from_bytes(&pk_bytes)?;
-/// let expanded = pk.expand();
+/// let expanded = pk.expand()?;
 ///
-/// // Fast repeated verification
-/// for (msg, sig) in messages_and_sigs {
+/// // Fast repeated verification of multiple signatures
+/// for (msg, sig) in messages_and_signatures {
 ///     MlDsa65::verify_expanded(&expanded, msg, &sig)?;
 /// }
 /// ```
 ///
-/// # Performance (ML-DSA-65)
+/// # Performance
+///
+/// Timings vary by parameter set. Example for ML-DSA-65:
 ///
 /// | Operation | Time |
 /// |-----------|------|
@@ -43,7 +45,7 @@ use zeroize::Zeroize;
 /// | `verify_expanded()` | ~38 µs |
 /// | `verify()` (regular) | ~101 µs |
 ///
-/// Break-even point: N=2 verifications with the same key.
+/// Break-even point: 2 verifications with the same key.
 pub struct ExpandedVerificationKey<const K: usize, const L: usize> {
     /// Expanded matrix A in NTT domain
     pub(crate) a_hat: Matrix<K, L>,

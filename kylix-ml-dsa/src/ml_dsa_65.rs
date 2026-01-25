@@ -73,12 +73,11 @@ impl VerificationKey {
     /// # Example
     ///
     /// ```ignore
-    /// let (sk, pk) = MlDsa65::keygen(&mut rng)?;
+    /// // Expand the verification key once
     /// let expanded = pk.expand()?;
     ///
-    /// // Fast verification (N times)
-    /// for msg in messages {
-    ///     let sig = MlDsa65::sign(&sk, msg)?;
+    /// // Verify multiple pre-existing signatures efficiently
+    /// for (msg, sig) in messages_and_signatures {
     ///     MlDsa65::verify_expanded(&expanded, msg, &sig)?;
     /// }
     /// ```
@@ -193,8 +192,13 @@ impl MlDsa65 {
     /// # Example
     ///
     /// ```ignore
+    /// // Expand the verification key once
     /// let expanded = pk.expand()?;
-    /// MlDsa65::verify_expanded(&expanded, message, &signature)?;
+    ///
+    /// // Verify multiple (message, signature) pairs efficiently
+    /// for (message, signature) in messages_and_signatures {
+    ///     MlDsa65::verify_expanded(&expanded, message, &signature)?;
+    /// }
     /// ```
     pub fn verify_expanded(
         expanded: &ExpandedVerificationKey,
