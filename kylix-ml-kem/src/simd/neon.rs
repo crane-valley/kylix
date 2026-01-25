@@ -14,6 +14,11 @@
 
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::cast_sign_loss)]
+// Use explicit a = a + b form for consistency with ntt.rs scalar implementation
+#![allow(clippy::assign_op_pattern)]
+// Allow dead_code for poly_add/poly_sub which are implemented but not yet
+// integrated into the main poly.rs. These will be used in a future PR to
+// accelerate polynomial arithmetic throughout the crate.
 #![allow(dead_code)]
 
 #[cfg(target_arch = "aarch64")]
@@ -28,6 +33,50 @@ const Q: i16 = 3329;
 
 /// Q inverse mod 2^16: q^(-1) mod 2^16 = -3327
 const QINV: i16 = -3327i16;
+
+/// Barrett constant: floor(2^26 / q) + 1 = 20159
+const BARRETT_MUL: i32 = 20159;
+
+// ============================================================================
+// Core reduction operations for 16-bit coefficients
+// ============================================================================
+
+/// Barrett reduction on 8 values in parallel.
+///
+/// Computes a mod q for each value in the vector.
+///
+/// # Safety
+///
+/// Requires NEON support.
+#[cfg(target_arch = "aarch64")]
+#[target_feature(enable = "neon")]
+#[inline]
+unsafe fn barrett_reduce_8x(a: int16x8_t) -> int16x8_t {
+    let v = BARRETT_MUL;
+    let round = 1i32 << 25;
+    let q32 = Q as i32;
+
+    // Extend to 32-bit for each half
+    let a_lo = vmovl_s16(vget_low_s16(a)); // 4x i32
+    let a_hi = vmovl_s16(vget_high_s16(a)); // 4x i32
+
+    let v_vec = vdupq_n_s32(v);
+    let round_vec = vdupq_n_s32(round);
+    let q_vec = vdupq_n_s32(q32);
+
+    // t = (a * v + 2^25) >> 26
+    let t_lo = vshrq_n_s32(vaddq_s32(vmulq_s32(a_lo, v_vec), round_vec), 26);
+    let t_hi = vshrq_n_s32(vaddq_s32(vmulq_s32(a_hi, v_vec), round_vec), 26);
+
+    // r = a - t * q
+    let r_lo = vsubq_s32(a_lo, vmulq_s32(t_lo, q_vec));
+    let r_hi = vsubq_s32(a_hi, vmulq_s32(t_hi, q_vec));
+
+    // Pack back to 16-bit (narrowing)
+    let r_lo_16 = vmovn_s32(r_lo); // 4x i16
+    let r_hi_16 = vmovn_s32(r_hi); // 4x i16
+    vcombine_s16(r_lo_16, r_hi_16)
+}
 
 // ============================================================================
 // Core Montgomery operations for 16-bit coefficients
@@ -125,7 +174,8 @@ unsafe fn butterfly_neon(a: &mut [i16; N], start: usize, len: usize, zeta: i16) 
         j += 8;
     }
 
-    // Handle remaining elements with scalar
+    // Scalar fallback (note: for len >= 8, this loop is never entered since
+    // len is always a power of 2 >= 8, so the SIMD loop processes all elements)
     while j < start + len {
         let t = crate::reduce::montgomery_mul(zeta, a[j + len]);
         a[j + len] = a[j] - t;
@@ -151,8 +201,9 @@ unsafe fn inv_butterfly_neon(a: &mut [i16; N], start: usize, len: usize, zeta: i
         let t = vld1q_s16(a.as_ptr().add(j));
         let a_hi = vld1q_s16(a.as_ptr().add(j + len));
 
-        // a[j] = t + a[j+len]
-        let new_lo = vaddq_s16(t, a_hi);
+        // a[j] = barrett_reduce(t + a[j+len]) to prevent overflow
+        let sum = vaddq_s16(t, a_hi);
+        let new_lo = barrett_reduce_8x(sum);
 
         // a[j+len] = (t - a[j+len]) * zeta
         let diff = vsubq_s16(t, a_hi);
@@ -164,10 +215,11 @@ unsafe fn inv_butterfly_neon(a: &mut [i16; N], start: usize, len: usize, zeta: i
         j += 8;
     }
 
-    // Handle remaining elements with scalar
+    // Scalar fallback (note: for len >= 8, this loop is never entered since
+    // len is always a power of 2 >= 8, so the SIMD loop processes all elements)
     while j < start + len {
         let t = a[j];
-        a[j] = t.wrapping_add(a[j + len]);
+        a[j] = crate::reduce::barrett_reduce(t.wrapping_add(a[j + len]));
         a[j + len] = crate::reduce::montgomery_mul(zeta, t.wrapping_sub(a[j + len]));
         j += 1;
     }

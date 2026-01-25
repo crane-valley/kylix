@@ -16,6 +16,11 @@
 
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::cast_sign_loss)]
+// Use explicit a = a + b form for consistency with ntt.rs scalar implementation
+#![allow(clippy::assign_op_pattern)]
+// Allow dead_code for poly_add/poly_sub which are implemented but not yet
+// integrated into the main poly.rs. These will be used in a future PR to
+// accelerate polynomial arithmetic throughout the crate.
 #![allow(dead_code)]
 
 #[cfg(target_arch = "x86_64")]
@@ -31,9 +36,46 @@ const Q: i16 = 3329;
 /// Q inverse mod 2^16: q^(-1) mod 2^16 = -3327
 const QINV: i16 = -3327i16;
 
+/// Barrett constant: floor(2^26 / q) + 1 = 20159
+const BARRETT_MUL: i32 = 20159;
+
 // ============================================================================
 // Core Montgomery operations for 16-bit coefficients
 // ============================================================================
+
+/// Barrett reduction on 16 values in parallel.
+///
+/// Computes a mod q for each value in the vector.
+///
+/// # Safety
+///
+/// Requires AVX2 support.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+#[inline]
+unsafe fn barrett_reduce_16x(a: __m256i) -> __m256i {
+    // Use 32-bit arithmetic for precision to avoid overflow
+    // Extend to 32-bit, multiply, shift
+    let a_lo = _mm256_cvtepi16_epi32(_mm256_castsi256_si128(a));
+    let a_hi = _mm256_cvtepi16_epi32(_mm256_extracti128_si256(a, 1));
+
+    let v32 = _mm256_set1_epi32(BARRETT_MUL);
+    let round = _mm256_set1_epi32(1 << 25);
+    let q32 = _mm256_set1_epi32(Q as i32);
+
+    // t = (a * v + 2^25) >> 26
+    let t_lo = _mm256_srai_epi32(_mm256_add_epi32(_mm256_mullo_epi32(a_lo, v32), round), 26);
+    let t_hi = _mm256_srai_epi32(_mm256_add_epi32(_mm256_mullo_epi32(a_hi, v32), round), 26);
+
+    // r = a - t * q
+    let r_lo = _mm256_sub_epi32(a_lo, _mm256_mullo_epi32(t_lo, q32));
+    let r_hi = _mm256_sub_epi32(a_hi, _mm256_mullo_epi32(t_hi, q32));
+
+    // Pack back to 16-bit
+    let r_lo_16 = _mm256_packs_epi32(r_lo, r_hi);
+    // packs interleaves, need to permute to get correct order
+    _mm256_permute4x64_epi64(r_lo_16, 0b11_01_10_00)
+}
 
 /// Montgomery multiplication on 16 values in parallel.
 ///
@@ -110,10 +152,12 @@ unsafe fn butterfly_avx2(a: &mut [i16; N], start: usize, len: usize, zeta: i16) 
     }
 
     // Handle remaining elements with scalar (when len < 16)
+    // Scalar fallback (note: for len >= 16, this loop is never entered since
+    // len is always a power of 2 >= 16, so the SIMD loop processes all elements)
     while j < start + len {
         let t = crate::reduce::montgomery_mul(zeta, a[j + len]);
         a[j + len] = a[j] - t;
-        a[j] += t;
+        a[j] = a[j] + t;
         j += 1;
     }
 }
@@ -140,8 +184,9 @@ unsafe fn inv_butterfly_avx2(a: &mut [i16; N], start: usize, len: usize, zeta: i
         let t = _mm256_loadu_si256(a.as_ptr().add(j).cast());
         let a_hi = _mm256_loadu_si256(a.as_ptr().add(j + len).cast());
 
-        // a[j] = t + a[j+len]
-        let new_lo = _mm256_add_epi16(t, a_hi);
+        // a[j] = barrett_reduce(t + a[j+len]) to prevent overflow
+        let sum = _mm256_add_epi16(t, a_hi);
+        let new_lo = barrett_reduce_16x(sum);
 
         // a[j+len] = (t - a[j+len]) * zeta
         let diff = _mm256_sub_epi16(t, a_hi);
@@ -153,10 +198,11 @@ unsafe fn inv_butterfly_avx2(a: &mut [i16; N], start: usize, len: usize, zeta: i
         j += 16;
     }
 
-    // Handle remaining elements with scalar
+    // Scalar fallback (note: for len >= 16, this loop is never entered since
+    // len is always a power of 2 >= 16, so the SIMD loop processes all elements)
     while j < start + len {
         let t = a[j];
-        a[j] = t.wrapping_add(a[j + len]);
+        a[j] = crate::reduce::barrett_reduce(t.wrapping_add(a[j + len]));
         a[j + len] = crate::reduce::montgomery_mul(zeta, t.wrapping_sub(a[j + len]));
         j += 1;
     }
@@ -253,8 +299,9 @@ unsafe fn inv_butterfly_len8_avx2(a: &mut [i16; N], zetas: &[i16]) {
         // Zetas (already negated by caller)
         let zeta_v = _mm256_set_m128i(_mm_set1_epi16(zeta1), _mm_set1_epi16(zeta0));
 
-        // a[j] = t + a[j+len]
-        let new_lo = _mm256_add_epi16(t, a_hi);
+        // a[j] = barrett_reduce(t + a[j+len]) to prevent overflow
+        let sum = _mm256_add_epi16(t, a_hi);
+        let new_lo = barrett_reduce_16x(sum);
 
         // a[j+len] = (t - a[j+len]) * zeta
         let diff = _mm256_sub_epi16(t, a_hi);
@@ -320,7 +367,7 @@ pub unsafe fn ntt_avx2(a: &mut [i16; N]) {
         butterfly_len8_avx2(a, &zetas_len8);
     }
 
-    // len=4, 2: use scalar operations
+    // len=4, 2: use scalar operations (SIMD not efficient for small lengths)
     for len in [4usize, 2] {
         let mut start: usize = 0;
         while start < N {
@@ -329,7 +376,7 @@ pub unsafe fn ntt_avx2(a: &mut [i16; N]) {
             for j in start..(start + len) {
                 let t = crate::reduce::montgomery_mul(zeta, a[j + len]);
                 a[j + len] = a[j] - t;
-                a[j] += t;
+                a[j] = a[j] + t;
             }
             start += 2 * len;
         }
