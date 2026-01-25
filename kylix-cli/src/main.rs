@@ -62,7 +62,9 @@ const SLH_DSA_256F_SK_SIZE: usize = SlhDsaShake256f::SIGNING_KEY_SIZE;
 const SLH_DSA_256F_SIG_SIZE: usize = SlhDsaShake256f::SIGNATURE_SIZE;
 
 // liboqs benchmark duration estimation constants
-// Assumed operations per second for converting iteration count to duration
+// Assumed operations per second for converting iteration count to duration.
+// These are rough, order-of-magnitude estimates based on commodity x86_64 hardware.
+// Actual liboqs performance varies across CPUs and build options.
 const LIBOQS_KEM_OPS_PER_SEC: u64 = 10000;
 const LIBOQS_SIG_OPS_PER_SEC: u64 = 1000;
 
@@ -1208,19 +1210,24 @@ fn detect_openssl() -> Option<ExternalTool> {
         // Parse version to support future releases (3.8, 4.0, etc.)
         // Handles versions like "3.5.0", "3.6.0-alpha", etc.
         let is_supported_version = {
+            /// Parse numeric prefix from version string (e.g., "5-alpha" -> 5)
+            fn parse_version_number(s: &str) -> Option<u64> {
+                let end = s.find(|c: char| !c.is_ascii_digit()).unwrap_or(s.len());
+                if end == 0 {
+                    None
+                } else {
+                    s[..end].parse::<u64>().ok()
+                }
+            }
+
             let mut supported = false;
             let mut tokens = version_str.split_whitespace();
             while let Some(token) = tokens.next() {
                 if token == "OpenSSL" {
                     if let Some(ver_token) = tokens.next() {
                         let mut parts = ver_token.split('.');
-                        let major = parts.next().and_then(|p| p.parse::<u64>().ok());
-                        // Handle versions with suffixes like "5-alpha" by taking only digits
-                        // Parse directly from slice to avoid allocation
-                        let minor = parts.next().and_then(|p| {
-                            let end = p.find(|c: char| !c.is_ascii_digit()).unwrap_or(p.len());
-                            p[..end].parse::<u64>().ok()
-                        });
+                        let major = parts.next().and_then(parse_version_number);
+                        let minor = parts.next().and_then(parse_version_number);
                         if let (Some(maj), Some(min)) = (major, minor) {
                             supported = maj > 3 || (maj == 3 && min >= 5);
                         }
@@ -1820,8 +1827,9 @@ fn format_comparison_json(
         "disclaimer": "OpenSSL benchmarks include process startup and file I/O overhead (each operation spawns a new process). liboqs uses its native speed_kem/speed_sig tools for fair in-process comparison. Kylix benchmarks run in-process with no I/O overhead.",
         "results": kylix.into_iter().chain(external).collect::<Vec<_>>()
     });
-    // unwrap is safe here as the data structure is guaranteed to be serializable
-    serde_json::to_string_pretty(&result).unwrap()
+    serde_json::to_string_pretty(&result).expect(
+        "failed to serialize benchmark comparison JSON; data structure should be serializable",
+    )
 }
 
 // ============================================================================
