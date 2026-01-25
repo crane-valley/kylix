@@ -25,7 +25,43 @@ Benchmarks for SLH-DSA "fast" variants only. The "small" variants are significan
 - SLH-DSA is hash-intensive and significantly slower than lattice-based ML-DSA
 - Signing is the slowest operation due to hypertree computation
 - "Small" variants (128s/192s/256s) have smaller signatures but are ~10x slower
-- Performance can be improved with SIMD hash acceleration and tree parallelization
+- Enable `--features parallel` for multi-threaded FORS computation (improves signing performance)
+
+---
+
+## ML-DSA Performance
+
+Benchmarks run with `cargo bench -p kylix-bench --bench ml_dsa` using Criterion with SIMD enabled (default).
+
+### Summary
+
+| Algorithm | KeyGen | Sign | Verify |
+|-----------|--------|------|--------|
+| ML-DSA-44 | 60 µs | 115 µs | 60 µs |
+| ML-DSA-65 | 97 µs | 165 µs | 102 µs |
+| ML-DSA-87 | 155 µs | 260 µs | 165 µs |
+
+### Key/Signature Sizes
+
+| Algorithm | Public Key | Secret Key | Signature |
+|-----------|------------|------------|-----------|
+| ML-DSA-44 | 1,312 bytes | 2,560 bytes | 2,420 bytes |
+| ML-DSA-65 | 1,952 bytes | 4,032 bytes | 3,309 bytes |
+| ML-DSA-87 | 2,592 bytes | 4,896 bytes | 4,627 bytes |
+
+### Performance vs Targets
+
+| Operation | Kylix | Target | Status |
+|-----------|-------|--------|--------|
+| ML-DSA-65 KeyGen | 97 µs | - | ✅ |
+| ML-DSA-65 Sign | 165 µs | < 200 µs | ✅ Pass |
+| ML-DSA-65 Verify | 102 µs | < 100 µs | ⚠️ Close |
+
+### Notes
+
+- SIMD optimizations (AVX2/NEON) are enabled by default for significant performance gains
+- Results measured on Intel i5-13500 with `-C target-cpu=native`
+- Sign performance includes rejection sampling loop iterations
 
 ---
 
@@ -72,6 +108,14 @@ Based on [PLANS.md](PLANS.md) performance goals:
 ```bash
 # Run all benchmarks
 cargo bench -p kylix-bench
+
+# Run specific algorithm benchmarks
+cargo bench -p kylix-bench --bench ml_kem
+cargo bench -p kylix-bench --bench ml_dsa
+cargo bench -p kylix-bench --bench slh_dsa
+
+# Run SLH-DSA with parallel feature
+cargo bench -p kylix-bench --bench slh_dsa --features parallel
 
 # Run specific benchmark group
 cargo bench -p kylix-bench -- "ML-KEM KeyGen"
