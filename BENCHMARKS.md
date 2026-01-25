@@ -95,7 +95,7 @@ Based on [PLANS.md](PLANS.md) performance goals:
 | ML-KEM-768 Encaps | 27.4 µs | < 60 µs | ✅ Pass |
 | ML-KEM-768 Decaps | 31.2 µs | < 50 µs | ✅ Pass |
 
-### Library Comparison
+### Library Comparison (ML-KEM-768)
 
 | Library | KeyGen | Encaps | Decaps |
 |---------|--------|--------|--------|
@@ -106,9 +106,9 @@ Based on [PLANS.md](PLANS.md) performance goals:
 
 ### Notes
 
-- SIMD optimizations (AVX2/NEON) are enabled by default for significant performance gains
-- Results measured on Intel i5-13500 with `-C target-cpu=native`
-- Kylix is faster than RustCrypto and pqcrypto, but still 2.5x slower than libcrux
+> - SIMD optimizations (AVX2/NEON) are enabled by default for significant performance gains
+> - Results measured on Intel i5-13500 with `-C target-cpu=native`
+> - Kylix is faster than RustCrypto and pqcrypto, but still 2.5x slower than libcrux
 
 ### Throughput
 

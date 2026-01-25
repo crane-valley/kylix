@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **ML-KEM SIMD optimizations**: AVX2 for x86_64, NEON for ARM64
   - 16-way parallel NTT operations using i16 SIMD intrinsics
   - Efficient Barrett reduction using pqcrystals/kyber approach
-  - Performance improvement: ~16% faster Decaps, ~7% faster Encaps
+  - Performance improvement (ML-KEM-768): ~16% faster Decaps, ~7% faster Encaps
   - SIMD enabled by default with runtime CPU feature detection
 
 ## [0.4.1] - 2026-01-25
