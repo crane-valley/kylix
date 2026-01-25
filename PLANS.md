@@ -514,7 +514,7 @@ group.bench_function(BenchmarkId::new("libcrux", ""), |b| {
 **Tasks:**
 - [ ] Fix `comparison.rs` KeyGen benchmark (libcrux)
 - [ ] Fix `comparison.rs` Encaps benchmark (libcrux)
-- [ ] Re-run benchmarks and update Phase 6.5 results
+- [ ] Re-run benchmarks and update Phase 6.6 results
 
 ### Phase 6.6: Benchmark Results (v0.4.1)
 
