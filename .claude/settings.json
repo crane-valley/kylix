@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && cargo fmt --quiet 2>/dev/null || true"
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && cargo fmt --quiet || true"
           }
         ]
       }
