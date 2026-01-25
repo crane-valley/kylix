@@ -195,7 +195,7 @@ enum Commands {
         #[arg(long, value_enum, default_value = "text")]
         report: ReportFormat,
 
-        /// Compare with external PQC implementations (OpenSSL, liboqs, wolfSSL)
+        /// Compare with external PQC implementations (OpenSSL, liboqs)
         #[arg(long)]
         compare: bool,
 
@@ -1085,9 +1085,9 @@ fn detect_liboqs() -> Option<ExternalTool> {
     let help_text = String::from_utf8_lossy(&output.stdout);
 
     // Extract version info if available
-    let version = if help_text.contains("liboqs") {
-        // Try to extract version
-        "liboqs".to_string()
+    // Note: liboqs speed_kem doesn't output version in --help, so we just mark as "detected"
+    let version = if help_text.contains("liboqs") || help_text.contains("speed_kem") {
+        "detected".to_string()
     } else {
         "unknown".to_string()
     };
@@ -1141,6 +1141,7 @@ fn detect_openssl() -> Option<ExternalTool> {
 
         // Check for OpenSSL 3.5+ (which has native PQC support)
         // Parse version to support future releases (3.8, 4.0, etc.)
+        // Handles versions like "3.5.0", "3.6.0-alpha", etc.
         let is_supported_version = {
             let mut supported = false;
             let mut tokens = version_str.split_whitespace();
@@ -1149,7 +1150,14 @@ fn detect_openssl() -> Option<ExternalTool> {
                     if let Some(ver_token) = tokens.next() {
                         let mut parts = ver_token.split('.');
                         let major = parts.next().and_then(|p| p.parse::<u64>().ok());
-                        let minor = parts.next().and_then(|p| p.parse::<u64>().ok());
+                        // Handle versions with suffixes like "5-alpha" by taking only digits
+                        let minor = parts.next().and_then(|p| {
+                            p.chars()
+                                .take_while(|c| c.is_ascii_digit())
+                                .collect::<String>()
+                                .parse::<u64>()
+                                .ok()
+                        });
                         if let (Some(maj), Some(min)) = (major, minor) {
                             supported = maj > 3 || (maj == 3 && min >= 5);
                         }
@@ -1286,6 +1294,22 @@ fn parse_liboqs_output(
     Ok(results)
 }
 
+/// Run an OpenSSL command and check its exit status
+fn run_openssl_command(tool_path: &std::path::Path, args: &[&str]) -> Result<()> {
+    let output = Command::new(tool_path)
+        .args(args)
+        .output()
+        .context("Failed to execute OpenSSL command")?;
+
+    if !output.status.success() {
+        return Err(anyhow::anyhow!(
+            "OpenSSL command failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    Ok(())
+}
+
 /// Run OpenSSL KEM benchmark (time individual operations)
 fn run_openssl_kem_benchmark(
     tool: &ExternalTool,
@@ -1308,14 +1332,18 @@ fn run_openssl_kem_benchmark(
     let ct_file = temp_dir.path().join("ct.bin");
     let ss_file = temp_dir.path().join("ss.bin");
 
+    let key_str = key_file.to_string_lossy();
+    let pub_str = pub_file.to_string_lossy();
+    let ct_str = ct_file.to_string_lossy();
+    let ss_str = ss_file.to_string_lossy();
+
     // Benchmark keygen
     let start = Instant::now();
     for _ in 0..iterations {
-        Command::new(&tool.path)
-            .args(["genpkey", "-algorithm", openssl_algo, "-out"])
-            .arg(&key_file)
-            .output()
-            .context("Failed to run OpenSSL genpkey")?;
+        run_openssl_command(
+            &tool.path,
+            &["genpkey", "-algorithm", openssl_algo, "-out", &key_str],
+        )?;
     }
     let keygen_total = start.elapsed();
     results.push(ExternalBenchResult {
@@ -1326,33 +1354,27 @@ fn run_openssl_kem_benchmark(
     });
 
     // Generate a key for encaps/decaps benchmarks
-    Command::new(&tool.path)
-        .args(["genpkey", "-algorithm", openssl_algo, "-out"])
-        .arg(&key_file)
-        .output()
-        .context("Failed to generate key for encaps benchmark")?;
+    run_openssl_command(
+        &tool.path,
+        &["genpkey", "-algorithm", openssl_algo, "-out", &key_str],
+    )?;
 
     // Extract public key
-    Command::new(&tool.path)
-        .args(["pkey", "-in"])
-        .arg(&key_file)
-        .args(["-pubout", "-out"])
-        .arg(&pub_file)
-        .output()
-        .context("Failed to extract public key")?;
+    run_openssl_command(
+        &tool.path,
+        &["pkey", "-in", &key_str, "-pubout", "-out", &pub_str],
+    )?;
 
     // Benchmark encaps
     let start = Instant::now();
     for _ in 0..iterations {
-        Command::new(&tool.path)
-            .args(["pkeyutl", "-encap", "-inkey"])
-            .arg(&pub_file)
-            .args(["-pubin", "-out"])
-            .arg(&ct_file)
-            .args(["-secret"])
-            .arg(&ss_file)
-            .output()
-            .context("Failed to run OpenSSL encaps")?;
+        run_openssl_command(
+            &tool.path,
+            &[
+                "pkeyutl", "-encap", "-inkey", &pub_str, "-pubin", "-out", &ct_str, "-secret",
+                &ss_str,
+            ],
+        )?;
     }
     let encaps_total = start.elapsed();
     results.push(ExternalBenchResult {
@@ -1365,15 +1387,12 @@ fn run_openssl_kem_benchmark(
     // Benchmark decaps
     let start = Instant::now();
     for _ in 0..iterations {
-        Command::new(&tool.path)
-            .args(["pkeyutl", "-decap", "-inkey"])
-            .arg(&key_file)
-            .args(["-in"])
-            .arg(&ct_file)
-            .args(["-secret"])
-            .arg(&ss_file)
-            .output()
-            .context("Failed to run OpenSSL decaps")?;
+        run_openssl_command(
+            &tool.path,
+            &[
+                "pkeyutl", "-decap", "-inkey", &key_str, "-in", &ct_str, "-secret", &ss_str,
+            ],
+        )?;
     }
     let decaps_total = start.elapsed();
     results.push(ExternalBenchResult {
@@ -1412,14 +1431,18 @@ fn run_openssl_sig_benchmark(
     // Create test message
     fs::write(&msg_file, b"The quick brown fox jumps over the lazy dog")?;
 
+    let key_str = key_file.to_string_lossy();
+    let pub_str = pub_file.to_string_lossy();
+    let msg_str = msg_file.to_string_lossy();
+    let sig_str = sig_file.to_string_lossy();
+
     // Benchmark keygen
     let start = Instant::now();
     for _ in 0..iterations {
-        Command::new(&tool.path)
-            .args(["genpkey", "-algorithm", openssl_algo, "-out"])
-            .arg(&key_file)
-            .output()
-            .context("Failed to run OpenSSL genpkey")?;
+        run_openssl_command(
+            &tool.path,
+            &["genpkey", "-algorithm", openssl_algo, "-out", &key_str],
+        )?;
     }
     let keygen_total = start.elapsed();
     results.push(ExternalBenchResult {
@@ -1430,24 +1453,18 @@ fn run_openssl_sig_benchmark(
     });
 
     // Generate a key for sign/verify benchmarks
-    Command::new(&tool.path)
-        .args(["genpkey", "-algorithm", openssl_algo, "-out"])
-        .arg(&key_file)
-        .output()
-        .context("Failed to generate key for sign benchmark")?;
+    run_openssl_command(
+        &tool.path,
+        &["genpkey", "-algorithm", openssl_algo, "-out", &key_str],
+    )?;
 
     // Benchmark sign
     let start = Instant::now();
     for _ in 0..iterations {
-        Command::new(&tool.path)
-            .args(["pkeyutl", "-sign", "-inkey"])
-            .arg(&key_file)
-            .args(["-in"])
-            .arg(&msg_file)
-            .args(["-out"])
-            .arg(&sig_file)
-            .output()
-            .context("Failed to run OpenSSL sign")?;
+        run_openssl_command(
+            &tool.path,
+            &["pkeyutl", "-sign", "-inkey", &key_str, "-in", &msg_str, "-out", &sig_str],
+        )?;
     }
     let sign_total = start.elapsed();
     results.push(ExternalBenchResult {
@@ -1458,26 +1475,21 @@ fn run_openssl_sig_benchmark(
     });
 
     // Extract public key
-    Command::new(&tool.path)
-        .args(["pkey", "-in"])
-        .arg(&key_file)
-        .args(["-pubout", "-out"])
-        .arg(&pub_file)
-        .output()
-        .context("Failed to extract public key")?;
+    run_openssl_command(
+        &tool.path,
+        &["pkey", "-in", &key_str, "-pubout", "-out", &pub_str],
+    )?;
 
     // Benchmark verify
     let start = Instant::now();
     for _ in 0..iterations {
-        Command::new(&tool.path)
-            .args(["pkeyutl", "-verify", "-inkey"])
-            .arg(&pub_file)
-            .args(["-pubin", "-in"])
-            .arg(&msg_file)
-            .args(["-sigfile"])
-            .arg(&sig_file)
-            .output()
-            .context("Failed to run OpenSSL verify")?;
+        run_openssl_command(
+            &tool.path,
+            &[
+                "pkeyutl", "-verify", "-inkey", &pub_str, "-pubin", "-in", &msg_str, "-sigfile",
+                &sig_str,
+            ],
+        )?;
     }
     let verify_total = start.elapsed();
     results.push(ExternalBenchResult {
@@ -1571,6 +1583,12 @@ fn format_comparison_text(
     output.push_str("Kylix Benchmark Comparison\n");
     output.push_str("==========================\n\n");
 
+    // Add fairness note
+    output.push_str("Note: OpenSSL benchmarks include process startup and file I/O overhead\n");
+    output.push_str("      (each operation spawns a new process). liboqs uses its native\n");
+    output.push_str("      speed_kem/speed_sig tools for fair in-process comparison.\n");
+    output.push_str("      Kylix benchmarks run in-process with no I/O overhead.\n\n");
+
     for (algo, results) in by_algo {
         output.push_str(&format!("{}\n", algo));
         output.push_str(&"-".repeat(algo.len()));
@@ -1595,15 +1613,16 @@ fn format_comparison_text(
                 let speedup = if *tool != "Kylix" {
                     kylix_times
                         .get(op)
-                        .filter(|kt| **kt > 0.0)
+                        .filter(|kt| **kt > 0.0 && *time > 0.0)
                         .map(|kt| {
-                            let ratio = time / kt;
-                            if ratio >= 1.0 {
-                                format!(" (Kylix {:.1}x faster)", ratio)
-                            } else if ratio > 0.0 {
-                                format!(" ({} {:.1}x faster)", tool, 1.0 / ratio)
+                            if *kt < *time {
+                                // Kylix is faster (kt < time means Kylix took less time)
+                                format!(" (Kylix {:.1}x faster)", time / kt)
+                            } else if *kt > *time {
+                                // Kylix is slower (kt > time means Kylix took more time)
+                                format!(" (Kylix {:.1}x slower)", kt / time)
                             } else {
-                                String::new()
+                                " (same speed as Kylix)".to_string()
                             }
                         })
                         .unwrap_or_default()
@@ -1624,6 +1643,12 @@ fn format_comparison_markdown(
 ) -> String {
     let mut output = String::new();
     output.push_str("# Kylix Benchmark Comparison\n\n");
+
+    // Add fairness note
+    output.push_str("> **Note:** OpenSSL benchmarks include process startup and file I/O overhead\n");
+    output.push_str("> (each operation spawns a new process). liboqs uses its native\n");
+    output.push_str("> `speed_kem`/`speed_sig` tools for fair in-process comparison.\n");
+    output.push_str("> Kylix benchmarks run in-process with no I/O overhead.\n\n");
 
     for (algo, results) in by_algo {
         output.push_str(&format!("## {}\n\n", algo));
@@ -1685,7 +1710,8 @@ fn format_comparison_json(
                 "tool": "Kylix",
                 "algorithm": r.algorithm,
                 "operation": r.operation,
-                "mean_us": r.mean.as_micros()
+                "mean_us": r.mean.as_micros(),
+                "notes": "in-process benchmark"
             })
         })
         .collect();
@@ -1693,17 +1719,27 @@ fn format_comparison_json(
     let external: Vec<_> = external_results
         .iter()
         .map(|r| {
+            let notes = if r.tool_name == "OpenSSL" {
+                "includes process startup and file I/O overhead"
+            } else {
+                "in-process benchmark via native speed tool"
+            };
             json!({
                 "tool": r.tool_name,
                 "algorithm": r.algorithm,
                 "operation": r.operation,
-                "mean_us": r.mean_us
+                "mean_us": r.mean_us,
+                "notes": notes
             })
         })
         .collect();
 
-    let combined: Vec<_> = kylix.into_iter().chain(external).collect();
-    serde_json::to_string_pretty(&combined).unwrap_or_default()
+    let result = json!({
+        "disclaimer": "OpenSSL benchmarks include process startup and file I/O overhead (each operation spawns a new process). liboqs uses its native speed_kem/speed_sig tools for fair in-process comparison. Kylix benchmarks run in-process with no I/O overhead.",
+        "results": kylix.into_iter().chain(external).collect::<Vec<_>>()
+    });
+    // unwrap is safe here as the data structure is guaranteed to be serializable
+    serde_json::to_string_pretty(&result).unwrap()
 }
 
 // ============================================================================
