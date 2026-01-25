@@ -183,9 +183,9 @@ impl MlDsa65 {
     ///
     /// | Method | Time per verify |
     /// |--------|-----------------|
-    /// | `verify()` | ~106 µs |
-    /// | `verify_expanded()` | ~50 µs |
-    /// | `expand()` (one-time) | ~106 µs |
+    /// | `verify()` | ~101 µs |
+    /// | `verify_expanded()` | ~38 µs |
+    /// | `expand()` (one-time) | ~68 µs |
     ///
     /// Break-even: 2 verifications with the same key.
     ///

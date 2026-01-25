@@ -35,13 +35,13 @@ use zeroize::Zeroize;
 /// }
 /// ```
 ///
-/// # Performance
+/// # Performance (ML-DSA-65)
 ///
 /// | Operation | Time |
 /// |-----------|------|
-/// | `expand()` | ~106 µs |
-/// | `verify_expanded()` | ~50 µs |
-/// | `verify()` (regular) | ~106 µs |
+/// | `expand()` | ~68 µs |
+/// | `verify_expanded()` | ~38 µs |
+/// | `verify()` (regular) | ~101 µs |
 ///
 /// Break-even point: N=2 verifications with the same key.
 pub struct ExpandedVerificationKey<const K: usize, const L: usize> {
@@ -80,10 +80,10 @@ pub fn expand_verification_key<const K: usize, const L: usize>(
     let a_hat = expand_a::<K, L>(&rho);
 
     // Pre-compute t1 * 2^D in NTT domain
-    let mut t1_2d_hat = PolyVecK::<K>::zero();
-    for i in 0..K {
-        for j in 0..N {
-            t1_2d_hat.polys[i].coeffs[j] = t1.polys[i].coeffs[j] << D;
+    let mut t1_2d_hat = t1;
+    for p in &mut t1_2d_hat.polys {
+        for c in &mut p.coeffs {
+            *c <<= D;
         }
     }
     t1_2d_hat.ntt();
@@ -207,12 +207,7 @@ pub fn ml_dsa_verify_expanded<
     }
     ct1_2d.reduce();
 
-    let mut w_prime_hat = PolyVecK::<K>::zero();
-    for i in 0..K {
-        for j in 0..N {
-            w_prime_hat.polys[i].coeffs[j] = az.polys[i].coeffs[j] - ct1_2d.polys[i].coeffs[j];
-        }
-    }
+    let mut w_prime_hat = az.sub(&ct1_2d);
 
     w_prime_hat.reduce();
     w_prime_hat.inv_ntt();
