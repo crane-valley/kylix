@@ -548,8 +548,8 @@ mod tests {
 
         // Create test polynomial
         let mut poly = [0i16; N];
-        for i in 0..N {
-            poly[i] = ((i * 13 + 7) % 3329) as i16;
+        for (i, coeff) in poly.iter_mut().enumerate() {
+            *coeff = ((i * 13 + 7) % 3329) as i16;
         }
         let original = poly;
 
@@ -560,9 +560,9 @@ mod tests {
         }
 
         // Result should match original (after from_mont conversion)
-        for i in 0..N {
-            let result = crate::reduce::barrett_reduce_full(crate::reduce::from_mont(poly[i]));
-            let expected = crate::reduce::barrett_reduce_full(original[i]);
+        for (i, (&coeff, &orig)) in poly.iter().zip(original.iter()).enumerate() {
+            let result = crate::reduce::barrett_reduce_full(crate::reduce::from_mont(coeff));
+            let expected = crate::reduce::barrett_reduce_full(orig);
             assert_eq!(result, expected, "Roundtrip mismatch at index {}", i);
         }
     }
