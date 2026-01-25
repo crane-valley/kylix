@@ -35,7 +35,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-kylix-pqc = "0.3"
+kylix-pqc = "0.4"
 ```
 
 ## Usage
