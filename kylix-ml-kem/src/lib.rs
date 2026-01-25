@@ -27,7 +27,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
 #![warn(clippy::all)]
-#![deny(unsafe_code)]
+// Note: unsafe_code is allowed for SIMD optimizations in the simd module
+#![cfg_attr(not(feature = "simd"), deny(unsafe_code))]
 
 #[cfg(not(feature = "std"))]
 extern crate alloc;
@@ -47,6 +48,9 @@ mod poly;
 mod polyvec;
 mod reduce;
 mod sample;
+
+#[cfg(feature = "simd")]
+mod simd;
 
 #[cfg(feature = "ml-kem-1024")]
 pub mod ml_kem_1024;

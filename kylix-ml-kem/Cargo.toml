@@ -15,8 +15,9 @@ description = "ML-KEM (FIPS 203) implementation for the Kylix post-quantum crypt
 exclude = ["tests/acvp/"]
 
 [features]
-default = ["std", "ml-kem-768"]
+default = ["std", "ml-kem-768", "simd"]
 std = ["kylix-core/std"]
+simd = []  # Enable SIMD optimizations (AVX2/NEON)
 ml-kem-512 = []
 ml-kem-768 = []
 ml-kem-1024 = []
