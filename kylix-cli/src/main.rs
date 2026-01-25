@@ -15,6 +15,7 @@ use rand::rng;
 use std::fs;
 use std::io::{self, Read};
 use std::path::PathBuf;
+use std::process::Command;
 use std::time::{Duration, Instant};
 use zeroize::Zeroize;
 
@@ -193,6 +194,14 @@ enum Commands {
         /// Output format
         #[arg(long, value_enum, default_value = "text")]
         report: ReportFormat,
+
+        /// Compare with external PQC implementations (OpenSSL, liboqs, wolfSSL)
+        #[arg(long)]
+        compare: bool,
+
+        /// Specific tools to compare with (comma-separated: openssl,liboqs,wolfssl)
+        #[arg(long, value_delimiter = ',')]
+        with: Option<Vec<String>>,
     },
 }
 
@@ -1017,6 +1026,608 @@ fn cmd_completions(shell: Shell) {
     generate(shell, &mut cmd, "kylix", &mut io::stdout());
 }
 
+// ============================================================================
+// External Tool Comparison
+// ============================================================================
+
+/// Detected external PQC tool
+#[derive(Debug, Clone)]
+struct ExternalTool {
+    name: String,
+    path: PathBuf,
+    version: String,
+}
+
+/// Benchmark results from an external tool
+#[derive(Debug, Clone)]
+struct ExternalBenchResult {
+    tool_name: String,
+    algorithm: String,
+    operation: String,
+    mean_us: f64,
+}
+
+/// Detect available external PQC tools
+fn detect_external_tools(filter: Option<&Vec<String>>) -> Vec<ExternalTool> {
+    let mut tools = Vec::new();
+
+    // Check if tool should be included based on filter
+    let should_include = |name: &str| -> bool {
+        filter.as_ref().map_or(true, |f| {
+            f.iter().any(|s| s.eq_ignore_ascii_case(name))
+        })
+    };
+
+    // Detect liboqs speed_kem tool
+    if should_include("liboqs") {
+        if let Some(tool) = detect_liboqs() {
+            tools.push(tool);
+        }
+    }
+
+    // Detect OpenSSL 3.5+ with PQC support
+    if should_include("openssl") {
+        if let Some(tool) = detect_openssl() {
+            tools.push(tool);
+        }
+    }
+
+    tools
+}
+
+/// Detect liboqs speed_kem/speed_sig tools
+fn detect_liboqs() -> Option<ExternalTool> {
+    // Try to find speed_kem in PATH
+    let path = which::which("speed_kem").ok()?;
+
+    // Get version by running with --help or checking liboqs version
+    let output = Command::new(&path).arg("--help").output().ok()?;
+    let help_text = String::from_utf8_lossy(&output.stdout);
+
+    // Extract version info if available
+    let version = if help_text.contains("liboqs") {
+        // Try to extract version
+        "liboqs".to_string()
+    } else {
+        "unknown".to_string()
+    };
+
+    Some(ExternalTool {
+        name: "liboqs".to_string(),
+        path,
+        version,
+    })
+}
+
+/// Detect OpenSSL 3.5+ with PQC support
+fn detect_openssl() -> Option<ExternalTool> {
+    let path = which::which("openssl").ok()?;
+
+    let output = Command::new(&path).arg("version").output().ok()?;
+    let version_str = String::from_utf8_lossy(&output.stdout);
+
+    // Check for OpenSSL 3.5+ (which has native PQC support)
+    if version_str.contains("OpenSSL 3.5") || version_str.contains("OpenSSL 3.6") {
+        // Verify PQC algorithms are available
+        let list_output = Command::new(&path)
+            .args(["list", "-kem-algorithms"])
+            .output()
+            .ok()?;
+        let kem_list = String::from_utf8_lossy(&list_output.stdout);
+
+        if kem_list.contains("ML-KEM") {
+            return Some(ExternalTool {
+                name: "OpenSSL".to_string(),
+                path,
+                version: version_str.trim().to_string(),
+            });
+        }
+    }
+
+    None
+}
+
+/// Run liboqs KEM benchmark
+fn run_liboqs_kem_benchmark(
+    tool: &ExternalTool,
+    algo: &str,
+    iterations: u64,
+) -> Result<Vec<ExternalBenchResult>> {
+    // Map Kylix algorithm names to liboqs names
+    let liboqs_algo = match algo {
+        "ML-KEM-512" => "ML-KEM-512",
+        "ML-KEM-768" => "ML-KEM-768",
+        "ML-KEM-1024" => "ML-KEM-1024",
+        _ => return Ok(vec![]),
+    };
+
+    // Run speed_kem with the algorithm
+    let output = Command::new(&tool.path)
+        .args(["--alg", liboqs_algo, &iterations.to_string()])
+        .output()
+        .context("Failed to run liboqs speed_kem")?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    parse_liboqs_output(&stdout, &tool.name, algo)
+}
+
+/// Run liboqs signature benchmark
+fn run_liboqs_sig_benchmark(
+    tool: &ExternalTool,
+    algo: &str,
+    iterations: u64,
+) -> Result<Vec<ExternalBenchResult>> {
+    // Map Kylix algorithm names to liboqs names
+    let liboqs_algo = match algo {
+        "ML-DSA-44" => "ML-DSA-44",
+        "ML-DSA-65" => "ML-DSA-65",
+        "ML-DSA-87" => "ML-DSA-87",
+        _ => return Ok(vec![]),
+    };
+
+    // Find speed_sig (should be in same directory as speed_kem)
+    let speed_sig_path = tool.path.parent().map(|p| p.join("speed_sig"));
+    let speed_sig = speed_sig_path
+        .filter(|p| p.exists())
+        .or_else(|| which::which("speed_sig").ok());
+
+    let Some(sig_path) = speed_sig else {
+        return Ok(vec![]);
+    };
+
+    let output = Command::new(&sig_path)
+        .args(["--alg", liboqs_algo, &iterations.to_string()])
+        .output()
+        .context("Failed to run liboqs speed_sig")?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    parse_liboqs_output(&stdout, &tool.name, algo)
+}
+
+/// Parse liboqs speed_kem/speed_sig output
+fn parse_liboqs_output(
+    output: &str,
+    tool_name: &str,
+    algo: &str,
+) -> Result<Vec<ExternalBenchResult>> {
+    let mut results = Vec::new();
+
+    // liboqs output format:
+    // Operation              Iterations  Total time (s)  Time (us): mean
+    // keygen:                     10000          0.142           14.200
+    // encaps:                     10000          0.185           18.500
+    // decaps:                     10000          0.201           20.100
+
+    for line in output.lines() {
+        let line = line.trim();
+
+        // Parse keygen/encaps/decaps/sign/verify lines
+        for op in ["keygen", "encaps", "decaps", "sign", "verify"] {
+            if line.starts_with(&format!("{}:", op)) {
+                // Extract mean time from the line
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 4 {
+                    if let Ok(mean_us) = parts.last().unwrap_or(&"0").parse::<f64>() {
+                        results.push(ExternalBenchResult {
+                            tool_name: tool_name.to_string(),
+                            algorithm: algo.to_string(),
+                            operation: op.to_string(),
+                            mean_us,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(results)
+}
+
+/// Run OpenSSL KEM benchmark (time individual operations)
+fn run_openssl_kem_benchmark(
+    tool: &ExternalTool,
+    algo: &str,
+    iterations: u64,
+) -> Result<Vec<ExternalBenchResult>> {
+    let openssl_algo = match algo {
+        "ML-KEM-512" => "ML-KEM-512",
+        "ML-KEM-768" => "ML-KEM-768",
+        "ML-KEM-1024" => "ML-KEM-1024",
+        _ => return Ok(vec![]),
+    };
+
+    let mut results = Vec::new();
+    let temp_dir = std::env::temp_dir();
+    let key_file = temp_dir.join("kylix_bench_key.pem");
+    let ct_file = temp_dir.join("kylix_bench_ct.bin");
+    let ss_file = temp_dir.join("kylix_bench_ss.bin");
+
+    // Benchmark keygen
+    let start = Instant::now();
+    for _ in 0..iterations {
+        let _ = Command::new(&tool.path)
+            .args(["genpkey", "-algorithm", openssl_algo, "-out"])
+            .arg(&key_file)
+            .output();
+    }
+    let keygen_total = start.elapsed();
+    results.push(ExternalBenchResult {
+        tool_name: tool.name.clone(),
+        algorithm: algo.to_string(),
+        operation: "keygen".to_string(),
+        mean_us: keygen_total.as_micros() as f64 / iterations as f64,
+    });
+
+    // Generate a key for encaps/decaps benchmarks
+    let _ = Command::new(&tool.path)
+        .args(["genpkey", "-algorithm", openssl_algo, "-out"])
+        .arg(&key_file)
+        .output();
+
+    // Extract public key
+    let pub_file = temp_dir.join("kylix_bench_pub.pem");
+    let _ = Command::new(&tool.path)
+        .args(["pkey", "-in"])
+        .arg(&key_file)
+        .args(["-pubout", "-out"])
+        .arg(&pub_file)
+        .output();
+
+    // Benchmark encaps
+    let start = Instant::now();
+    for _ in 0..iterations {
+        let _ = Command::new(&tool.path)
+            .args(["pkeyutl", "-encap", "-inkey"])
+            .arg(&pub_file)
+            .args(["-pubin", "-out"])
+            .arg(&ct_file)
+            .args(["-secret"])
+            .arg(&ss_file)
+            .output();
+    }
+    let encaps_total = start.elapsed();
+    results.push(ExternalBenchResult {
+        tool_name: tool.name.clone(),
+        algorithm: algo.to_string(),
+        operation: "encaps".to_string(),
+        mean_us: encaps_total.as_micros() as f64 / iterations as f64,
+    });
+
+    // Benchmark decaps
+    let start = Instant::now();
+    for _ in 0..iterations {
+        let _ = Command::new(&tool.path)
+            .args(["pkeyutl", "-decap", "-inkey"])
+            .arg(&key_file)
+            .args(["-in"])
+            .arg(&ct_file)
+            .args(["-secret"])
+            .arg(&ss_file)
+            .output();
+    }
+    let decaps_total = start.elapsed();
+    results.push(ExternalBenchResult {
+        tool_name: tool.name.clone(),
+        algorithm: algo.to_string(),
+        operation: "decaps".to_string(),
+        mean_us: decaps_total.as_micros() as f64 / iterations as f64,
+    });
+
+    // Cleanup
+    let _ = fs::remove_file(&key_file);
+    let _ = fs::remove_file(&pub_file);
+    let _ = fs::remove_file(&ct_file);
+    let _ = fs::remove_file(&ss_file);
+
+    Ok(results)
+}
+
+/// Run OpenSSL signature benchmark
+fn run_openssl_sig_benchmark(
+    tool: &ExternalTool,
+    algo: &str,
+    iterations: u64,
+) -> Result<Vec<ExternalBenchResult>> {
+    let openssl_algo = match algo {
+        "ML-DSA-44" => "ML-DSA-44",
+        "ML-DSA-65" => "ML-DSA-65",
+        "ML-DSA-87" => "ML-DSA-87",
+        _ => return Ok(vec![]),
+    };
+
+    let mut results = Vec::new();
+    let temp_dir = std::env::temp_dir();
+    let key_file = temp_dir.join("kylix_bench_sig_key.pem");
+    let msg_file = temp_dir.join("kylix_bench_msg.txt");
+    let sig_file = temp_dir.join("kylix_bench_sig.bin");
+
+    // Create test message
+    fs::write(&msg_file, b"The quick brown fox jumps over the lazy dog")?;
+
+    // Benchmark keygen
+    let start = Instant::now();
+    for _ in 0..iterations {
+        let _ = Command::new(&tool.path)
+            .args(["genpkey", "-algorithm", openssl_algo, "-out"])
+            .arg(&key_file)
+            .output();
+    }
+    let keygen_total = start.elapsed();
+    results.push(ExternalBenchResult {
+        tool_name: tool.name.clone(),
+        algorithm: algo.to_string(),
+        operation: "keygen".to_string(),
+        mean_us: keygen_total.as_micros() as f64 / iterations as f64,
+    });
+
+    // Generate a key for sign/verify benchmarks
+    let _ = Command::new(&tool.path)
+        .args(["genpkey", "-algorithm", openssl_algo, "-out"])
+        .arg(&key_file)
+        .output();
+
+    // Benchmark sign
+    let start = Instant::now();
+    for _ in 0..iterations {
+        let _ = Command::new(&tool.path)
+            .args(["pkeyutl", "-sign", "-inkey"])
+            .arg(&key_file)
+            .args(["-in"])
+            .arg(&msg_file)
+            .args(["-out"])
+            .arg(&sig_file)
+            .output();
+    }
+    let sign_total = start.elapsed();
+    results.push(ExternalBenchResult {
+        tool_name: tool.name.clone(),
+        algorithm: algo.to_string(),
+        operation: "sign".to_string(),
+        mean_us: sign_total.as_micros() as f64 / iterations as f64,
+    });
+
+    // Extract public key
+    let pub_file = temp_dir.join("kylix_bench_sig_pub.pem");
+    let _ = Command::new(&tool.path)
+        .args(["pkey", "-in"])
+        .arg(&key_file)
+        .args(["-pubout", "-out"])
+        .arg(&pub_file)
+        .output();
+
+    // Benchmark verify
+    let start = Instant::now();
+    for _ in 0..iterations {
+        let _ = Command::new(&tool.path)
+            .args(["pkeyutl", "-verify", "-inkey"])
+            .arg(&pub_file)
+            .args(["-pubin", "-in"])
+            .arg(&msg_file)
+            .args(["-sigfile"])
+            .arg(&sig_file)
+            .output();
+    }
+    let verify_total = start.elapsed();
+    results.push(ExternalBenchResult {
+        tool_name: tool.name.clone(),
+        algorithm: algo.to_string(),
+        operation: "verify".to_string(),
+        mean_us: verify_total.as_micros() as f64 / iterations as f64,
+    });
+
+    // Cleanup
+    let _ = fs::remove_file(&key_file);
+    let _ = fs::remove_file(&pub_file);
+    let _ = fs::remove_file(&msg_file);
+    let _ = fs::remove_file(&sig_file);
+
+    Ok(results)
+}
+
+/// Run benchmarks on external tools
+fn run_external_benchmarks(
+    tools: &[ExternalTool],
+    algo: &str,
+    is_kem: bool,
+    iterations: u64,
+) -> Vec<ExternalBenchResult> {
+    let mut results = Vec::new();
+
+    for tool in tools {
+        let tool_results = if tool.name == "liboqs" {
+            if is_kem {
+                run_liboqs_kem_benchmark(tool, algo, iterations)
+            } else {
+                run_liboqs_sig_benchmark(tool, algo, iterations)
+            }
+        } else if tool.name == "OpenSSL" {
+            if is_kem {
+                run_openssl_kem_benchmark(tool, algo, iterations)
+            } else {
+                run_openssl_sig_benchmark(tool, algo, iterations)
+            }
+        } else {
+            Ok(vec![])
+        };
+
+        if let Ok(r) = tool_results {
+            results.extend(r);
+        }
+    }
+
+    results
+}
+
+/// Format comparison table
+fn format_comparison_table(
+    kylix_results: &[BenchmarkResult],
+    external_results: &[ExternalBenchResult],
+    report_format: ReportFormat,
+) -> String {
+    // Group results by algorithm
+    let mut by_algo: std::collections::HashMap<String, Vec<(&str, &str, f64)>> =
+        std::collections::HashMap::new();
+
+    // Add Kylix results
+    for r in kylix_results {
+        let algo = r.algorithm.clone();
+        by_algo
+            .entry(algo)
+            .or_default()
+            .push(("Kylix", &r.operation, r.mean.as_micros() as f64));
+    }
+
+    // Add external results
+    for r in external_results {
+        by_algo
+            .entry(r.algorithm.clone())
+            .or_default()
+            .push((&r.tool_name, &r.operation, r.mean_us));
+    }
+
+    match report_format {
+        ReportFormat::Markdown => format_comparison_markdown(&by_algo),
+        ReportFormat::Json => format_comparison_json(kylix_results, external_results),
+        ReportFormat::Text => format_comparison_text(&by_algo),
+    }
+}
+
+fn format_comparison_text(
+    by_algo: &std::collections::HashMap<String, Vec<(&str, &str, f64)>>,
+) -> String {
+    let mut output = String::new();
+    output.push_str("Kylix Benchmark Comparison\n");
+    output.push_str("==========================\n\n");
+
+    for (algo, results) in by_algo {
+        output.push_str(&format!("{}\n", algo));
+        output.push_str(&"-".repeat(algo.len()));
+        output.push('\n');
+
+        // Group by tool
+        let mut by_tool: std::collections::HashMap<&str, Vec<(&str, f64)>> =
+            std::collections::HashMap::new();
+        for (tool, op, time) in results {
+            by_tool.entry(*tool).or_default().push((*op, *time));
+        }
+
+        // Find Kylix times for comparison
+        let kylix_times: std::collections::HashMap<&str, f64> = by_tool
+            .get("Kylix")
+            .map(|v| v.iter().cloned().collect())
+            .unwrap_or_default();
+
+        for (tool, ops) in &by_tool {
+            output.push_str(&format!("  {}:\n", tool));
+            for (op, time) in ops {
+                let speedup = if *tool != "Kylix" {
+                    kylix_times
+                        .get(op)
+                        .map(|kt| format!(" ({:.1}x faster)", time / kt))
+                        .unwrap_or_default()
+                } else {
+                    String::new()
+                };
+                output.push_str(&format!("    {}: {:.1} µs{}\n", op, time, speedup));
+            }
+        }
+        output.push('\n');
+    }
+
+    output
+}
+
+fn format_comparison_markdown(
+    by_algo: &std::collections::HashMap<String, Vec<(&str, &str, f64)>>,
+) -> String {
+    let mut output = String::new();
+    output.push_str("# Kylix Benchmark Comparison\n\n");
+
+    for (algo, results) in by_algo {
+        output.push_str(&format!("## {}\n\n", algo));
+
+        // Collect unique tools and operations
+        let mut tools: Vec<&str> = results.iter().map(|(t, _, _)| *t).collect();
+        tools.sort();
+        tools.dedup();
+
+        let mut ops: Vec<&str> = results.iter().map(|(_, o, _)| *o).collect();
+        ops.sort();
+        ops.dedup();
+
+        // Build table header
+        output.push_str("| Library |");
+        for op in &ops {
+            output.push_str(&format!(" {} |", op));
+        }
+        output.push('\n');
+
+        output.push_str("|---------|");
+        for _ in &ops {
+            output.push_str("-------:|");
+        }
+        output.push('\n');
+
+        // Build table rows
+        for tool in &tools {
+            output.push_str(&format!("| {} |", tool));
+            for op in &ops {
+                let time = results
+                    .iter()
+                    .find(|(t, o, _)| t == tool && o == op)
+                    .map(|(_, _, time)| *time);
+                if let Some(t) = time {
+                    output.push_str(&format!(" {:.1} µs |", t));
+                } else {
+                    output.push_str(" - |");
+                }
+            }
+            output.push('\n');
+        }
+        output.push('\n');
+    }
+
+    output
+}
+
+fn format_comparison_json(
+    kylix_results: &[BenchmarkResult],
+    external_results: &[ExternalBenchResult],
+) -> String {
+    use serde_json::json;
+
+    let kylix: Vec<_> = kylix_results
+        .iter()
+        .map(|r| {
+            json!({
+                "tool": "Kylix",
+                "algorithm": r.algorithm,
+                "operation": r.operation,
+                "mean_us": r.mean.as_micros()
+            })
+        })
+        .collect();
+
+    let external: Vec<_> = external_results
+        .iter()
+        .map(|r| {
+            json!({
+                "tool": r.tool_name,
+                "algorithm": r.algorithm,
+                "operation": r.operation,
+                "mean_us": r.mean_us
+            })
+        })
+        .collect();
+
+    let combined: Vec<_> = kylix.into_iter().chain(external).collect();
+    serde_json::to_string_pretty(&combined).unwrap_or_default()
+}
+
+// ============================================================================
+// Benchmark Functions
+// ============================================================================
+
 /// Run a single benchmark and return timing data
 fn run_benchmark<F>(iterations: u64, mut f: F) -> Vec<Duration>
 where
@@ -1184,6 +1795,8 @@ fn cmd_bench(
     iterations: u64,
     output: Option<&PathBuf>,
     report_format: ReportFormat,
+    compare: bool,
+    with: Option<&Vec<String>>,
     verbose: bool,
 ) -> Result<()> {
     if iterations == 0 {
@@ -1194,7 +1807,25 @@ fn cmd_bench(
         eprintln!("Running benchmarks with {} iterations...", iterations);
     }
 
+    // Detect external tools if comparison is requested
+    let external_tools = if compare {
+        let tools = detect_external_tools(with);
+        if tools.is_empty() {
+            eprintln!("Warning: No external PQC tools detected. Comparison will show Kylix results only.");
+            eprintln!("Supported tools: liboqs (speed_kem/speed_sig), OpenSSL 3.5+");
+        } else if verbose {
+            eprintln!("Detected external tools:");
+            for tool in &tools {
+                eprintln!("  - {} ({})", tool.name, tool.version);
+            }
+        }
+        tools
+    } else {
+        vec![]
+    };
+
     let mut report = BenchmarkReport::new("kylix");
+    let mut external_results: Vec<ExternalBenchResult> = Vec::new();
 
     let algorithms = if let Some(a) = algo {
         vec![a]
@@ -1210,39 +1841,56 @@ fn cmd_bench(
         ]
     };
 
-    for algo in algorithms {
+    for algo in &algorithms {
         if verbose {
             eprintln!("Benchmarking {}...", algo);
         }
 
         let results = if algo.is_kem() {
-            bench_ml_kem(algo, iterations)
+            bench_ml_kem(*algo, iterations)
         } else if algo.is_slh_dsa() {
-            bench_slh_dsa(algo, iterations)
+            bench_slh_dsa(*algo, iterations)
         } else {
-            bench_ml_dsa(algo, iterations)
+            bench_ml_dsa(*algo, iterations)
         };
 
         for result in results {
             report.add_result(result);
         }
+
+        // Run external benchmarks if comparison is requested
+        if compare && !external_tools.is_empty() {
+            let algo_name = format!("{}", algo);
+            let is_kem = algo.is_kem();
+
+            if verbose {
+                eprintln!("  Running external tool benchmarks...");
+            }
+
+            let ext_results = run_external_benchmarks(&external_tools, &algo_name, is_kem, iterations);
+            external_results.extend(ext_results);
+        }
     }
 
-    let output_content = match report_format {
-        ReportFormat::Text => {
-            let mut text = String::new();
-            text.push_str("Kylix Benchmark Results\n");
-            text.push_str("=======================\n\n");
-            for result in &report.results {
-                text.push_str(&result.format());
-                text.push('\n');
+    let output_content = if compare {
+        format_comparison_table(&report.results, &external_results, report_format)
+    } else {
+        match report_format {
+            ReportFormat::Text => {
+                let mut text = String::new();
+                text.push_str("Kylix Benchmark Results\n");
+                text.push_str("=======================\n\n");
+                for result in &report.results {
+                    text.push_str(&result.format());
+                    text.push('\n');
+                }
+                text
             }
-            text
+            ReportFormat::Json => {
+                serde_json::to_string_pretty(&report).context("Failed to serialize report to JSON")?
+            }
+            ReportFormat::Markdown => report.to_markdown(),
         }
-        ReportFormat::Json => {
-            serde_json::to_string_pretty(&report).context("Failed to serialize report to JSON")?
-        }
-        ReportFormat::Markdown => report.to_markdown(),
     };
 
     if let Some(out_path) = output {
@@ -1306,6 +1954,16 @@ fn main() -> Result<()> {
             iterations,
             output,
             report,
-        } => cmd_bench(algo, iterations, output.as_ref(), report, cli.verbose),
+            compare,
+            with,
+        } => cmd_bench(
+            algo,
+            iterations,
+            output.as_ref(),
+            report,
+            compare,
+            with.as_ref(),
+            cli.verbose,
+        ),
     }
 }
