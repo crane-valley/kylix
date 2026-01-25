@@ -1,0 +1,71 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.4.0] - 2025-01-25
+
+### Added
+
+- **SLH-DSA parallel feature**: Multi-threaded FORS computation using Rayon (`--features parallel`)
+  - Parallelizes K independent FORS trees during signing
+  - Significant speedup on multi-core systems
+
+### Changed
+
+- **SIMD enabled by default for ML-DSA**: The `simd` feature is now included in default features
+  - Uses runtime CPU feature detection (AVX2/NEON) for safety
+  - No action required; disable with `default-features = false` if needed
+
+### Documentation
+
+- Added SLH-DSA usage example to README.md
+- Added ML-DSA benchmark results to BENCHMARKS.md
+- Updated benchmark running instructions
+
+## [0.3.0] - 2025-01-20
+
+### Added
+
+- **SLH-DSA (FIPS 205)**: Complete implementation of Stateless Hash-Based Digital Signature Algorithm
+  - All 6 SHAKE variants: 128s/128f, 192s/192f, 256s/256f
+  - NIST ACVP test vectors (KeyGen, SigGen, SigVer)
+  - CLI support (keygen, sign, verify, info, bench)
+  - Fuzz testing (4 targets)
+- SIMD optimizations for ML-DSA
+  - AVX2 for x86_64 (NTT butterflies, matrix multiplication)
+  - NEON for ARM64
+
+### Changed
+
+- Improved NTT performance with SIMD vectorization
+- Updated benchmark infrastructure
+
+## [0.2.0] - 2025-01-10
+
+### Added
+
+- **ML-DSA (FIPS 204)**: Complete implementation of Module-Lattice-Based Digital Signature Algorithm
+  - All 3 variants: ML-DSA-44, ML-DSA-65, ML-DSA-87
+  - NIST ACVP test vectors
+  - CLI support (sign, verify)
+  - Fuzz testing
+
+## [0.1.0] - 2025-01-01
+
+### Added
+
+- **ML-KEM (FIPS 203)**: Initial implementation of Module-Lattice-Based Key Encapsulation Mechanism
+  - All 3 variants: ML-KEM-512, ML-KEM-768, ML-KEM-1024
+  - NIST ACVP test vectors
+  - CLI tool (keygen, encaps, decaps)
+  - no_std support
+  - Constant-time operations
+  - Zeroization of sensitive data
+
+[0.4.0]: https://github.com/crane-valley/kylix/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/crane-valley/kylix/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/crane-valley/kylix/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/crane-valley/kylix/releases/tag/v0.1.0
