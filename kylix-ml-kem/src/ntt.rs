@@ -42,6 +42,20 @@ pub const ZETAS: [i16; 128] = [
 /// # Algorithm
 /// This implements the NTT as specified in FIPS 203 Algorithm 9.
 pub fn ntt(poly: &mut Poly) {
+    // Try SIMD implementation first
+    #[cfg(feature = "simd")]
+    {
+        if crate::simd::ntt(poly) {
+            return;
+        }
+    }
+
+    // Scalar fallback
+    ntt_scalar(poly);
+}
+
+/// Scalar implementation of forward NTT.
+fn ntt_scalar(poly: &mut Poly) {
     let mut k: usize = 1;
     let mut len: usize = 128;
 
@@ -74,6 +88,20 @@ pub fn ntt(poly: &mut Poly) {
 /// # Algorithm
 /// This implements the inverse NTT as specified in FIPS 203 Algorithm 10.
 pub fn inv_ntt(poly: &mut Poly) {
+    // Try SIMD implementation first
+    #[cfg(feature = "simd")]
+    {
+        if crate::simd::inv_ntt(poly) {
+            return;
+        }
+    }
+
+    // Scalar fallback
+    inv_ntt_scalar(poly);
+}
+
+/// Scalar implementation of inverse NTT.
+fn inv_ntt_scalar(poly: &mut Poly) {
     let mut k: usize = 127;
     let mut len: usize = 2;
 
