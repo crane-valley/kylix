@@ -448,19 +448,40 @@ Establish Kylix as a high-performance PQC library by comparing with competitors.
 - "X times faster than Y" highlights
 - Environment details (CPU, OS, compiler)
 
-### Phase 6.4: ML-DSA/SLH-DSA Comparison (TODO)
+### Phase 6.4: ML-DSA/SLH-DSA Comparison ✅ Complete
 
 **Target Libraries:**
 
 | Algorithm | pqcrypto | RustCrypto | libcrux |
 |-----------|----------|------------|---------|
-| ML-DSA | `pqcrypto-mldsa` | `ml-dsa` (pre) | `libcrux-ml-dsa` |
-| SLH-DSA | TBD | `slh-dsa` (pre) | `libcrux-slh-dsa` |
+| ML-DSA | `pqcrypto-mldsa` | `ml-dsa` | `libcrux-ml-dsa` |
+| SLH-DSA | N/A | `slh-dsa` | N/A |
+
+**ML-DSA-65 Comparison Results:**
+
+| Library | KeyGen | Sign | Verify | Notes |
+|---------|--------|------|--------|-------|
+| libcrux | 41.6 µs | 113.6 µs | 34.6 µs | Formally verified, fastest |
+| **Kylix** | **105.3 µs** | **261.8 µs** | **106.3 µs** | Pure Rust |
+| pqcrypto | 135.2 µs | 451.3 µs | 119.2 µs | C bindings (PQClean) |
+| RustCrypto | 264.0 µs | 293.8 µs | 47.6 µs | Pure Rust |
+
+**SLH-DSA-SHAKE-128f Comparison Results:**
+
+| Library | KeyGen | Sign | Verify | Notes |
+|---------|--------|------|--------|-------|
+| RustCrypto | 2.35 ms | 56.3 ms | 3.34 ms | Pure Rust |
+| **Kylix** | **2.82 ms** | **61.4 ms** | **3.68 ms** | Pure Rust |
+
+**Analysis:**
+- ML-DSA: Kylix is competitive with pqcrypto, ~2.5x slower than libcrux
+- SLH-DSA: Kylix is ~10% slower than RustCrypto (room for optimization)
+- libcrux uses formally verified, highly optimized code with platform-specific assembly
 
 **Tasks:**
-- [ ] Add ML-DSA-65 comparison benchmarks
-- [ ] Add SLH-DSA-SHAKE-128f comparison benchmarks
-- [ ] Handle rand_core version differences (same approach as ML-KEM)
+- [x] Add ML-DSA-65 comparison benchmarks
+- [x] Add SLH-DSA-SHAKE-128f comparison benchmarks
+- [x] Handle rand_core version differences (0.6 for ml-dsa/slh-dsa, 0.10-rc for ml-kem)
 
 ### Phase 6.5: Benchmark Results (v0.4.1)
 
