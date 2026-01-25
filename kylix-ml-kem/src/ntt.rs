@@ -55,7 +55,7 @@ pub fn ntt(poly: &mut Poly) {
 }
 
 /// Scalar implementation of forward NTT.
-fn ntt_scalar(poly: &mut Poly) {
+pub(crate) fn ntt_scalar(poly: &mut Poly) {
     let mut k: usize = 1;
     let mut len: usize = 128;
 
@@ -101,7 +101,7 @@ pub fn inv_ntt(poly: &mut Poly) {
 }
 
 /// Scalar implementation of inverse NTT.
-fn inv_ntt_scalar(poly: &mut Poly) {
+pub(crate) fn inv_ntt_scalar(poly: &mut Poly) {
     let mut k: usize = 127;
     let mut len: usize = 2;
 

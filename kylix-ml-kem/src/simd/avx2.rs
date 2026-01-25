@@ -148,9 +148,8 @@ unsafe fn butterfly_avx2(a: &mut [i16; N], start: usize, len: usize, zeta: i16) 
         j += 16;
     }
 
-    // Handle remaining elements with scalar (when len < 16)
-    // Scalar fallback (note: for len >= 16, this loop is never entered since
-    // len is always a power of 2 >= 16, so the SIMD loop processes all elements)
+    // Scalar fallback. For ML-KEM's NTT usage, len is always a power of 2 >= 16,
+    // so the SIMD loop above processes all elements and this loop is not entered.
     while j < start + len {
         let t = crate::reduce::montgomery_mul(zeta, a[j + len]);
         a[j + len] = a[j] - t;
@@ -195,8 +194,8 @@ unsafe fn inv_butterfly_avx2(a: &mut [i16; N], start: usize, len: usize, zeta: i
         j += 16;
     }
 
-    // Scalar fallback (note: for len >= 16, this loop is never entered since
-    // len is always a power of 2 >= 16, so the SIMD loop processes all elements)
+    // Scalar fallback. For ML-KEM's NTT usage, len is always a power of 2 >= 16,
+    // so the SIMD loop above processes all elements and this loop is not entered.
     while j < start + len {
         let t = a[j];
         a[j] = crate::reduce::barrett_reduce(t.wrapping_add(a[j + len]));
@@ -356,10 +355,7 @@ pub unsafe fn ntt_avx2(a: &mut [i16; N]) {
 
     // len=8: use specialized half-vector operations
     {
-        let mut zetas_len8 = [0i16; 16];
-        for (i, zeta) in zetas_len8.iter_mut().enumerate() {
-            *zeta = ZETAS[k + i];
-        }
+        let zetas_len8: [i16; 16] = ZETAS[k..k + 16].try_into().unwrap();
         k += 16;
         butterfly_len8_avx2(a, &zetas_len8);
     }
@@ -410,10 +406,7 @@ pub unsafe fn inv_ntt_avx2(a: &mut [i16; N]) {
 
     // len=8: use specialized half-vector operations
     {
-        let mut zetas_len8 = [0i16; 16];
-        for (i, zeta) in zetas_len8.iter_mut().enumerate() {
-            *zeta = -ZETAS[k - i];
-        }
+        let zetas_len8: [i16; 16] = core::array::from_fn(|i| -ZETAS[k - i]);
         k = k.wrapping_sub(16);
         inv_butterfly_len8_avx2(a, &zetas_len8);
     }
@@ -548,9 +541,9 @@ mod tests {
             ntt_avx2(&mut poly_simd);
         }
 
-        // Scalar NTT
+        // Scalar NTT (call scalar function directly to avoid SIMD dispatch)
         let mut poly_wrapper = crate::poly::Poly::from_coeffs(poly_scalar);
-        crate::ntt::ntt(&mut poly_wrapper);
+        crate::ntt::ntt_scalar(&mut poly_wrapper);
         poly_scalar = poly_wrapper.coeffs;
 
         assert_eq!(poly_simd, poly_scalar, "NTT SIMD vs scalar mismatch");
@@ -576,12 +569,21 @@ mod tests {
             inv_ntt_avx2(&mut poly_simd);
         }
 
-        // Scalar inverse NTT
+        // Scalar inverse NTT (call scalar function directly to avoid SIMD dispatch)
         let mut poly_wrapper = crate::poly::Poly::from_coeffs(poly_scalar);
-        crate::ntt::inv_ntt(&mut poly_wrapper);
+        crate::ntt::inv_ntt_scalar(&mut poly_wrapper);
         poly_scalar = poly_wrapper.coeffs;
 
-        assert_eq!(poly_simd, poly_scalar, "INVNTT SIMD vs scalar mismatch");
+        // Compare mod Q (SIMD and scalar may use different canonical forms)
+        for i in 0..N {
+            let simd_val = crate::reduce::barrett_reduce_full(poly_simd[i]);
+            let scalar_val = crate::reduce::barrett_reduce_full(poly_scalar[i]);
+            assert_eq!(
+                simd_val, scalar_val,
+                "INVNTT SIMD vs scalar mismatch at index {}: {} vs {}",
+                i, poly_simd[i], poly_scalar[i]
+            );
+        }
     }
 
     #[test]

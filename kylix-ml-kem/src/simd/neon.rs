@@ -188,8 +188,10 @@ unsafe fn butterfly_neon(a: &mut [i16; N], start: usize, len: usize, zeta: i16) 
         j += 8;
     }
 
-    // Scalar fallback (note: for len >= 8, this loop is never entered since
-    // len is always a power of 2 >= 8, so the SIMD loop processes all elements)
+    // Scalar fallback for any remaining elements when len is not a multiple of 8.
+    // In the ML-KEM NTT (N = 256), all len values >= 8 are powers of 2 and thus
+    // multiples of 8, so this loop is not entered in current usage, but it is
+    // kept for correctness if butterfly_neon is ever used with other lengths.
     while j < start + len {
         let t = crate::reduce::montgomery_mul(zeta, a[j + len]);
         a[j + len] = a[j] - t;
@@ -229,8 +231,10 @@ unsafe fn inv_butterfly_neon(a: &mut [i16; N], start: usize, len: usize, zeta: i
         j += 8;
     }
 
-    // Scalar fallback (note: for len >= 8, this loop is never entered since
-    // len is always a power of 2 >= 8, so the SIMD loop processes all elements)
+    // Scalar fallback for any remaining elements when len is not a multiple of 8.
+    // In the ML-KEM NTT (N = 256), all len values >= 8 are powers of 2 and thus
+    // multiples of 8, so this loop is not entered in current usage, but it is
+    // kept for correctness if inv_butterfly_neon is ever used with other lengths.
     while j < start + len {
         let t = a[j];
         a[j] = crate::reduce::barrett_reduce(t.wrapping_add(a[j + len]));
@@ -369,5 +373,141 @@ pub unsafe fn poly_sub(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) {
         let vr = vsubq_s16(va, vb);
 
         vst1q_s16(r.as_mut_ptr().add(i), vr);
+    }
+}
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+#[cfg(test)]
+#[cfg(target_arch = "aarch64")]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ntt_simd_equivalence() {
+        // Create test polynomial
+        let mut poly_simd = [0i16; N];
+        let mut poly_scalar = [0i16; N];
+        for i in 0..N {
+            let val = ((i * 17 + 31) % 3329) as i16;
+            poly_simd[i] = val;
+            poly_scalar[i] = val;
+        }
+
+        // SIMD NTT
+        unsafe {
+            ntt_neon(&mut poly_simd);
+        }
+
+        // Scalar NTT (call scalar function directly to avoid SIMD dispatch)
+        let mut poly_wrapper = crate::poly::Poly::from_coeffs(poly_scalar);
+        crate::ntt::ntt_scalar(&mut poly_wrapper);
+        poly_scalar = poly_wrapper.coeffs;
+
+        assert_eq!(poly_simd, poly_scalar, "NTT SIMD vs scalar mismatch");
+    }
+
+    #[test]
+    fn test_inv_ntt_simd_equivalence() {
+        // Create test polynomial in NTT domain
+        let mut poly_simd = [0i16; N];
+        let mut poly_scalar = [0i16; N];
+        for i in 0..N {
+            let val = ((i * 23 + 47) % 3329) as i16;
+            poly_simd[i] = val;
+            poly_scalar[i] = val;
+        }
+
+        // SIMD inverse NTT
+        unsafe {
+            inv_ntt_neon(&mut poly_simd);
+        }
+
+        // Scalar inverse NTT (call scalar function directly to avoid SIMD dispatch)
+        let mut poly_wrapper = crate::poly::Poly::from_coeffs(poly_scalar);
+        crate::ntt::inv_ntt_scalar(&mut poly_wrapper);
+        poly_scalar = poly_wrapper.coeffs;
+
+        // Compare mod Q (SIMD and scalar may use different canonical forms)
+        for i in 0..N {
+            let simd_val = crate::reduce::barrett_reduce_full(poly_simd[i]);
+            let scalar_val = crate::reduce::barrett_reduce_full(poly_scalar[i]);
+            assert_eq!(
+                simd_val, scalar_val,
+                "INVNTT SIMD vs scalar mismatch at index {}: {} vs {}",
+                i, poly_simd[i], poly_scalar[i]
+            );
+        }
+    }
+
+    #[test]
+    fn test_ntt_roundtrip() {
+        // Create test polynomial
+        let mut poly = [0i16; N];
+        for (i, coeff) in poly.iter_mut().enumerate() {
+            *coeff = ((i * 13 + 7) % 3329) as i16;
+        }
+        let original = poly;
+
+        // Forward NTT then inverse NTT
+        unsafe {
+            ntt_neon(&mut poly);
+            inv_ntt_neon(&mut poly);
+        }
+
+        // Result should match original (after from_mont conversion)
+        for (i, (&coeff, &orig)) in poly.iter().zip(original.iter()).enumerate() {
+            let result = crate::reduce::barrett_reduce_full(crate::reduce::from_mont(coeff));
+            let expected = crate::reduce::barrett_reduce_full(orig);
+            assert_eq!(result, expected, "Roundtrip mismatch at index {}", i);
+        }
+    }
+
+    #[test]
+    fn test_poly_add_equivalence() {
+        let mut a = [0i16; N];
+        let mut b = [0i16; N];
+        for i in 0..N {
+            a[i] = (i as i16) % 3329;
+            b[i] = ((i * 2) as i16) % 3329;
+        }
+
+        let mut r_simd = [0i16; N];
+        unsafe {
+            poly_add(&mut r_simd, &a, &b);
+        }
+
+        // Scalar addition
+        let mut r_scalar = [0i16; N];
+        for i in 0..N {
+            r_scalar[i] = a[i].wrapping_add(b[i]);
+        }
+
+        assert_eq!(r_simd, r_scalar, "Poly add SIMD vs scalar mismatch");
+    }
+
+    #[test]
+    fn test_poly_sub_equivalence() {
+        let mut a = [0i16; N];
+        let mut b = [0i16; N];
+        for i in 0..N {
+            a[i] = ((i * 3) as i16) % 3329;
+            b[i] = (i as i16) % 3329;
+        }
+
+        let mut r_simd = [0i16; N];
+        unsafe {
+            poly_sub(&mut r_simd, &a, &b);
+        }
+
+        // Scalar subtraction
+        let mut r_scalar = [0i16; N];
+        for i in 0..N {
+            r_scalar[i] = a[i].wrapping_sub(b[i]);
+        }
+
+        assert_eq!(r_simd, r_scalar, "Poly sub SIMD vs scalar mismatch");
     }
 }
