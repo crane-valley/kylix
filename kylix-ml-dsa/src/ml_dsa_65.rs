@@ -1,7 +1,9 @@
 //! ML-DSA-65 (NIST Level 3) implementation
 
 use crate::params::ml_dsa_65::*;
-use crate::sign::{expand_verification_key, ml_dsa_keygen, ml_dsa_sign, ml_dsa_verify, ml_dsa_verify_expanded};
+use crate::sign::{
+    expand_verification_key, ml_dsa_keygen, ml_dsa_sign, ml_dsa_verify, ml_dsa_verify_expanded,
+};
 use kylix_core::{Error, Result, Signer};
 use rand_core::CryptoRng;
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -81,8 +83,7 @@ impl VerificationKey {
     /// }
     /// ```
     pub fn expand(&self) -> Result<ExpandedVerificationKey> {
-        expand_verification_key::<K, L>(self.as_bytes())
-            .ok_or(Error::EncodingError)
+        expand_verification_key::<K, L>(self.as_bytes()).ok_or(Error::EncodingError)
     }
 }
 
