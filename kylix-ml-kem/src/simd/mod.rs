@@ -226,3 +226,44 @@ pub fn poly_add(_r: &mut [i16; N], _a: &[i16; N], _b: &[i16; N]) -> bool {
 pub fn poly_sub(_r: &mut [i16; N], _a: &[i16; N], _b: &[i16; N]) -> bool {
     false
 }
+
+// ============================================================================
+// Polynomial basemul SIMD API
+// ============================================================================
+
+/// Polynomial basemul accumulate using SIMD (AVX2).
+///
+/// Computes r += a * b in NTT domain.
+///
+/// Returns true if SIMD was used, false if caller should use scalar fallback.
+#[cfg(target_arch = "x86_64")]
+#[inline]
+pub fn poly_basemul_acc(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) -> bool {
+    if has_avx2() {
+        // SAFETY: AVX2 availability confirmed by has_avx2()
+        unsafe {
+            avx2::poly_basemul_acc_avx2(r, a, b);
+        }
+        true
+    } else {
+        false
+    }
+}
+
+/// Polynomial basemul accumulate using SIMD (NEON).
+#[cfg(target_arch = "aarch64")]
+#[inline]
+pub fn poly_basemul_acc(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) -> bool {
+    // SAFETY: NEON is always available on aarch64
+    unsafe {
+        neon::poly_basemul_acc_neon(r, a, b);
+    }
+    true
+}
+
+/// Fallback for unsupported architectures.
+#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+#[inline]
+pub fn poly_basemul_acc(_r: &mut [i16; N], _a: &[i16; N], _b: &[i16; N]) -> bool {
+    false
+}

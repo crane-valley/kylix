@@ -437,6 +437,186 @@ pub unsafe fn inv_ntt_avx2(a: &mut [i16; N]) {
 }
 
 // ============================================================================
+// Basemul SIMD operations
+// ============================================================================
+
+/// Accumulate polynomial basemul: r += a * b in NTT domain using AVX2.
+///
+/// Processes 16 coefficients (4 coefficient groups, 8 basemul operations) per iteration.
+///
+/// Each group of 4 coefficients has 2 basemul pairs:
+/// - basemul([a0,a1], [b0,b1], +zeta) -> [r0, r1]
+/// - basemul([a2,a3], [b2,b3], -zeta) -> [r2, r3]
+///
+/// # Safety
+///
+/// Requires AVX2 support.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+pub unsafe fn poly_basemul_acc_avx2(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) {
+    let q = _mm256_set1_epi16(Q);
+    let qinv = _mm256_set1_epi16(QINV);
+
+    // Process 16 coefficients (4 groups) per iteration
+    // 256 coefficients / 16 = 16 iterations
+    for i in 0..16 {
+        let base = i * 16;
+        let zeta_idx = 64 + i * 4;
+
+        // Load 16 coefficients from a, b, and r
+        let va = _mm256_loadu_si256(a.as_ptr().add(base).cast());
+        let vb = _mm256_loadu_si256(b.as_ptr().add(base).cast());
+        let vr = _mm256_loadu_si256(r.as_ptr().add(base).cast());
+
+        // Prepare zeta vector: [z0, z0, -z0, -z0, z1, z1, -z1, -z1, z2, z2, -z2, -z2, z3, z3, -z3, -z3]
+        // Each group uses +zeta for first pair, -zeta for second pair
+        let z0 = ZETAS[zeta_idx];
+        let z1 = ZETAS[zeta_idx + 1];
+        let z2 = ZETAS[zeta_idx + 2];
+        let z3 = ZETAS[zeta_idx + 3];
+        let zeta_v = _mm256_setr_epi16(
+            z0, z0, -z0, -z0, z1, z1, -z1, -z1, z2, z2, -z2, -z2, z3, z3, -z3, -z3,
+        );
+
+        // Compute basemul for all 8 pairs
+        let result = basemul_8x(va, vb, zeta_v, q, qinv);
+
+        // Accumulate: r += result
+        let vr_new = _mm256_add_epi16(vr, result);
+        _mm256_storeu_si256(r.as_mut_ptr().add(base).cast(), vr_new);
+    }
+}
+
+/// Compute 8 basemul operations in parallel.
+///
+/// Input layout: [a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15]
+/// Each pair (a[2i], a[2i+1]) is a 2-coefficient input for basemul.
+///
+/// Basemul formula for pair (a0, a1) * (b0, b1) with zeta:
+///   r0 = a0*b0 + a1*b1*zeta
+///   r1 = a0*b1 + a1*b0
+///
+/// # Safety
+///
+/// Requires AVX2 support.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+#[inline]
+unsafe fn basemul_8x(
+    a: __m256i,
+    b: __m256i,
+    zeta: __m256i,
+    q: __m256i,
+    qinv: __m256i,
+) -> __m256i {
+    // Extract even indices: [a0, a2, a4, a6, a8, a10, a12, a14]
+    // Extract odd indices:  [a1, a3, a5, a7, a9, a11, a13, a15]
+    let a_even = shuffle_even_16(a);
+    let a_odd = shuffle_odd_16(a);
+    let b_even = shuffle_even_16(b);
+    let b_odd = shuffle_odd_16(b);
+
+    // Extract even zetas (for r_even = a_even*b_even + a_odd*b_odd*zeta)
+    let zeta_even = shuffle_even_16(zeta);
+
+    // r_even = a_even*b_even + a_odd*b_odd*zeta
+    let t1 = montgomery_mul_16x(a_even, b_even, q, qinv);
+    let t2 = montgomery_mul_16x(a_odd, b_odd, q, qinv);
+    let t3 = montgomery_mul_16x(t2, zeta_even, q, qinv);
+    let r_even = _mm256_add_epi16(t1, t3);
+
+    // r_odd = a_even*b_odd + a_odd*b_even
+    let t4 = montgomery_mul_16x(a_even, b_odd, q, qinv);
+    let t5 = montgomery_mul_16x(a_odd, b_even, q, qinv);
+    let r_odd = _mm256_add_epi16(t4, t5);
+
+    // Interleave back: [r0, r1, r2, r3, ...]
+    interleave_16(r_even, r_odd)
+}
+
+/// Extract even-indexed i16 values: [a0, a2, a4, ...] from [a0, a1, a2, a3, ...]
+///
+/// Uses pack operations: treats pairs of i16 as i32, then packs even elements.
+///
+/// # Safety
+///
+/// Requires AVX2 support.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+#[inline]
+unsafe fn shuffle_even_16(a: __m256i) -> __m256i {
+    // Shuffle bytes to move even i16s to lower positions within each 128-bit lane
+    let shuffle_mask = _mm256_setr_epi8(
+        0, 1, 4, 5, 8, 9, 12, 13, // Lane 0: bytes 0-1, 4-5, 8-9, 12-13 (even i16s)
+        -1, -1, -1, -1, -1, -1, -1, -1, // Padding
+        0, 1, 4, 5, 8, 9, 12, 13, // Lane 1: same pattern
+        -1, -1, -1, -1, -1, -1, -1, -1, // Padding
+    );
+    let shuffled = _mm256_shuffle_epi8(a, shuffle_mask);
+
+    // Now low 64 bits of each lane contain the even values
+    // Use permute to combine: [lane0_lo, lane1_lo, ...]
+    let lo_lane0 = _mm256_castsi256_si128(shuffled);
+    let lo_lane1 = _mm256_extracti128_si256(shuffled, 1);
+
+    // Combine: put all 8 even values into one 128-bit register, then broadcast
+    let combined = _mm_unpacklo_epi64(lo_lane0, lo_lane1);
+    _mm256_castsi128_si256(combined)
+}
+
+/// Extract odd-indexed i16 values: [a1, a3, a5, ...] from [a0, a1, a2, a3, ...]
+///
+/// # Safety
+///
+/// Requires AVX2 support.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+#[inline]
+unsafe fn shuffle_odd_16(a: __m256i) -> __m256i {
+    // Shuffle bytes to move odd i16s to lower positions within each 128-bit lane
+    let shuffle_mask = _mm256_setr_epi8(
+        2, 3, 6, 7, 10, 11, 14, 15, // Lane 0: bytes 2-3, 6-7, 10-11, 14-15 (odd i16s)
+        -1, -1, -1, -1, -1, -1, -1, -1, // Padding
+        2, 3, 6, 7, 10, 11, 14, 15, // Lane 1: same pattern
+        -1, -1, -1, -1, -1, -1, -1, -1, // Padding
+    );
+    let shuffled = _mm256_shuffle_epi8(a, shuffle_mask);
+
+    // Combine low 64 bits from each lane
+    let lo_lane0 = _mm256_castsi256_si128(shuffled);
+    let lo_lane1 = _mm256_extracti128_si256(shuffled, 1);
+
+    let combined = _mm_unpacklo_epi64(lo_lane0, lo_lane1);
+    _mm256_castsi128_si256(combined)
+}
+
+/// Interleave even and odd values: [e0, o0, e1, o1, e2, o2, ...]
+///
+/// Input:  even = [e0, e1, e2, e3, e4, e5, e6, e7, ...]
+///         odd  = [o0, o1, o2, o3, o4, o5, o6, o7, ...]
+/// Output: [e0, o0, e1, o1, e2, o2, e3, o3, e4, o4, e5, o5, e6, o6, e7, o7]
+///
+/// # Safety
+///
+/// Requires AVX2 support.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+#[inline]
+unsafe fn interleave_16(even: __m256i, odd: __m256i) -> __m256i {
+    // even and odd are in lower 128 bits only (from shuffle_even/odd)
+    let even_128 = _mm256_castsi256_si128(even);
+    let odd_128 = _mm256_castsi256_si128(odd);
+
+    // Unpack low: interleave first 4 pairs
+    let lo = _mm_unpacklo_epi16(even_128, odd_128); // [e0,o0,e1,o1,e2,o2,e3,o3]
+    // Unpack high: interleave last 4 pairs
+    let hi = _mm_unpackhi_epi16(even_128, odd_128); // [e4,o4,e5,o5,e6,o6,e7,o7]
+
+    // Combine into 256-bit register
+    _mm256_set_m128i(hi, lo)
+}
+
+// ============================================================================
 // Polynomial arithmetic
 // ============================================================================
 
@@ -667,5 +847,45 @@ mod tests {
         }
 
         assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn test_poly_basemul_acc_simd_equivalence() {
+        if !super::super::has_avx2() {
+            return;
+        }
+
+        // Create test polynomials in NTT domain
+        let mut a = [0i16; N];
+        let mut b = [0i16; N];
+        for i in 0..N {
+            a[i] = ((i * 17 + 31) % 3329) as i16;
+            b[i] = ((i * 23 + 47) % 3329) as i16;
+        }
+
+        // SIMD version
+        let mut r_simd = [0i16; N];
+        unsafe {
+            poly_basemul_acc_avx2(&mut r_simd, &a, &b);
+        }
+
+        // Scalar version
+        let mut r_scalar = [0i16; N];
+        let a_poly = crate::poly::Poly::from_coeffs(a);
+        let b_poly = crate::poly::Poly::from_coeffs(b);
+        let mut r_poly = crate::poly::Poly::from_coeffs(r_scalar);
+        crate::poly::poly_basemul_acc_scalar(&mut r_poly, &a_poly, &b_poly);
+        r_scalar = r_poly.coeffs;
+
+        // Compare mod Q (values may differ by multiples of q)
+        for i in 0..N {
+            let simd_val = crate::reduce::barrett_reduce_full(r_simd[i]);
+            let scalar_val = crate::reduce::barrett_reduce_full(r_scalar[i]);
+            assert_eq!(
+                simd_val, scalar_val,
+                "poly_basemul_acc SIMD vs scalar mismatch at index {}: {} vs {}",
+                i, r_simd[i], r_scalar[i]
+            );
+        }
     }
 }

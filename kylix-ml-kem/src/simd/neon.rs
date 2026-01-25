@@ -337,6 +337,160 @@ pub unsafe fn inv_ntt_neon(a: &mut [i16; N]) {
 }
 
 // ============================================================================
+// Basemul SIMD operations
+// ============================================================================
+
+/// Accumulate polynomial basemul: r += a * b in NTT domain using NEON.
+///
+/// Processes 8 coefficients (2 coefficient groups, 4 basemul operations) per iteration.
+///
+/// # Safety
+///
+/// Requires NEON support.
+#[cfg(target_arch = "aarch64")]
+#[target_feature(enable = "neon")]
+pub unsafe fn poly_basemul_acc_neon(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) {
+    let q = vdupq_n_s16(Q);
+    let qinv = vdupq_n_s16(QINV);
+
+    // Process 8 coefficients (2 groups) per iteration
+    // 256 coefficients / 8 = 32 iterations
+    for i in 0..32 {
+        let base = i * 8;
+        let zeta_idx = 64 + i * 2;
+
+        // Load 8 coefficients from a, b, and r
+        let va = vld1q_s16(a.as_ptr().add(base));
+        let vb = vld1q_s16(b.as_ptr().add(base));
+        let vr = vld1q_s16(r.as_ptr().add(base));
+
+        // Prepare zeta vector: [z0, z0, -z0, -z0, z1, z1, -z1, -z1]
+        let z0 = ZETAS[zeta_idx];
+        let z1 = ZETAS[zeta_idx + 1];
+        let zeta_arr: [i16; 8] = [z0, z0, -z0, -z0, z1, z1, -z1, -z1];
+        let zeta_v = vld1q_s16(zeta_arr.as_ptr());
+
+        // Compute basemul for all 4 pairs
+        let result = basemul_4x_neon(va, vb, zeta_v, q, qinv);
+
+        // Accumulate: r += result
+        let vr_new = vaddq_s16(vr, result);
+        vst1q_s16(r.as_mut_ptr().add(base), vr_new);
+    }
+}
+
+/// Compute 4 basemul operations in parallel using NEON.
+///
+/// Input layout: [a0, a1, a2, a3, a4, a5, a6, a7]
+/// Each pair (a[2i], a[2i+1]) is a 2-coefficient input for basemul.
+///
+/// # Safety
+///
+/// Requires NEON support.
+#[cfg(target_arch = "aarch64")]
+#[target_feature(enable = "neon")]
+#[inline]
+unsafe fn basemul_4x_neon(
+    a: int16x8_t,
+    b: int16x8_t,
+    zeta: int16x8_t,
+    q: int16x8_t,
+    qinv: int16x8_t,
+) -> int16x8_t {
+    // Extract even indices: [a0, a2, a4, a6] -> duplicate to [a0, a0, a2, a2, a4, a4, a6, a6]
+    // Extract odd indices:  [a1, a3, a5, a7]
+    let a_even = shuffle_even_8(a);
+    let a_odd = shuffle_odd_8(a);
+    let b_even = shuffle_even_8(b);
+    let b_odd = shuffle_odd_8(b);
+
+    // Extract even zetas
+    let zeta_even = shuffle_even_8(zeta);
+
+    // r_even = a_even*b_even + a_odd*b_odd*zeta
+    let t1 = montgomery_mul_8x(a_even, b_even, q, qinv);
+    let t2 = montgomery_mul_8x(a_odd, b_odd, q, qinv);
+    let t3 = montgomery_mul_8x(t2, zeta_even, q, qinv);
+    let r_even = vaddq_s16(t1, t3);
+
+    // r_odd = a_even*b_odd + a_odd*b_even
+    let t4 = montgomery_mul_8x(a_even, b_odd, q, qinv);
+    let t5 = montgomery_mul_8x(a_odd, b_even, q, qinv);
+    let r_odd = vaddq_s16(t4, t5);
+
+    // Interleave back: [r0, r1, r2, r3, ...]
+    interleave_8(r_even, r_odd)
+}
+
+/// Extract even-indexed i16 values using NEON.
+/// [a0, a1, a2, a3, a4, a5, a6, a7] -> [a0, a2, a4, a6, ?, ?, ?, ?] (lower 4 valid)
+///
+/// # Safety
+///
+/// Requires NEON support.
+#[cfg(target_arch = "aarch64")]
+#[target_feature(enable = "neon")]
+#[inline]
+unsafe fn shuffle_even_8(a: int16x8_t) -> int16x8_t {
+    // Use table lookup with vqtbl1q_s8 to extract even indices
+    // Indices for even i16s: 0,1, 4,5, 8,9, 12,13, ...
+    let tbl_idx = vcombine_u8(
+        vcreate_u8(0x0D0C_0908_0504_0100_u64),
+        vcreate_u8(0xFFFF_FFFF_FFFF_FFFF_u64), // Padding with -1 (ignored)
+    );
+
+    // Reinterpret as bytes and apply table lookup
+    let a_bytes: uint8x16_t = vreinterpretq_u8_s16(a);
+    let result_bytes = vqtbl1q_u8(a_bytes, tbl_idx);
+
+    // Only lower 64 bits are valid (4 x i16), replicate to upper half for consistency
+    let lo = vget_low_s16(vreinterpretq_s16_u8(result_bytes));
+    vcombine_s16(lo, lo)
+}
+
+/// Extract odd-indexed i16 values using NEON.
+/// [a0, a1, a2, a3, a4, a5, a6, a7] -> [a1, a3, a5, a7, ?, ?, ?, ?] (lower 4 valid)
+///
+/// # Safety
+///
+/// Requires NEON support.
+#[cfg(target_arch = "aarch64")]
+#[target_feature(enable = "neon")]
+#[inline]
+unsafe fn shuffle_odd_8(a: int16x8_t) -> int16x8_t {
+    // Indices for odd i16s: 2,3, 6,7, 10,11, 14,15, ...
+    let tbl_idx = vcombine_u8(
+        vcreate_u8(0x0F0E_0B0A_0706_0302_u64),
+        vcreate_u8(0xFFFF_FFFF_FFFF_FFFF_u64),
+    );
+
+    let a_bytes: uint8x16_t = vreinterpretq_u8_s16(a);
+    let result_bytes = vqtbl1q_u8(a_bytes, tbl_idx);
+
+    let lo = vget_low_s16(vreinterpretq_s16_u8(result_bytes));
+    vcombine_s16(lo, lo)
+}
+
+/// Interleave even and odd values: [e0, e1, e2, e3] + [o0, o1, o2, o3] -> [e0, o0, e1, o1, e2, o2, e3, o3]
+///
+/// # Safety
+///
+/// Requires NEON support.
+#[cfg(target_arch = "aarch64")]
+#[target_feature(enable = "neon")]
+#[inline]
+unsafe fn interleave_8(even: int16x8_t, odd: int16x8_t) -> int16x8_t {
+    // even and odd have valid values in lower 4 elements
+    let even_lo = vget_low_s16(even);
+    let odd_lo = vget_low_s16(odd);
+
+    // vzip interleaves: [e0,e1,e2,e3] + [o0,o1,o2,o3] -> [e0,o0,e1,o1], [e2,o2,e3,o3]
+    let zipped = vzip_s16(even_lo, odd_lo);
+
+    vcombine_s16(zipped.0, zipped.1)
+}
+
+// ============================================================================
 // Polynomial arithmetic
 // ============================================================================
 

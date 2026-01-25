@@ -160,6 +160,18 @@ pub fn poly_basemul(a: &Poly, b: &Poly) -> Poly {
 
 /// Accumulate product into result: r += a * b (in NTT domain).
 pub fn poly_basemul_acc(r: &mut Poly, a: &Poly, b: &Poly) {
+    #[cfg(feature = "simd")]
+    {
+        if crate::simd::poly_basemul_acc(&mut r.coeffs, &a.coeffs, &b.coeffs) {
+            return;
+        }
+    }
+    // Scalar fallback
+    poly_basemul_acc_scalar(r, a, b);
+}
+
+/// Scalar implementation of polynomial basemul accumulate.
+pub(crate) fn poly_basemul_acc_scalar(r: &mut Poly, a: &Poly, b: &Poly) {
     for i in 0..64 {
         let zeta = ZETAS[64 + i];
         let mut tmp = [0i16; 2];
