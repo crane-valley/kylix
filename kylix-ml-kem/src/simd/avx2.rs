@@ -530,7 +530,8 @@ unsafe fn basemul_8x(a: __m256i, b: __m256i, zeta: __m256i, q: __m256i, qinv: __
 
 /// Extract even-indexed i16 values: [a0, a2, a4, ...] from [a0, a1, a2, a3, ...]
 ///
-/// Uses pack operations: treats pairs of i16 as i32, then packs even elements.
+/// Uses byte shuffle to extract even i16 elements from each 128-bit lane,
+/// then combines them into a single 128-bit result broadcast to both lanes.
 ///
 /// # Safety
 ///
@@ -539,26 +540,35 @@ unsafe fn basemul_8x(a: __m256i, b: __m256i, zeta: __m256i, q: __m256i, qinv: __
 #[target_feature(enable = "avx2")]
 #[inline]
 unsafe fn shuffle_even_16(a: __m256i) -> __m256i {
-    // Shuffle bytes to move even i16s to lower positions within each 128-bit lane
+    // Shuffle bytes to move even i16s to lower 64 bits within each 128-bit lane.
+    // Byte indices for even i16s (0, 2, 4, 6 in each lane):
+    //   i16[0] = bytes 0-1, i16[2] = bytes 4-5, i16[4] = bytes 8-9, i16[6] = bytes 12-13
+    // The -1 values zero out the upper 64 bits (not used).
     let shuffle_mask = _mm256_setr_epi8(
-        0, 1, 4, 5, 8, 9, 12, 13, // Lane 0: bytes 0-1, 4-5, 8-9, 12-13 (even i16s)
-        -1, -1, -1, -1, -1, -1, -1, -1, // Padding
+        0, 1, 4, 5, 8, 9, 12, 13, // Lane 0: extract even i16s to low 64 bits
+        -1, -1, -1, -1, -1, -1, -1, -1, // Lane 0: zero upper 64 bits
         0, 1, 4, 5, 8, 9, 12, 13, // Lane 1: same pattern
-        -1, -1, -1, -1, -1, -1, -1, -1, // Padding
+        -1, -1, -1, -1, -1, -1, -1, -1, // Lane 1: zero upper 64 bits
     );
     let shuffled = _mm256_shuffle_epi8(a, shuffle_mask);
 
-    // Now low 64 bits of each lane contain the even values
-    // Use permute to combine: [lane0_lo, lane1_lo, ...]
+    // Extract the low 64 bits from each 128-bit lane
     let lo_lane0 = _mm256_castsi256_si128(shuffled);
     let lo_lane1 = _mm256_extracti128_si256(shuffled, 1);
 
-    // Combine: put all 8 even values into one 128-bit register, then broadcast
+    // Combine into one 128-bit register: [lane0_even_4, lane1_even_4]
     let combined = _mm_unpacklo_epi64(lo_lane0, lo_lane1);
-    _mm256_castsi128_si256(combined)
+
+    // Broadcast to both 128-bit lanes of 256-bit register.
+    // IMPORTANT: Use _mm256_set_m128i instead of _mm256_castsi128_si256 to ensure
+    // both lanes contain valid data. castsi128_si256 leaves upper 128 bits undefined.
+    _mm256_set_m128i(combined, combined)
 }
 
 /// Extract odd-indexed i16 values: [a1, a3, a5, ...] from [a0, a1, a2, a3, ...]
+///
+/// Uses byte shuffle to extract odd i16 elements from each 128-bit lane,
+/// then combines them into a single 128-bit result broadcast to both lanes.
 ///
 /// # Safety
 ///
@@ -567,21 +577,29 @@ unsafe fn shuffle_even_16(a: __m256i) -> __m256i {
 #[target_feature(enable = "avx2")]
 #[inline]
 unsafe fn shuffle_odd_16(a: __m256i) -> __m256i {
-    // Shuffle bytes to move odd i16s to lower positions within each 128-bit lane
+    // Shuffle bytes to move odd i16s to lower 64 bits within each 128-bit lane.
+    // Byte indices for odd i16s (1, 3, 5, 7 in each lane):
+    //   i16[1] = bytes 2-3, i16[3] = bytes 6-7, i16[5] = bytes 10-11, i16[7] = bytes 14-15
+    // The -1 values zero out the upper 64 bits (not used).
     let shuffle_mask = _mm256_setr_epi8(
-        2, 3, 6, 7, 10, 11, 14, 15, // Lane 0: bytes 2-3, 6-7, 10-11, 14-15 (odd i16s)
-        -1, -1, -1, -1, -1, -1, -1, -1, // Padding
+        2, 3, 6, 7, 10, 11, 14, 15, // Lane 0: extract odd i16s to low 64 bits
+        -1, -1, -1, -1, -1, -1, -1, -1, // Lane 0: zero upper 64 bits
         2, 3, 6, 7, 10, 11, 14, 15, // Lane 1: same pattern
-        -1, -1, -1, -1, -1, -1, -1, -1, // Padding
+        -1, -1, -1, -1, -1, -1, -1, -1, // Lane 1: zero upper 64 bits
     );
     let shuffled = _mm256_shuffle_epi8(a, shuffle_mask);
 
-    // Combine low 64 bits from each lane
+    // Extract the low 64 bits from each 128-bit lane
     let lo_lane0 = _mm256_castsi256_si128(shuffled);
     let lo_lane1 = _mm256_extracti128_si256(shuffled, 1);
 
+    // Combine into one 128-bit register: [lane0_odd_4, lane1_odd_4]
     let combined = _mm_unpacklo_epi64(lo_lane0, lo_lane1);
-    _mm256_castsi128_si256(combined)
+
+    // Broadcast to both 128-bit lanes of 256-bit register.
+    // IMPORTANT: Use _mm256_set_m128i instead of _mm256_castsi128_si256 to ensure
+    // both lanes contain valid data. castsi128_si256 leaves upper 128 bits undefined.
+    _mm256_set_m128i(combined, combined)
 }
 
 /// Interleave even and odd values: [e0, o0, e1, o1, e2, o2, ...]

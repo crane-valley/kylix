@@ -423,7 +423,10 @@ unsafe fn basemul_4x_neon(
 }
 
 /// Extract even-indexed i16 values using NEON.
-/// [a0, a1, a2, a3, a4, a5, a6, a7] -> [a0, a2, a4, a6, ?, ?, ?, ?] (lower 4 valid)
+/// [a0, a1, a2, a3, a4, a5, a6, a7] -> [a0, a2, a4, a6, a0, a2, a4, a6]
+///
+/// The lower 4 elements contain the even values, replicated to upper 4 for consistent
+/// vector width in subsequent operations.
 ///
 /// # Safety
 ///
@@ -432,24 +435,35 @@ unsafe fn basemul_4x_neon(
 #[target_feature(enable = "neon")]
 #[inline]
 unsafe fn shuffle_even_8(a: int16x8_t) -> int16x8_t {
-    // Use table lookup with vqtbl1q_s8 to extract even indices
-    // Indices for even i16s: 0,1, 4,5, 8,9, 12,13, ...
+    // Use table lookup (vqtbl1q_u8) to extract bytes of even-indexed i16 values.
+    // Each i16 occupies 2 bytes in little-endian order:
+    //   i16[0] = bytes 0,1   i16[1] = bytes 2,3
+    //   i16[2] = bytes 4,5   i16[3] = bytes 6,7
+    //   i16[4] = bytes 8,9   i16[5] = bytes 10,11
+    //   i16[6] = bytes 12,13 i16[7] = bytes 14,15
+    //
+    // We want even indices (0, 2, 4, 6), so bytes: 0,1, 4,5, 8,9, 12,13
+    // Packed as little-endian u64: 0x0D0C_0908_0504_0100
+    // Upper 64 bits use 0xFF (invalid index) which zeroes output bytes.
     let tbl_idx = vcombine_u8(
-        vcreate_u8(0x0D0C_0908_0504_0100_u64),
-        vcreate_u8(0xFFFF_FFFF_FFFF_FFFF_u64), // Padding with -1 (ignored)
+        vcreate_u8(0x0D0C_0908_0504_0100_u64), // Bytes for i16[0,2,4,6]
+        vcreate_u8(0xFFFF_FFFF_FFFF_FFFF_u64), // Invalid indices -> zero
     );
 
-    // Reinterpret as bytes and apply table lookup
     let a_bytes: uint8x16_t = vreinterpretq_u8_s16(a);
     let result_bytes = vqtbl1q_u8(a_bytes, tbl_idx);
 
-    // Only lower 64 bits are valid (4 x i16), replicate to upper half for consistency
+    // Lower 64 bits now contain [a0, a2, a4, a6]. Replicate to upper half
+    // so all 8 lanes contain valid data for subsequent operations.
     let lo = vget_low_s16(vreinterpretq_s16_u8(result_bytes));
     vcombine_s16(lo, lo)
 }
 
 /// Extract odd-indexed i16 values using NEON.
-/// [a0, a1, a2, a3, a4, a5, a6, a7] -> [a1, a3, a5, a7, ?, ?, ?, ?] (lower 4 valid)
+/// [a0, a1, a2, a3, a4, a5, a6, a7] -> [a1, a3, a5, a7, a1, a3, a5, a7]
+///
+/// The lower 4 elements contain the odd values, replicated to upper 4 for consistent
+/// vector width in subsequent operations.
 ///
 /// # Safety
 ///
@@ -458,15 +472,24 @@ unsafe fn shuffle_even_8(a: int16x8_t) -> int16x8_t {
 #[target_feature(enable = "neon")]
 #[inline]
 unsafe fn shuffle_odd_8(a: int16x8_t) -> int16x8_t {
-    // Indices for odd i16s: 2,3, 6,7, 10,11, 14,15, ...
+    // Use table lookup (vqtbl1q_u8) to extract bytes of odd-indexed i16 values.
+    // Each i16 occupies 2 bytes in little-endian order:
+    //   i16[1] = bytes 2,3   i16[3] = bytes 6,7
+    //   i16[5] = bytes 10,11 i16[7] = bytes 14,15
+    //
+    // We want odd indices (1, 3, 5, 7), so bytes: 2,3, 6,7, 10,11, 14,15
+    // Packed as little-endian u64: 0x0F0E_0B0A_0706_0302
+    // Upper 64 bits use 0xFF (invalid index) which zeroes output bytes.
     let tbl_idx = vcombine_u8(
-        vcreate_u8(0x0F0E_0B0A_0706_0302_u64),
-        vcreate_u8(0xFFFF_FFFF_FFFF_FFFF_u64),
+        vcreate_u8(0x0F0E_0B0A_0706_0302_u64), // Bytes for i16[1,3,5,7]
+        vcreate_u8(0xFFFF_FFFF_FFFF_FFFF_u64), // Invalid indices -> zero
     );
 
     let a_bytes: uint8x16_t = vreinterpretq_u8_s16(a);
     let result_bytes = vqtbl1q_u8(a_bytes, tbl_idx);
 
+    // Lower 64 bits now contain [a1, a3, a5, a7]. Replicate to upper half
+    // so all 8 lanes contain valid data for subsequent operations.
     let lo = vget_low_s16(vreinterpretq_s16_u8(result_bytes));
     vcombine_s16(lo, lo)
 }
