@@ -481,22 +481,22 @@ ML-KEM-768 KeyGen comparison:
 
 Close the performance gap with libcrux (currently 2.5x slower).
 
-### Current Status: ✅ Phase 1 Complete
+### Current Status: ✅ Phase 1 & 2 Complete
 
-NTT SIMD implementation is complete with AVX2 and NEON support.
+NTT SIMD and basemul SIMD implementations are complete with AVX2 and NEON support.
 
-| Operation | Before | After | Improvement |
-|-----------|--------|-------|-------------|
-| ML-KEM-768 KeyGen | 30.3 µs | 29.3 µs | +3% |
-| ML-KEM-768 Encaps | 29.4 µs | 27.4 µs | +7% |
-| ML-KEM-768 Decaps | 37.3 µs | 31.2 µs | +16% |
+| Operation | Original | Phase 1 | Phase 2 | Total Improvement |
+|-----------|----------|---------|---------|-------------------|
+| ML-KEM-768 KeyGen | 30.3 µs | 29.3 µs | 29.5 µs | +3% |
+| ML-KEM-768 Encaps | 29.4 µs | 27.4 µs | 24.1 µs | **+18%** |
+| ML-KEM-768 Decaps | 37.3 µs | 31.2 µs | 27.9 µs | **+25%** |
 
-### Comparison Results (v0.4.2+SIMD)
+### Comparison Results (v0.4.2+SIMD Phase 2)
 
 | Library | KeyGen | Encaps | Decaps |
 |---------|--------|--------|--------|
 | libcrux | 12.0 µs | 10.8 µs | 10.9 µs |
-| **Kylix** | **29.3 µs** | **27.4 µs** | **31.2 µs** |
+| **Kylix** | **29.5 µs** | **24.1 µs** | **27.9 µs** |
 | RustCrypto | 36.3 µs | 32.8 µs | 48.5 µs |
 | pqcrypto | 41.5 µs | 41.5 µs | 52.2 µs |
 
@@ -518,11 +518,20 @@ NTT SIMD implementation is complete with AVX2 and NEON support.
    - NEON: mulhi_s16 → vshrq(10) → vmulq → vsubq
    - ~6% performance improvement over naive 32-bit widening approach
 
+4. **Basemul SIMD (AVX2)** ✅
+   - 8 basemul operations in parallel (16 coefficients per iteration)
+   - Shuffle helpers for even/odd extraction and interleaving
+   - poly_basemul_acc SIMD dispatch
+
+5. **Basemul SIMD (NEON)** ✅
+   - 4 basemul operations in parallel (8 coefficients per iteration)
+   - Same pattern as AVX2 implementation
+
 ### Remaining Optimization Tasks
 
-1. **Polynomial Arithmetic** - Priority: MEDIUM
-   - Vectorized basemul (NTT domain multiplication)
-   - SIMD matrix-vector operations
+1. **SIMD matrix-vector operations** - Priority: LOW
+   - Currently poly_basemul_acc is already SIMD-accelerated
+   - Further batching at matrix level may provide minor gains
 
 2. **Memory Layout Optimization** - Priority: LOW
    - Cache-friendly coefficient ordering
@@ -534,12 +543,13 @@ NTT SIMD implementation is complete with AVX2 and NEON support.
 
 ### Analysis
 
-NTT SIMD provides ~15% overall improvement, but NTT is only part of the total operation:
-- NTT/INVNTT: ~20-25% of total time
+Combined NTT + basemul SIMD provides ~20-25% overall improvement:
+- NTT/INVNTT: ~20-25% of total time (SIMD optimized)
+- Basemul: ~15-20% of total time (SIMD optimized)
 - Sampling (SHA3): ~40-50% of total time
-- Encoding/Other: ~25-30% of total time
+- Encoding/Other: ~10-15% of total time
 
-Further significant improvements require optimizing sampling/hashing operations.
+Further significant improvements require optimizing sampling/hashing operations (SHA3/SHAKE).
 
 ### Reference
 
