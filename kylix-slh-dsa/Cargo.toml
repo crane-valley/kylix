@@ -14,6 +14,7 @@ description = "SLH-DSA (FIPS 205) implementation for the Kylix post-quantum cryp
 [features]
 default = ["std", "slh-dsa-shake-128f"]
 std = ["kylix-core/std"]
+parallel = ["std", "rayon"]
 
 # SHAKE-based variants (recommended)
 slh-dsa-shake-128s = []
@@ -37,6 +38,10 @@ zeroize.workspace = true
 rand_core.workspace = true
 subtle.workspace = true
 sha3 = { version = "0.10", default-features = false }
+# Pin rayon and rayon-core for MSRV 1.75 compatibility
+# rayon-core 1.13+ requires Rust 1.80
+rayon = { version = ">=1.10, <1.11", optional = true }
+rayon-core = { version = ">=1.12, <1.13", optional = true }
 
 [dev-dependencies]
 rand = "0.9"

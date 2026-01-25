@@ -18,7 +18,7 @@ use alloc::vec::Vec;
 ///
 /// Computes and encodes the checksum as base-w digits to append to the message.
 /// This handles the bit alignment per FIPS 205 Algorithm 4.
-fn encode_checksum(msg: &[u32], wots_len: usize, wots_len1: usize) -> Vec<u32> {
+pub(crate) fn encode_checksum(msg: &[u32], wots_len: usize, wots_len1: usize) -> Vec<u32> {
     let w = W as u32;
     let csum = wots_checksum(msg, w);
 
