@@ -5,27 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.0] - 2025-01-25
-
-### Added
-
-- **SLH-DSA parallel feature**: Multi-threaded FORS computation using Rayon (`--features parallel`)
-  - Parallelizes K independent FORS trees during signing
-  - Significant speedup on multi-core systems
-
-### Changed
-
-- **SIMD enabled by default for ML-DSA**: The `simd` feature is now included in default features
-  - Uses runtime CPU feature detection (AVX2/NEON) for safety
-  - No action required; disable with `default-features = false` if needed
-
-### Documentation
-
-- Added SLH-DSA usage example to README.md
-- Added ML-DSA benchmark results to BENCHMARKS.md
-- Updated benchmark running instructions
-
-## [0.3.0] - 2025-01-20
+## [0.4.0] - 2026-01-25
 
 ### Added
 
@@ -34,36 +14,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - NIST ACVP test vectors (KeyGen, SigGen, SigVer)
   - CLI support (keygen, sign, verify, info, bench)
   - Fuzz testing (4 targets)
-- SIMD optimizations for ML-DSA
-  - AVX2 for x86_64 (NTT butterflies, matrix multiplication)
-  - NEON for ARM64
+- **SLH-DSA parallel feature**: Multi-threaded FORS computation using Rayon (`--features parallel`)
+  - Parallelizes K independent FORS trees during signing
+  - Significant speedup on multi-core systems
+- **ML-DSA enhancements**:
+  - **SIMD optimizations**: AVX2 for x86_64, NEON for ARM64 (NTT butterflies, matrix multiplication)
+  - ACVP tests, CLI sign/verify commands, fuzz testing, benchmarks
 
 ### Changed
 
+- **SIMD enabled by default for ML-DSA**: The `simd` feature is now included in default features
+  - Uses runtime CPU feature detection (AVX2/NEON) for safety
+  - No action required; disable with `default-features = false` if needed
 - Improved NTT performance with SIMD vectorization
 - Updated benchmark infrastructure
 
-## [0.2.0] - 2025-01-10
+### Documentation
+
+- Added SLH-DSA usage example to README.md
+- Added ML-DSA benchmark results to BENCHMARKS.md
+- Updated benchmark running instructions
+
+## [0.3.0] - 2026-01-24
 
 ### Added
 
 - **ML-DSA (FIPS 204)**: Complete implementation of Module-Lattice-Based Digital Signature Algorithm
   - All 3 variants: ML-DSA-44, ML-DSA-65, ML-DSA-87
-  - NIST ACVP test vectors
-  - CLI support (sign, verify)
-  - Fuzz testing
+- **ML-KEM additions**:
+  - CLI commands (keygen, encaps, decaps)
+  - NIST ACVP tests
+  - Fuzzing infrastructure
+  - Criterion benchmarks
 
-## [0.1.0] - 2025-01-01
+## [0.2.0] - 2026-01-22
 
 ### Added
 
-- **ML-KEM (FIPS 203)**: Initial implementation of Module-Lattice-Based Key Encapsulation Mechanism
+- **ML-KEM (FIPS 203)**: Complete implementation of KeyGen, Encaps, Decaps
   - All 3 variants: ML-KEM-512, ML-KEM-768, ML-KEM-1024
-  - NIST ACVP test vectors
-  - CLI tool (keygen, encaps, decaps)
-  - no_std support
-  - Constant-time operations
-  - Zeroization of sensitive data
+
+## [0.1.0] - 2026-01-22
+
+### Added
+
+- Initial project structure for post-quantum cryptography library
+- ML-KEM (FIPS 203) foundation modules
+- `no_std` support
+- Constant-time operations using `subtle` crate
+- Zeroization of sensitive data using `zeroize` crate
 
 [0.4.0]: https://github.com/crane-valley/kylix/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/crane-valley/kylix/compare/v0.2.0...v0.3.0
