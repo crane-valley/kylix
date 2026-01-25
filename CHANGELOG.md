@@ -7,13 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-01-25
+
 ### Added
 
 - **ML-KEM SIMD optimizations**: AVX2 for x86_64, NEON for ARM64
   - 16-way parallel NTT operations using i16 SIMD intrinsics
+  - Basemul SIMD optimization for polynomial multiplication
   - Efficient Barrett reduction using pqcrystals/kyber approach
   - Performance improvement (ML-KEM-768): ~16% faster Decaps, ~7% faster Encaps
   - SIMD enabled by default with runtime CPU feature detection
+- **ML-DSA expanded verification**: Pre-expand verification key for fast repeated verification
+  - `ExpandedVerificationKey` type with `expand()` and `verify_expanded()` methods
+  - Amortizes key expansion cost (~68µs for ML-DSA-65) across multiple verifications
+  - Useful for batch verification, certificate chain validation, repeated verification scenarios
 
 ## [0.4.1] - 2026-01-25
 
@@ -83,7 +90,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Constant-time operations using `subtle` crate
 - Zeroization of sensitive data using `zeroize` crate
 
-[Unreleased]: https://github.com/crane-valley/kylix/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/crane-valley/kylix/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/crane-valley/kylix/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/crane-valley/kylix/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/crane-valley/kylix/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/crane-valley/kylix/compare/v0.2.0...v0.3.0

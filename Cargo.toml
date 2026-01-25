@@ -16,7 +16,7 @@ exclude = [
 ]
 
 [workspace.package]
-version = "0.4.1"
+version = "0.4.2"
 edition = "2021"
 rust-version = "1.75"
 authors = ["Crane Valley <dev@crane-valley.co.jp>"]
@@ -28,11 +28,11 @@ keywords = ["post-quantum", "ml-kem", "pqc", "cryptography"]
 
 [workspace.dependencies]
 # Internal crates
-kylix-pqc = { path = "kylix", version = "0.4.1" }
-kylix-core = { path = "kylix-core", version = "0.4.1", default-features = false }
-kylix-ml-kem = { path = "kylix-ml-kem", version = "0.4.1", default-features = false }
-kylix-ml-dsa = { path = "kylix-ml-dsa", version = "0.4.1", default-features = false }
-kylix-slh-dsa = { path = "kylix-slh-dsa", version = "0.4.1", default-features = false }
+kylix-pqc = { path = "kylix", version = "0.4.2" }
+kylix-core = { path = "kylix-core", version = "0.4.2", default-features = false }
+kylix-ml-kem = { path = "kylix-ml-kem", version = "0.4.2", default-features = false }
+kylix-ml-dsa = { path = "kylix-ml-dsa", version = "0.4.2", default-features = false }
+kylix-slh-dsa = { path = "kylix-slh-dsa", version = "0.4.2", default-features = false }
 
 # External dependencies
 thiserror = "2.0"
