@@ -26,15 +26,15 @@ impl rand_core_010::TryRng for OsRng010 {
     type Error = core::convert::Infallible;
 
     fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
-        Ok(getrandom_010::u32().expect("getrandom failed"))
+        Ok(getrandom_010::u32().unwrap_or_else(|e| panic!("getrandom failed: {e}")))
     }
 
     fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
-        Ok(getrandom_010::u64().expect("getrandom failed"))
+        Ok(getrandom_010::u64().unwrap_or_else(|e| panic!("getrandom failed: {e}")))
     }
 
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error> {
-        getrandom_010::fill(dest).expect("getrandom failed");
+        getrandom_010::fill(dest).unwrap_or_else(|e| panic!("getrandom failed: {e}"));
         Ok(())
     }
 }
@@ -71,7 +71,11 @@ fn bench_keygen_comparison(c: &mut Criterion) {
     {
         use ml_kem::{KemCore, MlKem768 as RcMlKem768};
         group.bench_function(BenchmarkId::new("RustCrypto", ""), |b| {
-            b.iter(|| black_box(RcMlKem768::generate(&mut OsRng010)))
+            b.iter_batched(
+                || OsRng010,
+                |mut rng| black_box(RcMlKem768::generate(&mut rng)),
+                criterion::BatchSize::SmallInput,
+            )
         });
     }
 
@@ -121,7 +125,11 @@ fn bench_encaps_comparison(c: &mut Criterion) {
         use ml_kem::{kem::Encapsulate, KemCore, MlKem768 as RcMlKem768};
         let (_, ek_rc) = RcMlKem768::generate(&mut OsRng010);
         group.bench_function(BenchmarkId::new("RustCrypto", ""), |b| {
-            b.iter(|| black_box(ek_rc.encapsulate_with_rng(&mut OsRng010)))
+            b.iter_batched(
+                || OsRng010,
+                |mut rng| black_box(ek_rc.encapsulate_with_rng(&mut rng)),
+                criterion::BatchSize::SmallInput,
+            )
         });
     }
 
