@@ -22,10 +22,11 @@ fn bench_keygen_comparison(c: &mut Criterion) {
 
     // Kylix
     group.bench_function(BenchmarkId::new("Kylix", ""), |b| {
-        b.iter(|| {
-            let mut rng = rand::rng();
-            black_box(MlKem768::keygen(&mut rng).unwrap())
-        })
+        b.iter_batched(
+            rand::rng,
+            |mut rng| black_box(MlKem768::keygen(&mut rng).unwrap()),
+            criterion::BatchSize::SmallInput,
+        )
     });
 
     // pqcrypto-mlkem
@@ -42,10 +43,11 @@ fn bench_keygen_comparison(c: &mut Criterion) {
     // {
     //     use ml_kem::{KemCore, MlKem768 as RcMlKem768};
     //     group.bench_function(BenchmarkId::new("RustCrypto", ""), |b| {
-    //         b.iter(|| {
-    //             let mut rng = rand::rng();
-    //             black_box(RcMlKem768::generate(&mut rng))
-    //         })
+    //         b.iter_batched(
+    //             rand::rng,
+    //             |mut rng| black_box(RcMlKem768::generate(&mut rng)),
+    //             criterion::BatchSize::SmallInput,
+    //         )
     //     });
     // }
 
@@ -54,10 +56,11 @@ fn bench_keygen_comparison(c: &mut Criterion) {
     {
         use libcrux_ml_kem::mlkem768;
         group.bench_function(BenchmarkId::new("libcrux", ""), |b| {
-            b.iter(|| {
-                let randomness: [u8; 64] = rand::random();
-                black_box(mlkem768::generate_key_pair(randomness))
-            })
+            b.iter_batched(
+                rand::random::<[u8; 64]>,
+                |randomness| black_box(mlkem768::generate_key_pair(randomness)),
+                criterion::BatchSize::SmallInput,
+            )
         });
     }
 
@@ -71,10 +74,11 @@ fn bench_encaps_comparison(c: &mut Criterion) {
     // Kylix
     let (_, ek_kylix) = MlKem768::keygen(&mut rand::rng()).unwrap();
     group.bench_function(BenchmarkId::new("Kylix", ""), |b| {
-        b.iter(|| {
-            let mut rng = rand::rng();
-            black_box(MlKem768::encaps(&ek_kylix, &mut rng).unwrap())
-        })
+        b.iter_batched(
+            rand::rng,
+            |mut rng| black_box(MlKem768::encaps(&ek_kylix, &mut rng).unwrap()),
+            criterion::BatchSize::SmallInput,
+        )
     });
 
     // pqcrypto-mlkem
@@ -93,10 +97,11 @@ fn bench_encaps_comparison(c: &mut Criterion) {
     //     use ml_kem::{kem::Encapsulate, KemCore, MlKem768 as RcMlKem768};
     //     let (_, ek_rc) = RcMlKem768::generate(&mut rand::rng());
     //     group.bench_function(BenchmarkId::new("RustCrypto", ""), |b| {
-    //         b.iter(|| {
-    //             let mut rng = rand::rng();
-    //             black_box(ek_rc.encapsulate_with_rng(&mut rng))
-    //         })
+    //         b.iter_batched(
+    //             rand::rng,
+    //             |mut rng| black_box(ek_rc.encapsulate_with_rng(&mut rng)),
+    //             criterion::BatchSize::SmallInput,
+    //         )
     //     });
     // }
 
@@ -108,10 +113,11 @@ fn bench_encaps_comparison(c: &mut Criterion) {
         let keypair = mlkem768::generate_key_pair(randomness);
         let pk = keypair.public_key();
         group.bench_function(BenchmarkId::new("libcrux", ""), |b| {
-            b.iter(|| {
-                let randomness: [u8; 32] = rand::random();
-                black_box(mlkem768::encapsulate(pk, randomness))
-            })
+            b.iter_batched(
+                rand::random::<[u8; 32]>,
+                |randomness| black_box(mlkem768::encapsulate(pk, randomness)),
+                criterion::BatchSize::SmallInput,
+            )
         });
     }
 
