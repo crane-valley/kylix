@@ -84,16 +84,15 @@ fn bench_keygen_comparison(c: &mut Criterion) {
         });
     }
 
-    // libcrux-ml-dsa
+    // libcrux-ml-dsa (include RNG cost for fair comparison)
     #[cfg(feature = "compare-mldsa-libcrux")]
     {
         use libcrux_ml_dsa::ml_dsa_65::generate_key_pair;
         group.bench_function(BenchmarkId::new("libcrux", ""), |b| {
-            b.iter_batched(
-                rand::random::<[u8; 32]>,
-                |randomness| black_box(generate_key_pair(randomness)),
-                criterion::BatchSize::SmallInput,
-            )
+            b.iter(|| {
+                let randomness: [u8; 32] = rand::random();
+                black_box(generate_key_pair(randomness))
+            })
         });
     }
 
@@ -130,25 +129,22 @@ fn bench_sign_comparison(c: &mut Criterion) {
         });
     }
 
-    // libcrux-ml-dsa
+    // libcrux-ml-dsa (include RNG cost for fair comparison)
     #[cfg(feature = "compare-mldsa-libcrux")]
     {
         use libcrux_ml_dsa::ml_dsa_65::{generate_key_pair, sign};
         let randomness: [u8; 32] = rand::random();
         let keypair = generate_key_pair(randomness);
         group.bench_function(BenchmarkId::new("libcrux", ""), |b| {
-            b.iter_batched(
-                rand::random::<[u8; 32]>,
-                |signing_randomness| {
-                    black_box(sign(
-                        &keypair.signing_key,
-                        TEST_MESSAGE,
-                        b"", // empty context
-                        signing_randomness,
-                    ))
-                },
-                criterion::BatchSize::SmallInput,
-            )
+            b.iter(|| {
+                let signing_randomness: [u8; 32] = rand::random();
+                black_box(sign(
+                    &keypair.signing_key,
+                    TEST_MESSAGE,
+                    b"", // empty context
+                    signing_randomness,
+                ))
+            })
         });
     }
 

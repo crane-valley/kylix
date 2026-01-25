@@ -462,8 +462,8 @@ Establish Kylix as a high-performance PQC library by comparing with competitors.
 
 | Library | KeyGen | Sign | Verify | Notes |
 |---------|--------|------|--------|-------|
-| libcrux | 41.6 µs | 113.6 µs | 34.6 µs | Formally verified, fastest |
-| **Kylix** | **105.3 µs** | **261.8 µs** | **106.3 µs** | Pure Rust |
+| libcrux | 45.3 µs | 117.3 µs | 34.5 µs | Formally verified, fastest |
+| **Kylix** | **108.5 µs** | **274.8 µs** | **115.2 µs** | Pure Rust |
 | pqcrypto | 135.2 µs | 451.3 µs | 119.2 µs | C bindings (PQClean) |
 | RustCrypto | 264.0 µs | 293.8 µs | 47.6 µs | Pure Rust |
 
