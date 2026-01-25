@@ -17,10 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **SLH-DSA parallel feature**: Multi-threaded FORS computation using Rayon (`--features parallel`)
   - Parallelizes K independent FORS trees during signing
   - Significant speedup on multi-core systems
-- **SIMD optimizations for ML-DSA**
-  - AVX2 for x86_64 (NTT butterflies, matrix multiplication)
-  - NEON for ARM64
-- ML-DSA ACVP tests, CLI sign/verify commands, fuzz testing, benchmarks
+- **ML-DSA enhancements**:
+  - **SIMD optimizations**: AVX2 for x86_64, NEON for ARM64 (NTT butterflies, matrix multiplication)
+  - ACVP tests, CLI sign/verify commands, fuzz testing, benchmarks
 
 ### Changed
 
@@ -42,10 +41,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **ML-DSA (FIPS 204)**: Complete implementation of Module-Lattice-Based Digital Signature Algorithm
   - All 3 variants: ML-DSA-44, ML-DSA-65, ML-DSA-87
-- ML-KEM CLI commands (keygen, encaps, decaps)
-- ML-KEM NIST ACVP tests
-- ML-KEM fuzzing infrastructure
-- ML-KEM Criterion benchmarks
+- **ML-KEM additions**:
+  - CLI commands (keygen, encaps, decaps)
+  - NIST ACVP tests
+  - Fuzzing infrastructure
+  - Criterion benchmarks
 
 ## [0.2.0] - 2026-01-22
 
