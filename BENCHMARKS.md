@@ -118,7 +118,7 @@ cargo bench -p kylix-bench --features compare-libcrux --bench comparison
 cargo bench -p kylix-bench --features compare-all --bench comparison
 ```
 
-Note: RustCrypto ml-kem comparison is currently disabled due to rand_core version incompatibility.
+> **Note**: RustCrypto ml-kem comparison is currently disabled due to rand_core version incompatibility.
 
 ---
 
