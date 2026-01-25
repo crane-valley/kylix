@@ -563,11 +563,11 @@ unsafe fn shuffle_even_16(a: __m256i) -> __m256i {
     let combined = _mm_unpacklo_epi64(lo_lane0, lo_lane1);
 
     // Broadcast to both 128-bit lanes of 256-bit register.
-    // Note: We use broadcast instead of zero-extension because:
-    // 1. _mm256_castsi128_si256's upper bits are undefined per Intel spec
-    // 2. While interleave_16 only uses lower 128 bits, broadcasting ensures
-    //    consistent behavior regardless of how the result is consumed
-    // 3. The performance difference is negligible (one vinserti128 instruction)
+    //
+    // Note: We intentionally broadcast rather than zero-extend because this
+    // function's callers may read from either lane. If zero-extension were
+    // needed, use `_mm256_zextsi128_si256` (stable since Rust 1.27.0) instead
+    // of `_mm256_castsi128_si256` (whose upper bits are undefined per Intel spec).
     _mm256_set_m128i(combined, combined)
 }
 
@@ -603,11 +603,11 @@ unsafe fn shuffle_odd_16(a: __m256i) -> __m256i {
     let combined = _mm_unpacklo_epi64(lo_lane0, lo_lane1);
 
     // Broadcast to both 128-bit lanes of 256-bit register.
-    // Note: We use broadcast instead of zero-extension because:
-    // 1. _mm256_castsi128_si256's upper bits are undefined per Intel spec
-    // 2. While interleave_16 only uses lower 128 bits, broadcasting ensures
-    //    consistent behavior regardless of how the result is consumed
-    // 3. The performance difference is negligible (one vinserti128 instruction)
+    //
+    // Note: We intentionally broadcast rather than zero-extend because this
+    // function's callers may read from either lane. If zero-extension were
+    // needed, use `_mm256_zextsi128_si256` (stable since Rust 1.27.0) instead
+    // of `_mm256_castsi128_si256` (whose upper bits are undefined per Intel spec).
     _mm256_set_m128i(combined, combined)
 }
 
