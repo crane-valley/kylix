@@ -36,6 +36,9 @@ jobs:
         run: |
           cargo bench -p kylix-bench --bench ml_kem --bench ml_dsa --bench slh_dsa -- --output-format bencher | tee output.txt
 
+      - name: Restore Cargo.lock
+        run: git checkout Cargo.lock
+
       - name: Store benchmark result
         uses: benchmark-action/github-action-benchmark@4bdcce38c94cec68da58d012ac24b7b1155efe8b  # v1.20.7
         with:
