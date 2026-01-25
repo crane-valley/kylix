@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -qE 'gh pr create|git commit'; then cd \"$CLAUDE_PROJECT_DIR\" && echo '=== Pre-commit checks ===' && cargo fmt --all --check && cargo clippy --all-targets --all-features -- -D warnings && cargo test --workspace --exclude kylix-slh-dsa; fi"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && cargo fmt --quiet || true"
+          }
+        ]
+      }
+    ]
+  }
+}
