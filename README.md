@@ -27,6 +27,7 @@ A post-quantum cryptography library implementing NIST FIPS standards in pure Rus
 - `no_std` compatible for embedded systems
 - Constant-time implementations to prevent timing attacks
 - Secure memory handling with automatic zeroization
+- SIMD optimizations (AVX2/NEON) for high performance
 - Comprehensive test coverage including NIST ACVP vectors
 
 ## Installation
