@@ -199,7 +199,7 @@ enum Commands {
         #[arg(long)]
         compare: bool,
 
-        /// Specific tools to compare with (comma-separated: openssl,liboqs,wolfssl)
+        /// Specific tools to compare with (comma-separated: openssl,liboqs)
         #[arg(long, value_delimiter = ',')]
         with: Option<Vec<String>>,
     },
@@ -1247,7 +1247,7 @@ fn parse_liboqs_output(
                 // Extract mean time from the line
                 let parts: Vec<&str> = line.split_whitespace().collect();
                 if parts.len() >= 4 {
-                    if let Ok(mean_us) = parts.last().unwrap_or(&"0").parse::<f64>() {
+                    if let Some(mean_us) = parts.last().and_then(|s| s.parse::<f64>().ok()) {
                         results.push(ExternalBenchResult {
                             tool_name: tool_name.to_string(),
                             algorithm: algo.to_string(),
@@ -1277,18 +1277,22 @@ fn run_openssl_kem_benchmark(
     };
 
     let mut results = Vec::new();
-    let temp_dir = std::env::temp_dir();
-    let key_file = temp_dir.join("kylix_bench_key.pem");
-    let ct_file = temp_dir.join("kylix_bench_ct.bin");
-    let ss_file = temp_dir.join("kylix_bench_ss.bin");
+
+    // Use secure temporary directory to avoid symlink attacks
+    let temp_dir = tempfile::tempdir().context("Failed to create temp directory")?;
+    let key_file = temp_dir.path().join("key.pem");
+    let pub_file = temp_dir.path().join("pub.pem");
+    let ct_file = temp_dir.path().join("ct.bin");
+    let ss_file = temp_dir.path().join("ss.bin");
 
     // Benchmark keygen
     let start = Instant::now();
     for _ in 0..iterations {
-        let _ = Command::new(&tool.path)
+        Command::new(&tool.path)
             .args(["genpkey", "-algorithm", openssl_algo, "-out"])
             .arg(&key_file)
-            .output();
+            .output()
+            .context("Failed to run OpenSSL genpkey")?;
     }
     let keygen_total = start.elapsed();
     results.push(ExternalBenchResult {
@@ -1299,31 +1303,33 @@ fn run_openssl_kem_benchmark(
     });
 
     // Generate a key for encaps/decaps benchmarks
-    let _ = Command::new(&tool.path)
+    Command::new(&tool.path)
         .args(["genpkey", "-algorithm", openssl_algo, "-out"])
         .arg(&key_file)
-        .output();
+        .output()
+        .context("Failed to generate key for encaps benchmark")?;
 
     // Extract public key
-    let pub_file = temp_dir.join("kylix_bench_pub.pem");
-    let _ = Command::new(&tool.path)
+    Command::new(&tool.path)
         .args(["pkey", "-in"])
         .arg(&key_file)
         .args(["-pubout", "-out"])
         .arg(&pub_file)
-        .output();
+        .output()
+        .context("Failed to extract public key")?;
 
     // Benchmark encaps
     let start = Instant::now();
     for _ in 0..iterations {
-        let _ = Command::new(&tool.path)
+        Command::new(&tool.path)
             .args(["pkeyutl", "-encap", "-inkey"])
             .arg(&pub_file)
             .args(["-pubin", "-out"])
             .arg(&ct_file)
             .args(["-secret"])
             .arg(&ss_file)
-            .output();
+            .output()
+            .context("Failed to run OpenSSL encaps")?;
     }
     let encaps_total = start.elapsed();
     results.push(ExternalBenchResult {
@@ -1336,14 +1342,15 @@ fn run_openssl_kem_benchmark(
     // Benchmark decaps
     let start = Instant::now();
     for _ in 0..iterations {
-        let _ = Command::new(&tool.path)
+        Command::new(&tool.path)
             .args(["pkeyutl", "-decap", "-inkey"])
             .arg(&key_file)
             .args(["-in"])
             .arg(&ct_file)
             .args(["-secret"])
             .arg(&ss_file)
-            .output();
+            .output()
+            .context("Failed to run OpenSSL decaps")?;
     }
     let decaps_total = start.elapsed();
     results.push(ExternalBenchResult {
@@ -1353,12 +1360,7 @@ fn run_openssl_kem_benchmark(
         mean_us: decaps_total.as_micros() as f64 / iterations as f64,
     });
 
-    // Cleanup
-    let _ = fs::remove_file(&key_file);
-    let _ = fs::remove_file(&pub_file);
-    let _ = fs::remove_file(&ct_file);
-    let _ = fs::remove_file(&ss_file);
-
+    // temp_dir is automatically cleaned up when dropped
     Ok(results)
 }
 
@@ -1376,10 +1378,13 @@ fn run_openssl_sig_benchmark(
     };
 
     let mut results = Vec::new();
-    let temp_dir = std::env::temp_dir();
-    let key_file = temp_dir.join("kylix_bench_sig_key.pem");
-    let msg_file = temp_dir.join("kylix_bench_msg.txt");
-    let sig_file = temp_dir.join("kylix_bench_sig.bin");
+
+    // Use secure temporary directory to avoid symlink attacks
+    let temp_dir = tempfile::tempdir().context("Failed to create temp directory")?;
+    let key_file = temp_dir.path().join("key.pem");
+    let pub_file = temp_dir.path().join("pub.pem");
+    let msg_file = temp_dir.path().join("msg.txt");
+    let sig_file = temp_dir.path().join("sig.bin");
 
     // Create test message
     fs::write(&msg_file, b"The quick brown fox jumps over the lazy dog")?;
@@ -1387,10 +1392,11 @@ fn run_openssl_sig_benchmark(
     // Benchmark keygen
     let start = Instant::now();
     for _ in 0..iterations {
-        let _ = Command::new(&tool.path)
+        Command::new(&tool.path)
             .args(["genpkey", "-algorithm", openssl_algo, "-out"])
             .arg(&key_file)
-            .output();
+            .output()
+            .context("Failed to run OpenSSL genpkey")?;
     }
     let keygen_total = start.elapsed();
     results.push(ExternalBenchResult {
@@ -1401,22 +1407,24 @@ fn run_openssl_sig_benchmark(
     });
 
     // Generate a key for sign/verify benchmarks
-    let _ = Command::new(&tool.path)
+    Command::new(&tool.path)
         .args(["genpkey", "-algorithm", openssl_algo, "-out"])
         .arg(&key_file)
-        .output();
+        .output()
+        .context("Failed to generate key for sign benchmark")?;
 
     // Benchmark sign
     let start = Instant::now();
     for _ in 0..iterations {
-        let _ = Command::new(&tool.path)
+        Command::new(&tool.path)
             .args(["pkeyutl", "-sign", "-inkey"])
             .arg(&key_file)
             .args(["-in"])
             .arg(&msg_file)
             .args(["-out"])
             .arg(&sig_file)
-            .output();
+            .output()
+            .context("Failed to run OpenSSL sign")?;
     }
     let sign_total = start.elapsed();
     results.push(ExternalBenchResult {
@@ -1427,25 +1435,26 @@ fn run_openssl_sig_benchmark(
     });
 
     // Extract public key
-    let pub_file = temp_dir.join("kylix_bench_sig_pub.pem");
-    let _ = Command::new(&tool.path)
+    Command::new(&tool.path)
         .args(["pkey", "-in"])
         .arg(&key_file)
         .args(["-pubout", "-out"])
         .arg(&pub_file)
-        .output();
+        .output()
+        .context("Failed to extract public key")?;
 
     // Benchmark verify
     let start = Instant::now();
     for _ in 0..iterations {
-        let _ = Command::new(&tool.path)
+        Command::new(&tool.path)
             .args(["pkeyutl", "-verify", "-inkey"])
             .arg(&pub_file)
             .args(["-pubin", "-in"])
             .arg(&msg_file)
             .args(["-sigfile"])
             .arg(&sig_file)
-            .output();
+            .output()
+            .context("Failed to run OpenSSL verify")?;
     }
     let verify_total = start.elapsed();
     results.push(ExternalBenchResult {
@@ -1455,12 +1464,7 @@ fn run_openssl_sig_benchmark(
         mean_us: verify_total.as_micros() as f64 / iterations as f64,
     });
 
-    // Cleanup
-    let _ = fs::remove_file(&key_file);
-    let _ = fs::remove_file(&pub_file);
-    let _ = fs::remove_file(&msg_file);
-    let _ = fs::remove_file(&sig_file);
-
+    // temp_dir is automatically cleaned up when dropped
     Ok(results)
 }
 
@@ -1490,8 +1494,12 @@ fn run_external_benchmarks(
             Ok(vec![])
         };
 
-        if let Ok(r) = tool_results {
-            results.extend(r);
+        match tool_results {
+            Ok(r) => results.extend(r),
+            Err(e) => eprintln!(
+                "Warning: benchmark for tool '{}' on algorithm '{}' failed: {}",
+                tool.name, algo, e
+            ),
         }
     }
 
@@ -1563,7 +1571,7 @@ fn format_comparison_text(
                 let speedup = if *tool != "Kylix" {
                     kylix_times
                         .get(op)
-                        .map(|kt| format!(" ({:.1}x faster)", time / kt))
+                        .map(|kt| format!(" (Kylix {:.1}x faster)", time / kt))
                         .unwrap_or_default()
                 } else {
                     String::new()
