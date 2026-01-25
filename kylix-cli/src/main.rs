@@ -1077,26 +1077,77 @@ fn detect_external_tools(filter: Option<&Vec<String>>) -> Vec<ExternalTool> {
 
 /// Detect liboqs speed_kem/speed_sig tools
 fn detect_liboqs() -> Option<ExternalTool> {
-    // Try to find speed_kem in PATH
-    let path = which::which("speed_kem").ok()?;
+    // Try to find speed_kem in PATH first, then common locations
+    let candidates: Vec<std::path::PathBuf> = {
+        let mut paths = vec![];
 
-    // Get version by running with --help or checking liboqs version
-    let output = Command::new(&path).arg("--help").output().ok()?;
-    let help_text = String::from_utf8_lossy(&output.stdout);
+        // Check LIBOQS_SPEED_KEM environment variable first
+        if let Ok(p) = std::env::var("LIBOQS_SPEED_KEM") {
+            paths.push(std::path::PathBuf::from(p));
+        }
 
-    // Extract version info if available
-    // Note: liboqs speed_kem doesn't output version in --help, so we just mark as "detected"
-    let version = if help_text.contains("liboqs") || help_text.contains("speed_kem") {
-        "detected".to_string()
-    } else {
-        "unknown".to_string()
+        // Check PATH
+        if let Ok(p) = which::which("speed_kem") {
+            paths.push(p);
+        }
+
+        // Windows: check common vcpkg build locations
+        #[cfg(target_os = "windows")]
+        {
+            // Try common vcpkg paths with known version patterns
+            let vcpkg_roots = ["E:\\vcpkg", "C:\\vcpkg", "D:\\vcpkg"];
+            for root in vcpkg_roots {
+                let base = std::path::Path::new(root).join("buildtrees\\liboqs\\src");
+                if let Ok(entries) = std::fs::read_dir(&base) {
+                    for entry in entries.flatten() {
+                        if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                            for build_type in ["x64-Release", "x64-Debug"] {
+                                let speed_kem = entry
+                                    .path()
+                                    .join("out\\build")
+                                    .join(build_type)
+                                    .join("tests\\speed_kem.exe");
+                                if speed_kem.exists() {
+                                    paths.push(speed_kem);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        paths
     };
 
-    Some(ExternalTool {
-        name: "liboqs".to_string(),
-        path,
-        version,
-    })
+    for path in candidates {
+        if !path.exists() {
+            continue;
+        }
+
+        // Get version by running with --help
+        // Note: liboqs speed_kem outputs help to stderr
+        let output = match Command::new(&path).arg("--help").output() {
+            Ok(o) => o,
+            Err(_) => continue,
+        };
+        // Check both stdout and stderr since liboqs outputs to stderr
+        let stdout_text = String::from_utf8_lossy(&output.stdout);
+        let stderr_text = String::from_utf8_lossy(&output.stderr);
+        let help_text = format!("{}{}", stdout_text, stderr_text);
+
+        // Extract version info if available
+        // Note: liboqs speed_kem doesn't output version in --help, so we just mark as "detected"
+        if help_text.contains("speed_kem") || help_text.contains("Usage") {
+            return Some(ExternalTool {
+                name: "liboqs".to_string(),
+                path,
+                version: "detected".to_string(),
+            });
+        }
+    }
+
+    None
 }
 
 /// Detect OpenSSL 3.5+ with PQC support
@@ -1194,8 +1245,8 @@ fn detect_openssl() -> Option<ExternalTool> {
 
 /// Run liboqs KEM benchmark
 ///
-/// Note: The iterations argument is passed to liboqs speed_kem tool.
-/// liboqs speed_kem accepts an optional iterations count as the last argument.
+/// Note: liboqs speed_kem uses `-d` flag for duration in seconds (default 3s).
+/// The iterations parameter is converted to approximate duration.
 fn run_liboqs_kem_benchmark(
     tool: &ExternalTool,
     algo: &str,
@@ -1209,9 +1260,12 @@ fn run_liboqs_kem_benchmark(
         _ => return Ok(vec![]),
     };
 
-    // Run speed_kem with the algorithm and iteration count
+    // Convert iterations to approximate duration (assume ~10000 ops/sec, min 1s)
+    let duration = std::cmp::max(1, iterations / 10000);
+
+    // Run speed_kem with the algorithm (liboqs syntax: speed_kem [-d duration] <algorithm>)
     let output = Command::new(&tool.path)
-        .args(["--alg", liboqs_algo, &iterations.to_string()])
+        .args(["-d", &duration.to_string(), liboqs_algo])
         .output()
         .context("Failed to run liboqs speed_kem")?;
 
@@ -1221,8 +1275,8 @@ fn run_liboqs_kem_benchmark(
 
 /// Run liboqs signature benchmark
 ///
-/// Note: The iterations argument is passed to liboqs speed_sig tool.
-/// liboqs speed_sig accepts an optional iterations count as the last argument.
+/// Note: liboqs speed_sig uses `-d` flag for duration in seconds (default 3s).
+/// The iterations parameter is converted to approximate duration.
 fn run_liboqs_sig_benchmark(
     tool: &ExternalTool,
     algo: &str,
@@ -1237,7 +1291,7 @@ fn run_liboqs_sig_benchmark(
     };
 
     // Find speed_sig (should be in same directory as speed_kem)
-    let speed_sig_path = tool.path.parent().map(|p| p.join("speed_sig"));
+    let speed_sig_path = tool.path.parent().map(|p| p.join("speed_sig.exe"));
     let speed_sig = speed_sig_path
         .filter(|p| p.exists())
         .or_else(|| which::which("speed_sig").ok());
@@ -1246,8 +1300,12 @@ fn run_liboqs_sig_benchmark(
         return Ok(vec![]);
     };
 
+    // Convert iterations to approximate duration (assume ~1000 ops/sec for signatures, min 1s)
+    let duration = std::cmp::max(1, iterations / 1000);
+
+    // Run speed_sig with the algorithm (liboqs syntax: speed_sig [-d duration] <algorithm>)
     let output = Command::new(&sig_path)
-        .args(["--alg", liboqs_algo, &iterations.to_string()])
+        .args(["-d", &duration.to_string(), liboqs_algo])
         .output()
         .context("Failed to run liboqs speed_sig")?;
 
@@ -1263,28 +1321,31 @@ fn parse_liboqs_output(
 ) -> Result<Vec<ExternalBenchResult>> {
     let mut results = Vec::new();
 
-    // liboqs output format:
-    // Operation              Iterations  Total time (s)  Time (us): mean
-    // keygen:                     10000          0.142           14.200
-    // encaps:                     10000          0.185           18.500
-    // decaps:                     10000          0.201           20.100
+    // liboqs output format (pipe-delimited):
+    // Operation                            | Iterations | Total time (s) | Time (us): mean | pop. stdev | ...
+    // keygen                               |      21326 |          3.000 |         140.673 |    349.433 | ...
+    // encaps                               |      18791 |          3.000 |         159.651 |    367.587 | ...
+    // decaps                               |      15217 |          3.000 |         197.148 |    400.151 | ...
 
     for line in output.lines() {
         let line = line.trim();
 
         // Parse keygen/encaps/decaps/sign/verify lines
         for op in ["keygen", "encaps", "decaps", "sign", "verify"] {
-            if line.starts_with(&format!("{}:", op)) {
-                // Extract mean time from the line
-                let parts: Vec<&str> = line.split_whitespace().collect();
+            // Check if line starts with the operation name (no colon in new format)
+            if line.starts_with(op) && line.contains('|') {
+                // Split by pipe and extract mean time (4th column, index 3)
+                let parts: Vec<&str> = line.split('|').collect();
                 if parts.len() >= 4 {
-                    if let Some(mean_us) = parts.last().and_then(|s| s.parse::<f64>().ok()) {
+                    // Mean time is in the 4th column (index 3)
+                    if let Ok(mean_us) = parts[3].trim().parse::<f64>() {
                         results.push(ExternalBenchResult {
                             tool_name: tool_name.to_string(),
                             algorithm: algo.to_string(),
                             operation: op.to_string(),
                             mean_us,
                         });
+                        break; // Found this operation, move to next line
                     }
                 }
             }
