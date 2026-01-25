@@ -37,17 +37,17 @@ fn bench_keygen_comparison(c: &mut Criterion) {
         });
     }
 
-    // RustCrypto ml-kem
-    #[cfg(feature = "compare-rustcrypto")]
-    {
-        use ml_kem::{kem::Kem as _, MlKem768 as RcMlKem768};
-        group.bench_function(BenchmarkId::new("RustCrypto", ""), |b| {
-            b.iter(|| {
-                let mut rng = rand::rng();
-                black_box(RcMlKem768::generate(&mut rng))
-            })
-        });
-    }
+    // RustCrypto ml-kem - disabled due to rand_core version incompatibility
+    // #[cfg(feature = "compare-rustcrypto")]
+    // {
+    //     use ml_kem::{KemCore, MlKem768 as RcMlKem768};
+    //     group.bench_function(BenchmarkId::new("RustCrypto", ""), |b| {
+    //         b.iter(|| {
+    //             let mut rng = rand::rng();
+    //             black_box(RcMlKem768::generate(&mut rng))
+    //         })
+    //     });
+    // }
 
     // libcrux-ml-kem
     #[cfg(feature = "compare-libcrux")]
@@ -87,18 +87,18 @@ fn bench_encaps_comparison(c: &mut Criterion) {
         });
     }
 
-    // RustCrypto ml-kem
-    #[cfg(feature = "compare-rustcrypto")]
-    {
-        use ml_kem::{kem::Kem as _, MlKem768 as RcMlKem768};
-        let (_, ek_rc) = RcMlKem768::generate(&mut rand::rng());
-        group.bench_function(BenchmarkId::new("RustCrypto", ""), |b| {
-            b.iter(|| {
-                let mut rng = rand::rng();
-                black_box(ek_rc.encapsulate(&mut rng))
-            })
-        });
-    }
+    // RustCrypto ml-kem - disabled due to rand_core version incompatibility
+    // #[cfg(feature = "compare-rustcrypto")]
+    // {
+    //     use ml_kem::{kem::Encapsulate, KemCore, MlKem768 as RcMlKem768};
+    //     let (_, ek_rc) = RcMlKem768::generate(&mut rand::rng());
+    //     group.bench_function(BenchmarkId::new("RustCrypto", ""), |b| {
+    //         b.iter(|| {
+    //             let mut rng = rand::rng();
+    //             black_box(ek_rc.encapsulate_with_rng(&mut rng))
+    //         })
+    //     });
+    // }
 
     // libcrux-ml-kem
     #[cfg(feature = "compare-libcrux")]
@@ -141,17 +141,17 @@ fn bench_decaps_comparison(c: &mut Criterion) {
         });
     }
 
-    // RustCrypto ml-kem
-    #[cfg(feature = "compare-rustcrypto")]
-    {
-        use ml_kem::{kem::Kem as _, MlKem768 as RcMlKem768};
-        let mut rng = rand::rng();
-        let (dk_rc, ek_rc) = RcMlKem768::generate(&mut rng);
-        let (ct_rc, _) = ek_rc.encapsulate(&mut rng);
-        group.bench_function(BenchmarkId::new("RustCrypto", ""), |b| {
-            b.iter(|| black_box(dk_rc.decapsulate(&ct_rc)))
-        });
-    }
+    // RustCrypto ml-kem - disabled due to rand_core version incompatibility
+    // #[cfg(feature = "compare-rustcrypto")]
+    // {
+    //     use ml_kem::{kem::Decapsulate, kem::Encapsulate, KemCore, MlKem768 as RcMlKem768};
+    //     let mut rng = rand::rng();
+    //     let (dk_rc, ek_rc) = RcMlKem768::generate(&mut rng);
+    //     let (ct_rc, _) = ek_rc.encapsulate_with_rng(&mut rng);
+    //     group.bench_function(BenchmarkId::new("RustCrypto", ""), |b| {
+    //         b.iter(|| black_box(dk_rc.decapsulate(&ct_rc)))
+    //     });
+    // }
 
     // libcrux-ml-kem
     #[cfg(feature = "compare-libcrux")]
