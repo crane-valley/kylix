@@ -42,8 +42,7 @@ impl rand_core_06::RngCore for OsRng06 {
     }
 
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core_06::Error> {
-        getrandom_02::getrandom(dest).expect("getrandom failed");
-        Ok(())
+        getrandom_02::getrandom(dest).map_err(|e| rand_core_06::Error::from(e.code()))
     }
 }
 
