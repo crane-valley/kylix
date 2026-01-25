@@ -14,11 +14,20 @@ default = []
 simd = ["kylix-ml-dsa/simd"]
 parallel = ["kylix-slh-dsa/parallel"]
 
-# Comparison benchmarks (optional, may require different MSRV)
+# ML-KEM Comparison benchmarks (optional, may require different MSRV)
 compare-pqcrypto = ["pqcrypto-mlkem"]
 compare-rustcrypto = ["ml-kem", "rand_core_010", "getrandom_010"]
 compare-libcrux = ["libcrux-ml-kem"]
 compare-all = ["compare-pqcrypto", "compare-rustcrypto", "compare-libcrux"]
+
+# ML-DSA Comparison benchmarks
+compare-mldsa-pqcrypto = ["pqcrypto-mldsa", "pqcrypto-traits"]
+compare-mldsa-rustcrypto = ["ml-dsa", "rand_core_06", "getrandom_02"]
+compare-mldsa-libcrux = ["libcrux-ml-dsa"]
+compare-mldsa-all = ["compare-mldsa-pqcrypto", "compare-mldsa-rustcrypto", "compare-mldsa-libcrux"]
+
+# SLH-DSA Comparison benchmarks
+compare-slhdsa-rustcrypto = ["slh-dsa", "rand_core_06", "getrandom_02"]
 
 [dependencies]
 kylix-ml-kem = { path = "../kylix-ml-kem", features = ["ml-kem-512", "ml-kem-768", "ml-kem-1024"] }
@@ -30,12 +39,24 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 # Optional comparison libraries (feature-gated)
+# ML-KEM
 pqcrypto-mlkem = { version = "0.1", optional = true }
 ml-kem = { version = "0.3.0-pre", optional = true }
-# rand_core 0.10-rc aliased for RustCrypto ml-kem compatibility (uses different version than our rand 0.9)
+libcrux-ml-kem = { version = "0.0.5", optional = true }
+# ML-DSA
+pqcrypto-mldsa = { version = "0.1", optional = true }
+ml-dsa = { version = "0.0.4", optional = true }
+libcrux-ml-dsa = { version = "0.0.4", optional = true }
+# SLH-DSA
+slh-dsa = { version = "0.0.3", optional = true }
+# pqcrypto traits
+pqcrypto-traits = { version = "0.3", optional = true }
+# rand_core 0.10-rc aliased for RustCrypto ml-kem compatibility
 rand_core_010 = { package = "rand_core", version = "0.10.0-rc", optional = true }
 getrandom_010 = { package = "getrandom", version = "0.3.0-rc", optional = true }
-libcrux-ml-kem = { version = "0.0.6", optional = true }
+# rand_core 0.6 aliased for RustCrypto ml-dsa/slh-dsa compatibility
+rand_core_06 = { package = "rand_core", version = "0.6", optional = true }
+getrandom_02 = { package = "getrandom", version = "0.2", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
@@ -54,4 +75,12 @@ harness = false
 
 [[bench]]
 name = "comparison"
+harness = false
+
+[[bench]]
+name = "ml_dsa_comparison"
+harness = false
+
+[[bench]]
+name = "slh_dsa_comparison"
 harness = false
