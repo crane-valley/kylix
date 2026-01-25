@@ -10,11 +10,14 @@
 - For WIP modules, add `#![allow(dead_code)]` at module top
 - Doc comments: `[X]` is interpreted as a link reference by rustdoc; escape as `\[X\]`
 
-## Pre-commit Hooks
+## Code Quality Rules
 
-Automated via `.claude/settings.json`:
-- `cargo fmt` runs after Edit/Write
-- `cargo fmt --check`, `cargo clippy`, `cargo test` run before commit/PR
+Before committing or creating a PR, always run:
+1. `cargo fmt --all` - Format all code
+2. `cargo clippy --all-targets --all-features -- -D warnings` - Check for lints
+3. `cargo test --workspace --exclude kylix-slh-dsa` - Run tests (excluding slow SLH-DSA tests)
+
+After editing Rust files, run `cargo fmt` to ensure consistent formatting.
 
 ## Release
 
