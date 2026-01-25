@@ -487,16 +487,16 @@ NTT SIMD implementation is complete with AVX2 and NEON support.
 
 | Operation | Before | After | Improvement |
 |-----------|--------|-------|-------------|
-| ML-KEM-768 KeyGen | 30.3 µs | 28.4 µs | +7% |
-| ML-KEM-768 Encaps | 29.4 µs | 24.1 µs | +18% |
-| ML-KEM-768 Decaps | 37.3 µs | 32.1 µs | +14% |
+| ML-KEM-768 KeyGen | 30.3 µs | 29.3 µs | +3% |
+| ML-KEM-768 Encaps | 29.4 µs | 27.4 µs | +7% |
+| ML-KEM-768 Decaps | 37.3 µs | 31.2 µs | +16% |
 
 ### Comparison Results (v0.4.2+SIMD)
 
 | Library | KeyGen | Encaps | Decaps |
 |---------|--------|--------|--------|
 | libcrux | 12.0 µs | 10.8 µs | 10.9 µs |
-| **Kylix** | **28.4 µs** | **24.1 µs** | **32.1 µs** |
+| **Kylix** | **29.3 µs** | **27.4 µs** | **31.2 µs** |
 | RustCrypto | 36.3 µs | 32.8 µs | 48.5 µs |
 | pqcrypto | 41.5 µs | 41.5 µs | 52.2 µs |
 
@@ -511,6 +511,12 @@ NTT SIMD implementation is complete with AVX2 and NEON support.
    - 8-way parallel butterfly operations
    - Same Montgomery multiplication approach
    - Full NTT implementation
+
+3. **Barrett Reduction Optimization** ✅
+   - Efficient 16-bit only Barrett reduction (pqcrystals/kyber approach)
+   - AVX2: mulhi_epi16 → srai(10) → mullo_epi16 → sub_epi16
+   - NEON: mulhi_s16 → vshrq(10) → vmulq → vsubq
+   - ~6% performance improvement over naive 32-bit widening approach
 
 ### Remaining Optimization Tasks
 
