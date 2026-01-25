@@ -62,9 +62,29 @@ const SLH_DSA_256F_SK_SIZE: usize = SlhDsaShake256f::SIGNING_KEY_SIZE;
 const SLH_DSA_256F_SIG_SIZE: usize = SlhDsaShake256f::SIGNATURE_SIZE;
 
 // liboqs benchmark duration estimation constants
-// Assumed operations per second for converting iteration count to duration.
-// These are rough, order-of-magnitude estimates based on commodity x86_64 hardware.
-// Actual liboqs performance varies across CPUs and build options.
+//
+// These are assumed operations-per-second figures used only to convert a chosen
+// iteration count into an *approximate* benchmark duration for liboqs KEM/SIG
+// operations. They are intentionally coarse, order-of-magnitude estimates.
+//
+// Basis for the values:
+// - On typical commodity x86_64 CPUs (e.g., recent laptop/desktop cores) with
+//   reasonably optimized builds, liboqs KEM operations often reach on the order
+//   of 10^4 operations per second.
+// - Signature operations are generally more expensive than KEMs and, in practice,
+//   often fall closer to the 10^3 operations-per-second range.
+//
+// The 10x difference between KEM and SIG here reflects this typical throughput
+// gap observed in liboqs micro-benchmarks across a variety of algorithms. It is
+// *not* a strict bound: depending on the specific scheme, CPU, and compiler
+// flags, the actual ratio can be smaller or larger.
+//
+// Expected variance:
+// - Real performance can vary by at least a small constant factor (e.g., 2–10x)
+//   in either direction due to hardware differences, turbo behavior, thermal
+//   limits, choice of algorithm/parameter set, and build configuration.
+// - These constants should therefore be treated as rough defaults for user-facing
+//   time estimation, not as precise measurements and not for security decisions.
 const LIBOQS_KEM_OPS_PER_SEC: u64 = 10000;
 const LIBOQS_SIG_OPS_PER_SEC: u64 = 1000;
 
@@ -1107,7 +1127,7 @@ fn detect_liboqs() -> Option<ExternalTool> {
                 vcpkg_roots_to_check.push(std::path::PathBuf::from(vcpkg_root));
             }
             vcpkg_roots_to_check.extend(
-                ["E:\\vcpkg", "C:\\vcpkg", "D:\\vcpkg"]
+                ["C:\\vcpkg", "D:\\vcpkg", "E:\\vcpkg"]
                     .iter()
                     .map(std::path::PathBuf::from),
             );
@@ -1210,14 +1230,14 @@ fn detect_openssl() -> Option<ExternalTool> {
         // Parse version to support future releases (3.8, 4.0, etc.)
         // Handles versions like "3.5.0", "3.6.0-alpha", etc.
         let is_supported_version = {
-            /// Parse numeric prefix from version string (e.g., "5-alpha" -> 5)
+            /// Parses the leading numeric portion of a version component string.
+            ///
+            /// This handles version strings with suffixes like "5-alpha" or "0-beta1",
+            /// extracting only the numeric prefix (e.g., "5-alpha" -> Some(5)).
+            /// Returns None if the string doesn't start with a digit.
             fn parse_version_number(s: &str) -> Option<u64> {
                 let end = s.find(|c: char| !c.is_ascii_digit()).unwrap_or(s.len());
-                if end == 0 {
-                    None
-                } else {
-                    s[..end].parse::<u64>().ok()
-                }
+                s[..end].parse::<u64>().ok()
             }
 
             let mut supported = false;
@@ -1288,6 +1308,16 @@ fn run_liboqs_kem_benchmark(
         .output()
         .context("Failed to run liboqs speed_kem")?;
 
+    // Check if the command succeeded; report failure if not
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow!(
+            "liboqs speed_kem failed for {}: {}",
+            algo,
+            stderr.trim()
+        ));
+    }
+
     let stdout = String::from_utf8_lossy(&output.stdout);
     parse_liboqs_output(&stdout, &tool.name, algo)
 }
@@ -1333,6 +1363,16 @@ fn run_liboqs_sig_benchmark(
         .args(["-d", &duration.to_string(), liboqs_algo])
         .output()
         .context("Failed to run liboqs speed_sig")?;
+
+    // Check if the command succeeded; report failure if not
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow!(
+            "liboqs speed_sig failed for {}: {}",
+            algo,
+            stderr.trim()
+        ));
+    }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     parse_liboqs_output(&stdout, &tool.name, algo)
@@ -1828,7 +1868,7 @@ fn format_comparison_json(
         "results": kylix.into_iter().chain(external).collect::<Vec<_>>()
     });
     serde_json::to_string_pretty(&result).expect(
-        "failed to serialize benchmark comparison JSON; data structure should be serializable",
+        "Failed to serialize benchmark comparison JSON; data structure should be serializable",
     )
 }
 

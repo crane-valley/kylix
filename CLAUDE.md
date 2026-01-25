@@ -17,7 +17,7 @@ Before committing or creating a PR, always run:
 2. `cargo clippy --all-targets --all-features -- -D warnings` - Check for lints
 3. `cargo test --workspace --exclude kylix-slh-dsa` - Run tests (excluding slow SLH-DSA tests)
 
-After editing Rust files, run `cargo fmt` to ensure consistent formatting.
+During development, run `cargo fmt --all` frequently (for example, after each edit) to keep formatting consistent and get fast feedback.
 
 ## Release
 
