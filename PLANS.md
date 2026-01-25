@@ -442,7 +442,21 @@ Establish Kylix as a high-performance PQC library by comparing with competitors.
 - "X times faster than Y" highlights
 - Environment details (CPU, OS, compiler)
 
-### Phase 6.4: Benchmark Results (v0.4.1)
+### Phase 6.4: ML-DSA/SLH-DSA Comparison (TODO)
+
+**Target Libraries:**
+
+| Algorithm | pqcrypto | RustCrypto | libcrux |
+|-----------|----------|------------|---------|
+| ML-DSA | `pqcrypto-mldsa` | `ml-dsa` (pre) | `libcrux-ml-dsa` |
+| SLH-DSA | TBD | `slh-dsa` (pre) | `libcrux-slh-dsa` |
+
+**Tasks:**
+- [ ] Add ML-DSA-65 comparison benchmarks
+- [ ] Add SLH-DSA-SHAKE-128f comparison benchmarks
+- [ ] Handle rand_core version differences (same approach as ML-KEM)
+
+### Phase 6.5: Benchmark Results (v0.4.1)
 
 ML-KEM-768 KeyGen comparison:
 
