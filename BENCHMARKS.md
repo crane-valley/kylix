@@ -152,7 +152,31 @@ Based on [PLANS.md](PLANS.md) performance goals:
 
 ## Comparison Benchmarks
 
-Compare Kylix with other ML-KEM implementations:
+### Using kylix CLI (Recommended)
+
+Compare Kylix with external PQC implementations using the CLI:
+
+```bash
+# Compare with auto-detected tools (OpenSSL 3.5+, liboqs)
+kylix bench --compare
+
+# Compare specific algorithm
+kylix bench --compare --algo ml-kem-768
+
+# Output as markdown
+kylix bench --compare --report markdown > comparison.md
+
+# Output as JSON
+kylix bench --compare --report json > comparison.json
+```
+
+Supported external tools:
+- **OpenSSL 3.5+**: Detected via `openssl` command with PQC provider
+- **liboqs**: Detected via `speed_kem`/`speed_sig` tools (PATH or vcpkg)
+
+### Using Criterion (Rust Libraries)
+
+Compare Kylix with other Rust ML-KEM implementations:
 
 ```bash
 # Compare with pqcrypto (C bindings to PQClean)
