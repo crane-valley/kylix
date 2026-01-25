@@ -40,6 +40,7 @@ Kylix aims to provide a **pure Rust, high-performance, auditable** implementatio
 
 | Component | FIPS Standard | Priority |
 |-----------|---------------|----------|
+| ML-KEM SIMD Optimization | FIPS 203 | HIGH |
 | SLH-DSA SHA2 Variants | FIPS 205 | LOW |
 | SIMD NTT (WASM) | - | LOW |
 | Property-based Tests (proptest) | - | LOW |
@@ -440,6 +441,77 @@ Establish Kylix as a high-performance PQC library by comparing with competitors.
 - Interactive charts (Chart.js or similar)
 - "X times faster than Y" highlights
 - Environment details (CPU, OS, compiler)
+
+### Phase 6.4: ML-DSA/SLH-DSA Comparison (TODO)
+
+**Target Libraries:**
+
+| Algorithm | pqcrypto | RustCrypto | libcrux |
+|-----------|----------|------------|---------|
+| ML-DSA | `pqcrypto-mldsa` | `ml-dsa` (pre) | `libcrux-ml-dsa` |
+| SLH-DSA | TBD | `slh-dsa` (pre) | `libcrux-slh-dsa` |
+
+**Tasks:**
+- [ ] Add ML-DSA-65 comparison benchmarks
+- [ ] Add SLH-DSA-SHAKE-128f comparison benchmarks
+- [ ] Handle rand_core version differences (same approach as ML-KEM)
+
+### Phase 6.5: Benchmark Results (v0.4.1)
+
+ML-KEM-768 KeyGen comparison:
+
+| Library | Time | vs Kylix | Notes |
+|---------|------|----------|-------|
+| libcrux | 12.0 µs | -60% | Formally verified, fastest |
+| **Kylix** | 30.3 µs | baseline | Pure Rust |
+| RustCrypto | 36.2 µs | +19% | Pure Rust |
+| pqcrypto | 42.8 µs | +41% | C bindings (PQClean) |
+
+---
+
+## Phase 7: ML-KEM SIMD Optimization
+
+### Goal
+
+Close the performance gap with libcrux (currently 2.5x slower).
+
+### Target
+
+| Operation | Current | Target | Improvement |
+|-----------|---------|--------|-------------|
+| ML-KEM-768 KeyGen | 30 µs | < 15 µs | 2x |
+| ML-KEM-768 Encaps | 29 µs | < 15 µs | 2x |
+| ML-KEM-768 Decaps | 40 µs | < 20 µs | 2x |
+
+### Tasks
+
+1. **NTT SIMD (AVX2)** - Priority: HIGH
+   - Port ML-DSA SIMD NTT infrastructure to ML-KEM
+   - Adapt for ML-KEM's different modulus (q=3329 vs q=8380417)
+   - 8-way parallel butterfly operations
+
+2. **NTT SIMD (NEON)** - Priority: MEDIUM
+   - ARM64 4-way parallel butterflies
+   - Same approach as ML-DSA
+
+3. **Polynomial Arithmetic** - Priority: HIGH
+   - Vectorized pointwise multiplication
+   - SIMD matrix-vector operations
+
+4. **Memory Layout Optimization** - Priority: MEDIUM
+   - Cache-friendly coefficient ordering
+   - Minimize data movement between SIMD registers
+
+### Implementation Notes
+
+- ML-KEM uses smaller modulus (q=3329) than ML-DSA (q=8380417)
+- 16-bit coefficients fit 16 values per AVX2 register (vs 8 for ML-DSA)
+- Potential for even greater SIMD speedup than ML-DSA
+
+### Reference
+
+- [libcrux-ml-kem](https://github.com/cryspen/libcrux) - Study their AVX2 implementation
+- [PQClean](https://github.com/PQClean/PQClean) - Reference optimized implementations
 
 ---
 

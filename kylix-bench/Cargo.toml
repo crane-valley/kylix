@@ -16,10 +16,9 @@ parallel = ["kylix-slh-dsa/parallel"]
 
 # Comparison benchmarks (optional, may require different MSRV)
 compare-pqcrypto = ["pqcrypto-mlkem"]
-# compare-rustcrypto disabled: rand_core 0.10-rc incompatible with our rand_core 0.9
-# compare-rustcrypto = ["ml-kem"]
+compare-rustcrypto = ["ml-kem", "rand_core_010", "getrandom_010"]
 compare-libcrux = ["libcrux-ml-kem"]
-compare-all = ["compare-pqcrypto", "compare-libcrux"]
+compare-all = ["compare-pqcrypto", "compare-rustcrypto", "compare-libcrux"]
 
 [dependencies]
 kylix-ml-kem = { path = "../kylix-ml-kem", features = ["ml-kem-512", "ml-kem-768", "ml-kem-1024"] }
@@ -32,8 +31,10 @@ serde_json = "1.0"
 
 # Optional comparison libraries (feature-gated)
 pqcrypto-mlkem = { version = "0.1", optional = true }
-# ml-kem disabled: uses rand_core 0.10-rc which is incompatible with our rand_core 0.9
-# ml-kem = { version = "0.3.0-pre", optional = true }
+ml-kem = { version = "0.3.0-pre", optional = true }
+# rand_core 0.10-rc aliased for RustCrypto ml-kem compatibility (uses different version than our rand 0.9)
+rand_core_010 = { package = "rand_core", version = "0.10.0-rc", optional = true }
+getrandom_010 = { package = "getrandom", version = "0.3.0-rc", optional = true }
 libcrux-ml-kem = { version = "0.0.6", optional = true }
 
 [dev-dependencies]

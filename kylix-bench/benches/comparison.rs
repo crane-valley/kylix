@@ -16,6 +16,34 @@ use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criteri
 use kylix_core::Kem;
 use kylix_ml_kem::MlKem768;
 
+// RustCrypto ml-kem RNG wrapper (bridges getrandom 0.3 to rand_core 0.10)
+// Implements infallible Rng trait required by ml-kem's CryptoRng bound
+#[cfg(feature = "compare-rustcrypto")]
+struct OsRng010;
+
+#[cfg(feature = "compare-rustcrypto")]
+impl rand_core_010::TryRng for OsRng010 {
+    type Error = core::convert::Infallible;
+
+    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
+        Ok(getrandom_010::u32().unwrap_or_else(|e| panic!("getrandom failed: {e}")))
+    }
+
+    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
+        Ok(getrandom_010::u64().unwrap_or_else(|e| panic!("getrandom failed: {e}")))
+    }
+
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error> {
+        getrandom_010::fill(dest).unwrap_or_else(|e| panic!("getrandom failed: {e}"));
+        Ok(())
+    }
+}
+
+#[cfg(feature = "compare-rustcrypto")]
+impl rand_core_010::TryCryptoRng for OsRng010 {}
+
+// Blanket impl for Rng is provided by rand_core when TryRng<Error = Infallible>
+
 /// Benchmark ML-KEM-768 KeyGen across libraries.
 fn bench_keygen_comparison(c: &mut Criterion) {
     let mut group = c.benchmark_group("ML-KEM-768 KeyGen Comparison");
@@ -38,18 +66,18 @@ fn bench_keygen_comparison(c: &mut Criterion) {
         });
     }
 
-    // RustCrypto ml-kem - disabled due to rand_core version incompatibility
-    // #[cfg(feature = "compare-rustcrypto")]
-    // {
-    //     use ml_kem::{KemCore, MlKem768 as RcMlKem768};
-    //     group.bench_function(BenchmarkId::new("RustCrypto", ""), |b| {
-    //         b.iter_batched(
-    //             rand::rng,
-    //             |mut rng| black_box(RcMlKem768::generate(&mut rng)),
-    //             criterion::BatchSize::SmallInput,
-    //         )
-    //     });
-    // }
+    // RustCrypto ml-kem (uses rand_core 0.10-rc via aliased dependency)
+    #[cfg(feature = "compare-rustcrypto")]
+    {
+        use ml_kem::{KemCore, MlKem768 as RcMlKem768};
+        group.bench_function(BenchmarkId::new("RustCrypto", ""), |b| {
+            b.iter_batched(
+                || OsRng010,
+                |mut rng| black_box(RcMlKem768::generate(&mut rng)),
+                criterion::BatchSize::SmallInput,
+            )
+        });
+    }
 
     // libcrux-ml-kem
     #[cfg(feature = "compare-libcrux")]
@@ -91,19 +119,19 @@ fn bench_encaps_comparison(c: &mut Criterion) {
         });
     }
 
-    // RustCrypto ml-kem - disabled due to rand_core version incompatibility
-    // #[cfg(feature = "compare-rustcrypto")]
-    // {
-    //     use ml_kem::{kem::Encapsulate, KemCore, MlKem768 as RcMlKem768};
-    //     let (_, ek_rc) = RcMlKem768::generate(&mut rand::rng());
-    //     group.bench_function(BenchmarkId::new("RustCrypto", ""), |b| {
-    //         b.iter_batched(
-    //             rand::rng,
-    //             |mut rng| black_box(ek_rc.encapsulate_with_rng(&mut rng)),
-    //             criterion::BatchSize::SmallInput,
-    //         )
-    //     });
-    // }
+    // RustCrypto ml-kem (uses rand_core 0.10-rc via aliased dependency)
+    #[cfg(feature = "compare-rustcrypto")]
+    {
+        use ml_kem::{kem::Encapsulate, KemCore, MlKem768 as RcMlKem768};
+        let (_, ek_rc) = RcMlKem768::generate(&mut OsRng010);
+        group.bench_function(BenchmarkId::new("RustCrypto", ""), |b| {
+            b.iter_batched(
+                || OsRng010,
+                |mut rng| black_box(ek_rc.encapsulate_with_rng(&mut rng)),
+                criterion::BatchSize::SmallInput,
+            )
+        });
+    }
 
     // libcrux-ml-kem
     #[cfg(feature = "compare-libcrux")]
@@ -147,17 +175,16 @@ fn bench_decaps_comparison(c: &mut Criterion) {
         });
     }
 
-    // RustCrypto ml-kem - disabled due to rand_core version incompatibility
-    // #[cfg(feature = "compare-rustcrypto")]
-    // {
-    //     use ml_kem::{kem::Decapsulate, kem::Encapsulate, KemCore, MlKem768 as RcMlKem768};
-    //     let mut rng = rand::rng();
-    //     let (dk_rc, ek_rc) = RcMlKem768::generate(&mut rng);
-    //     let (ct_rc, _) = ek_rc.encapsulate_with_rng(&mut rng);
-    //     group.bench_function(BenchmarkId::new("RustCrypto", ""), |b| {
-    //         b.iter(|| black_box(dk_rc.decapsulate(&ct_rc)))
-    //     });
-    // }
+    // RustCrypto ml-kem (uses rand_core 0.10-rc via aliased dependency)
+    #[cfg(feature = "compare-rustcrypto")]
+    {
+        use ml_kem::{kem::Decapsulate, kem::Encapsulate, KemCore, MlKem768 as RcMlKem768};
+        let (dk_rc, ek_rc) = RcMlKem768::generate(&mut OsRng010);
+        let (ct_rc, _) = ek_rc.encapsulate_with_rng(&mut OsRng010);
+        group.bench_function(BenchmarkId::new("RustCrypto", ""), |b| {
+            b.iter(|| black_box(dk_rc.decapsulate(&ct_rc)))
+        });
+    }
 
     // libcrux-ml-kem
     #[cfg(feature = "compare-libcrux")]
