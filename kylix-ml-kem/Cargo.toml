@@ -10,6 +10,9 @@ homepage.workspace = true
 categories.workspace = true
 keywords.workspace = true
 description = "ML-KEM (FIPS 203) implementation for the Kylix post-quantum cryptography library"
+# Exclude large ACVP test vectors from published crate (1.4MB)
+# Tests can still run from git repository
+exclude = ["tests/acvp/"]
 
 [features]
 default = ["std", "ml-kem-768"]
