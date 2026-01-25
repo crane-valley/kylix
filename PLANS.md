@@ -40,6 +40,7 @@ Kylix aims to provide a **pure Rust, high-performance, auditable** implementatio
 
 | Component | FIPS Standard | Priority |
 |-----------|---------------|----------|
+| ML-KEM Comparison Benchmark Fix | FIPS 203 | HIGH |
 | ML-DSA Verify Optimization | FIPS 204 | HIGH |
 | ML-KEM SIMD (Phase 2) | FIPS 203 | MEDIUM |
 | SLH-DSA SHA2 Variants | FIPS 205 | LOW |
@@ -484,7 +485,38 @@ Establish Kylix as a high-performance PQC library by comparing with competitors.
 - [x] Add SLH-DSA-SHAKE-128f comparison benchmarks
 - [x] Handle rand_core version differences (0.6 for ml-dsa/slh-dsa, 0.10-rc for ml-kem)
 
-### Phase 6.5: Benchmark Results (v0.4.1)
+### Phase 6.5: ML-KEM Comparison Benchmark Fix (Pending)
+
+**Issue:** `comparison.rs` uses `iter_batched` for libcrux benchmarks, excluding RNG cost from timing.
+
+**Problem Code:**
+```rust
+// libcrux KeyGen - RNG cost NOT included in timing
+group.bench_function(BenchmarkId::new("libcrux", ""), |b| {
+    b.iter_batched(
+        rand::random::<[u8; 64]>,  // ← setup (not timed)
+        |randomness| black_box(mlkem768::generate_key_pair(randomness)),
+        criterion::BatchSize::SmallInput,
+    )
+});
+```
+
+**Fix:** Change to `iter()` with RNG inside closure (same fix as ML-DSA/SLH-DSA):
+```rust
+group.bench_function(BenchmarkId::new("libcrux", ""), |b| {
+    b.iter(|| {
+        let randomness: [u8; 64] = rand::random();
+        black_box(mlkem768::generate_key_pair(randomness))
+    })
+});
+```
+
+**Tasks:**
+- [ ] Fix `comparison.rs` KeyGen benchmark (libcrux)
+- [ ] Fix `comparison.rs` Encaps benchmark (libcrux)
+- [ ] Re-run benchmarks and update Phase 6.5 results
+
+### Phase 6.6: Benchmark Results (v0.4.1)
 
 ML-KEM-768 KeyGen comparison:
 
