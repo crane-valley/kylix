@@ -78,6 +78,20 @@ jobs:
       - name: Wait for crates.io
         run: sleep 30
 
+      - name: Publish kylix-slh-dsa
+        run: |
+          OUTPUT=$(cargo publish --package kylix-slh-dsa --token ${{ secrets.CARGO_REGISTRY_TOKEN }} 2>&1) || {
+            if echo "$OUTPUT" | grep -q "already exists on crates.io"; then
+              echo "kylix-slh-dsa already published, skipping"
+            else
+              echo "$OUTPUT"
+              exit 1
+            fi
+          }
+
+      - name: Wait for crates.io
+        run: sleep 30
+
       - name: Publish kylix-pqc
         run: |
           OUTPUT=$(cargo publish --package kylix-pqc --token ${{ secrets.CARGO_REGISTRY_TOKEN }} 2>&1) || {
