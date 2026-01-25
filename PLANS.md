@@ -40,7 +40,6 @@ Kylix aims to provide a **pure Rust, high-performance, auditable** implementatio
 
 | Component | FIPS Standard | Priority |
 |-----------|---------------|----------|
-| ML-KEM Comparison Benchmark Fix | FIPS 203 | HIGH |
 | ML-DSA Verify Optimization | FIPS 204 | HIGH |
 | ML-KEM SIMD (Phase 2) | FIPS 203 | MEDIUM |
 | SLH-DSA SHA2 Variants | FIPS 205 | LOW |
@@ -485,47 +484,29 @@ Establish Kylix as a high-performance PQC library by comparing with competitors.
 - [x] Add SLH-DSA-SHAKE-128f comparison benchmarks
 - [x] Handle rand_core version differences (0.6 for ml-dsa/slh-dsa, 0.10-rc for ml-kem)
 
-### Phase 6.5: ML-KEM Comparison Benchmark Fix (Pending)
+### Phase 6.5: ML-KEM Comparison Benchmark Fix ✅ Complete
 
-**Issue:** `comparison.rs` uses `iter_batched` for libcrux benchmarks, excluding RNG cost from timing.
+**Issue:** `comparison.rs` used `iter_batched` for libcrux benchmarks, excluding RNG cost from timing.
 
-**Problem Code:**
-```rust
-// libcrux KeyGen - RNG cost NOT included in timing
-group.bench_function(BenchmarkId::new("libcrux", ""), |b| {
-    b.iter_batched(
-        rand::random::<[u8; 64]>,  // ← setup (not timed)
-        |randomness| black_box(mlkem768::generate_key_pair(randomness)),
-        criterion::BatchSize::SmallInput,
-    )
-});
-```
-
-**Fix:** Change to `iter()` with RNG inside closure (same fix as ML-DSA/SLH-DSA):
-```rust
-group.bench_function(BenchmarkId::new("libcrux", ""), |b| {
-    b.iter(|| {
-        let randomness: [u8; 64] = rand::random();
-        black_box(mlkem768::generate_key_pair(randomness))
-    })
-});
-```
+**Fix:** Changed to `iter()` with RNG inside closure (same fix as ML-DSA/SLH-DSA).
 
 **Tasks:**
-- [ ] Fix `comparison.rs` KeyGen benchmark (libcrux)
-- [ ] Fix `comparison.rs` Encaps benchmark (libcrux)
-- [ ] Re-run benchmarks and update Phase 6.6 results
+- [x] Fix `comparison.rs` KeyGen benchmark (libcrux)
+- [x] Fix `comparison.rs` Encaps benchmark (libcrux)
+- [x] Re-run benchmarks and update Phase 6.6 results
 
 ### Phase 6.6: Benchmark Results (v0.4.1)
 
-ML-KEM-768 KeyGen comparison:
+ML-KEM-768 comparison (with fair RNG cost inclusion):
 
-| Library | Time | vs Kylix | Notes |
-|---------|------|----------|-------|
-| libcrux | 12.0 µs | -60% | Formally verified, fastest |
-| **Kylix** | 30.3 µs | baseline | Pure Rust |
-| RustCrypto | 36.2 µs | +19% | Pure Rust |
-| pqcrypto | 42.8 µs | +41% | C bindings (PQClean) |
+| Operation | Library | Time | Notes |
+|-----------|---------|------|-------|
+| KeyGen | libcrux | 11.8 µs | Formally verified |
+| KeyGen | **Kylix** | **29.8 µs** | Pure Rust |
+| Encaps | libcrux | 11.1 µs | Formally verified |
+| Encaps | **Kylix** | **22.6 µs** | Pure Rust |
+| Decaps | libcrux | 11.3 µs | Formally verified |
+| Decaps | **Kylix** | **28.5 µs** | Pure Rust |
 
 ---
 
