@@ -14,6 +14,12 @@ default = []
 simd = ["kylix-ml-dsa/simd"]
 parallel = ["kylix-slh-dsa/parallel"]
 
+# Comparison benchmarks (optional, may require different MSRV)
+compare-pqcrypto = ["pqcrypto-mlkem"]
+compare-rustcrypto = ["ml-kem"]
+compare-libcrux = ["libcrux-ml-kem"]
+compare-all = ["compare-pqcrypto", "compare-rustcrypto", "compare-libcrux"]
+
 [dependencies]
 kylix-ml-kem = { path = "../kylix-ml-kem", features = ["ml-kem-512", "ml-kem-768", "ml-kem-1024"] }
 kylix-ml-dsa = { path = "../kylix-ml-dsa", features = ["ml-dsa-44", "ml-dsa-65", "ml-dsa-87"] }
@@ -22,6 +28,11 @@ kylix-core.workspace = true
 rand = "0.9"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+
+# Optional comparison libraries (feature-gated)
+pqcrypto-mlkem = { version = "0.1", optional = true }
+ml-kem = { version = "0.3.0-pre", optional = true }
+libcrux-ml-kem = { version = "0.0.6", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
@@ -36,4 +47,8 @@ harness = false
 
 [[bench]]
 name = "slh_dsa"
+harness = false
+
+[[bench]]
+name = "comparison"
 harness = false
