@@ -1053,9 +1053,9 @@ fn detect_external_tools(filter: Option<&Vec<String>>) -> Vec<ExternalTool> {
 
     // Check if tool should be included based on filter
     let should_include = |name: &str| -> bool {
-        filter.as_ref().map_or(true, |f| {
-            f.iter().any(|s| s.eq_ignore_ascii_case(name))
-        })
+        filter
+            .as_ref()
+            .map_or(true, |f| f.iter().any(|s| s.eq_ignore_ascii_case(name)))
     };
 
     // Detect liboqs speed_kem tool
@@ -1527,10 +1527,11 @@ fn format_comparison_table(
 
     // Add external results
     for r in external_results {
-        by_algo
-            .entry(r.algorithm.clone())
-            .or_default()
-            .push((&r.tool_name, &r.operation, r.mean_us));
+        by_algo.entry(r.algorithm.clone()).or_default().push((
+            &r.tool_name,
+            &r.operation,
+            r.mean_us,
+        ));
     }
 
     match report_format {
@@ -1859,7 +1860,9 @@ fn cmd_bench(
     let external_tools = if compare {
         let tools = detect_external_tools(with);
         if tools.is_empty() {
-            eprintln!("Warning: No external PQC tools detected. Comparison will show Kylix results only.");
+            eprintln!(
+                "Warning: No external PQC tools detected. Comparison will show Kylix results only."
+            );
             eprintln!("Supported tools: liboqs (speed_kem/speed_sig), OpenSSL 3.5+");
         } else if verbose {
             eprintln!("Detected external tools:");
@@ -1915,7 +1918,8 @@ fn cmd_bench(
                 eprintln!("  Running external tool benchmarks...");
             }
 
-            let ext_results = run_external_benchmarks(&external_tools, &algo_name, is_kem, iterations);
+            let ext_results =
+                run_external_benchmarks(&external_tools, &algo_name, is_kem, iterations);
             external_results.extend(ext_results);
         }
     }
@@ -1934,9 +1938,8 @@ fn cmd_bench(
                 }
                 text
             }
-            ReportFormat::Json => {
-                serde_json::to_string_pretty(&report).context("Failed to serialize report to JSON")?
-            }
+            ReportFormat::Json => serde_json::to_string_pretty(&report)
+                .context("Failed to serialize report to JSON")?,
             ReportFormat::Markdown => report.to_markdown(),
         }
     };
