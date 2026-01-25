@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - SIMD enabled by default with runtime CPU feature detection
 - **ML-DSA expanded verification**: Pre-expand verification key for fast repeated verification
   - `ExpandedVerificationKey` type with `expand()` and `verify_expanded()` methods
-  - Amortizes ~40µs key expansion cost across multiple verifications
+  - Amortizes key expansion cost (~68µs for ML-DSA-65) across multiple verifications
   - Useful for batch verification, certificate chain validation, repeated verification scenarios
 
 ## [0.4.1] - 2026-01-25
