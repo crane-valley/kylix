@@ -94,7 +94,7 @@ fn main() -> kylix_pqc::Result<()> {
     // Generate a signing key pair
     let (signing_key, verifying_key) = SlhDsaShake128f::keygen(&mut OsRng)?;
 
-    // Sign a message
+    // Sign a message (deterministic signing, no RNG needed)
     let message = b"Hello, post-quantum world!";
     let signature = SlhDsaShake128f::sign(&signing_key, message)?;
 

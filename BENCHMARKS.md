@@ -55,7 +55,7 @@ Benchmarks run with `cargo bench -p kylix-bench --bench ml_dsa` using Criterion 
 |-----------|-------|--------|--------|
 | ML-DSA-65 KeyGen | 97 µs | - | ✅ |
 | ML-DSA-65 Sign | 165 µs | < 200 µs | ✅ Pass |
-| ML-DSA-65 Verify | 102 µs | < 100 µs | ✅ Pass |
+| ML-DSA-65 Verify | 102 µs | < 100 µs | ⚠️ Close |
 
 ### Notes
 
