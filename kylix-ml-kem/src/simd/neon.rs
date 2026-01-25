@@ -357,6 +357,9 @@ pub unsafe fn poly_basemul_acc_neon(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]
     // 256 coefficients / 8 = 32 iterations
     for i in 0..32 {
         let base = i * 8;
+        // ZETAS[64..128] contain the precomputed twiddle factors for basemul.
+        // The NTT uses ZETAS[0..64] for butterfly operations, while basemul
+        // uses ZETAS[64..128] for the polynomial ring structure (X^2 - zeta).
         let zeta_idx = 64 + i * 2;
 
         // Load 8 coefficients from a, b, and r
@@ -455,6 +458,9 @@ unsafe fn shuffle_even_8(a: int16x8_t) -> int16x8_t {
 
     // Lower 64 bits now contain [a0, a2, a4, a6]. Replicate to upper half
     // so all 8 lanes contain valid data for subsequent operations.
+    // Note: We use replication instead of zeroing the upper half because
+    // interleave_8 only uses the lower 4 elements anyway, and replication
+    // provides consistent behavior if the result is used elsewhere.
     let lo = vget_low_s16(vreinterpretq_s16_u8(result_bytes));
     vcombine_s16(lo, lo)
 }
@@ -490,6 +496,9 @@ unsafe fn shuffle_odd_8(a: int16x8_t) -> int16x8_t {
 
     // Lower 64 bits now contain [a1, a3, a5, a7]. Replicate to upper half
     // so all 8 lanes contain valid data for subsequent operations.
+    // Note: We use replication instead of zeroing the upper half because
+    // interleave_8 only uses the lower 4 elements anyway, and replication
+    // provides consistent behavior if the result is used elsewhere.
     let lo = vget_low_s16(vreinterpretq_s16_u8(result_bytes));
     vcombine_s16(lo, lo)
 }

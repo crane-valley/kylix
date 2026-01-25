@@ -461,6 +461,9 @@ pub unsafe fn poly_basemul_acc_avx2(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]
     // 256 coefficients / 16 = 16 iterations
     for i in 0..16 {
         let base = i * 16;
+        // ZETAS[64..128] contain the precomputed twiddle factors for basemul.
+        // The NTT uses ZETAS[0..64] for butterfly operations, while basemul
+        // uses ZETAS[64..128] for the polynomial ring structure (X^2 - zeta).
         let zeta_idx = 64 + i * 4;
 
         // Load 16 coefficients from a, b, and r
@@ -560,8 +563,11 @@ unsafe fn shuffle_even_16(a: __m256i) -> __m256i {
     let combined = _mm_unpacklo_epi64(lo_lane0, lo_lane1);
 
     // Broadcast to both 128-bit lanes of 256-bit register.
-    // IMPORTANT: Use _mm256_set_m128i instead of _mm256_castsi128_si256 to ensure
-    // both lanes contain valid data. castsi128_si256 leaves upper 128 bits undefined.
+    // Note: We use broadcast instead of zero-extension because:
+    // 1. _mm256_castsi128_si256's upper bits are undefined per Intel spec
+    // 2. While interleave_16 only uses lower 128 bits, broadcasting ensures
+    //    consistent behavior regardless of how the result is consumed
+    // 3. The performance difference is negligible (one vinserti128 instruction)
     _mm256_set_m128i(combined, combined)
 }
 
@@ -597,8 +603,11 @@ unsafe fn shuffle_odd_16(a: __m256i) -> __m256i {
     let combined = _mm_unpacklo_epi64(lo_lane0, lo_lane1);
 
     // Broadcast to both 128-bit lanes of 256-bit register.
-    // IMPORTANT: Use _mm256_set_m128i instead of _mm256_castsi128_si256 to ensure
-    // both lanes contain valid data. castsi128_si256 leaves upper 128 bits undefined.
+    // Note: We use broadcast instead of zero-extension because:
+    // 1. _mm256_castsi128_si256's upper bits are undefined per Intel spec
+    // 2. While interleave_16 only uses lower 128 bits, broadcasting ensures
+    //    consistent behavior regardless of how the result is consumed
+    // 3. The performance difference is negligible (one vinserti128 instruction)
     _mm256_set_m128i(combined, combined)
 }
 
