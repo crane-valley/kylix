@@ -10,6 +10,9 @@ homepage.workspace = true
 categories.workspace = true
 keywords.workspace = true
 description = "SLH-DSA (FIPS 205) implementation for the Kylix post-quantum cryptography library"
+# Exclude large ACVP test vectors from published crate (30MB)
+# Tests can still run from git repository
+exclude = ["tests/acvp/"]
 
 [features]
 default = ["std", "slh-dsa-shake-128f"]

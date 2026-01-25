@@ -2,9 +2,34 @@
 //!
 //! These tests use official NIST test vectors from:
 //! https://github.com/usnistgov/ACVP-Server/tree/master/gen-val/json-files
+//!
+//! Note: These tests are skipped when the test vectors are not present
+//! (e.g., when running from crates.io package where they are excluded).
 
 use serde::Deserialize;
 use std::fs;
+use std::path::Path;
+
+/// Path to the ACVP test vectors directory
+const ACVP_DIR: &str = "tests/acvp";
+
+/// Check if ACVP test vectors are available.
+/// Returns false when running from crates.io package where vectors are excluded.
+fn acvp_vectors_available() -> bool {
+    Path::new(ACVP_DIR).exists()
+}
+
+/// Macro to skip test if ACVP vectors are not available
+macro_rules! skip_if_no_vectors {
+    () => {
+        if !acvp_vectors_available() {
+            eprintln!(
+                "Skipping ACVP test: test vectors not available (excluded from crates.io package)"
+            );
+            return;
+        }
+    };
+}
 
 /// ACVP prompt file structure
 #[derive(Debug, Deserialize)]
@@ -117,6 +142,7 @@ mod keygen_512 {
 
     #[test]
     fn test_acvp_keygen_ml_kem_512() {
+        skip_if_no_vectors!();
         let prompt_file = load_prompt_file("tests/acvp/keygen_prompt.json");
         let expected_file = load_expected_file("tests/acvp/keygen_expected.json");
 
@@ -175,6 +201,7 @@ mod keygen_768 {
 
     #[test]
     fn test_acvp_keygen_ml_kem_768() {
+        skip_if_no_vectors!();
         let prompt_file = load_prompt_file("tests/acvp/keygen_prompt.json");
         let expected_file = load_expected_file("tests/acvp/keygen_expected.json");
 
@@ -231,6 +258,7 @@ mod keygen_1024 {
 
     #[test]
     fn test_acvp_keygen_ml_kem_1024() {
+        skip_if_no_vectors!();
         let prompt_file = load_prompt_file("tests/acvp/keygen_prompt.json");
         let expected_file = load_expected_file("tests/acvp/keygen_expected.json");
 
@@ -291,6 +319,7 @@ mod encaps_512 {
 
     #[test]
     fn test_acvp_encaps_ml_kem_512() {
+        skip_if_no_vectors!();
         let prompt_file = load_prompt_file("tests/acvp/encapdecap_prompt.json");
         let expected_file = load_expected_file("tests/acvp/encapdecap_expected.json");
 
@@ -350,6 +379,7 @@ mod encaps_768 {
 
     #[test]
     fn test_acvp_encaps_ml_kem_768() {
+        skip_if_no_vectors!();
         let prompt_file = load_prompt_file("tests/acvp/encapdecap_prompt.json");
         let expected_file = load_expected_file("tests/acvp/encapdecap_expected.json");
 
@@ -409,6 +439,7 @@ mod encaps_1024 {
 
     #[test]
     fn test_acvp_encaps_ml_kem_1024() {
+        skip_if_no_vectors!();
         let prompt_file = load_prompt_file("tests/acvp/encapdecap_prompt.json");
         let expected_file = load_expected_file("tests/acvp/encapdecap_expected.json");
 
@@ -472,6 +503,7 @@ mod decaps_512 {
 
     #[test]
     fn test_acvp_decaps_ml_kem_512() {
+        skip_if_no_vectors!();
         let prompt_file = load_prompt_file("tests/acvp/encapdecap_prompt.json");
         let expected_file = load_expected_file("tests/acvp/encapdecap_expected.json");
 
@@ -525,6 +557,7 @@ mod decaps_768 {
 
     #[test]
     fn test_acvp_decaps_ml_kem_768() {
+        skip_if_no_vectors!();
         let prompt_file = load_prompt_file("tests/acvp/encapdecap_prompt.json");
         let expected_file = load_expected_file("tests/acvp/encapdecap_expected.json");
 
@@ -578,6 +611,7 @@ mod decaps_1024 {
 
     #[test]
     fn test_acvp_decaps_ml_kem_1024() {
+        skip_if_no_vectors!();
         let prompt_file = load_prompt_file("tests/acvp/encapdecap_prompt.json");
         let expected_file = load_expected_file("tests/acvp/encapdecap_expected.json");
 

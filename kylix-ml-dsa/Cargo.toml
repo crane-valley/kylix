@@ -10,6 +10,9 @@ homepage.workspace = true
 categories.workspace = true
 keywords.workspace = true
 description = "ML-DSA (FIPS 204) implementation for the Kylix post-quantum cryptography library"
+# Exclude large ACVP test vectors from published crate (12MB)
+# Tests can still run from git repository
+exclude = ["tests/acvp/"]
 
 [features]
 default = ["std", "ml-dsa-65", "simd"]

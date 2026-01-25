@@ -2,9 +2,34 @@
 //!
 //! These tests use official NIST test vectors from:
 //! https://github.com/usnistgov/ACVP-Server/tree/master/gen-val/json-files
+//!
+//! Note: These tests are skipped when the test vectors are not present
+//! (e.g., when running from crates.io package where they are excluded).
 
 use serde::Deserialize;
 use std::fs;
+use std::path::Path;
+
+/// Path to the ACVP test vectors directory
+const ACVP_DIR: &str = "tests/acvp";
+
+/// Check if ACVP test vectors are available.
+/// Returns false when running from crates.io package where vectors are excluded.
+fn acvp_vectors_available() -> bool {
+    Path::new(ACVP_DIR).exists()
+}
+
+/// Macro to skip test if ACVP vectors are not available
+macro_rules! skip_if_no_vectors {
+    () => {
+        if !acvp_vectors_available() {
+            eprintln!(
+                "Skipping ACVP test: test vectors not available (excluded from crates.io package)"
+            );
+            return;
+        }
+    };
+}
 
 /// ACVP prompt file structure for KeyGen
 #[derive(Debug, Deserialize)]
@@ -147,6 +172,7 @@ mod keygen_shake_128s {
 
     #[test]
     fn test_acvp_keygen_slh_dsa_shake_128s() {
+        skip_if_no_vectors!();
         let prompt_file = load_keygen_prompt_file("tests/acvp/keygen_prompt.json");
         let expected_file = load_keygen_expected_file("tests/acvp/keygen_expected.json");
 
@@ -215,6 +241,7 @@ mod keygen_shake_128f {
 
     #[test]
     fn test_acvp_keygen_slh_dsa_shake_128f() {
+        skip_if_no_vectors!();
         let prompt_file = load_keygen_prompt_file("tests/acvp/keygen_prompt.json");
         let expected_file = load_keygen_expected_file("tests/acvp/keygen_expected.json");
 
@@ -283,6 +310,7 @@ mod keygen_shake_192s {
 
     #[test]
     fn test_acvp_keygen_slh_dsa_shake_192s() {
+        skip_if_no_vectors!();
         let prompt_file = load_keygen_prompt_file("tests/acvp/keygen_prompt.json");
         let expected_file = load_keygen_expected_file("tests/acvp/keygen_expected.json");
 
@@ -351,6 +379,7 @@ mod keygen_shake_192f {
 
     #[test]
     fn test_acvp_keygen_slh_dsa_shake_192f() {
+        skip_if_no_vectors!();
         let prompt_file = load_keygen_prompt_file("tests/acvp/keygen_prompt.json");
         let expected_file = load_keygen_expected_file("tests/acvp/keygen_expected.json");
 
@@ -419,6 +448,7 @@ mod keygen_shake_256s {
 
     #[test]
     fn test_acvp_keygen_slh_dsa_shake_256s() {
+        skip_if_no_vectors!();
         let prompt_file = load_keygen_prompt_file("tests/acvp/keygen_prompt.json");
         let expected_file = load_keygen_expected_file("tests/acvp/keygen_expected.json");
 
@@ -487,6 +517,7 @@ mod keygen_shake_256f {
 
     #[test]
     fn test_acvp_keygen_slh_dsa_shake_256f() {
+        skip_if_no_vectors!();
         let prompt_file = load_keygen_prompt_file("tests/acvp/keygen_prompt.json");
         let expected_file = load_keygen_expected_file("tests/acvp/keygen_expected.json");
 
@@ -562,6 +593,7 @@ mod sigver_shake_128f {
 
     #[test]
     fn test_acvp_sigver_slh_dsa_shake_128f() {
+        skip_if_no_vectors!();
         let prompt_file = load_sigver_prompt_file("tests/acvp/sigver_prompt.json");
         let expected_file = load_sigver_expected_file("tests/acvp/sigver_expected.json");
 
@@ -644,6 +676,7 @@ mod sigver_shake_192f {
 
     #[test]
     fn test_acvp_sigver_slh_dsa_shake_192f() {
+        skip_if_no_vectors!();
         let prompt_file = load_sigver_prompt_file("tests/acvp/sigver_prompt.json");
         let expected_file = load_sigver_expected_file("tests/acvp/sigver_expected.json");
 
@@ -726,6 +759,7 @@ mod sigver_shake_256f {
 
     #[test]
     fn test_acvp_sigver_slh_dsa_shake_256f() {
+        skip_if_no_vectors!();
         let prompt_file = load_sigver_prompt_file("tests/acvp/sigver_prompt.json");
         let expected_file = load_sigver_expected_file("tests/acvp/sigver_expected.json");
 
