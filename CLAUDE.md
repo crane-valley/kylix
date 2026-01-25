@@ -42,3 +42,6 @@ When adding a new crate to the workspace:
    [package]
    exclude = ["tests/acvp/"]
    ```
+
+3. **Verify package contents**: Run `cargo package --list -p <crate>` to confirm large files are excluded
+4. **Gate excluded tests**: If tests depend on excluded files, add skip logic so tests pass when running from crates.io tarball
