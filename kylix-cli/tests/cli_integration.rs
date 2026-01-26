@@ -446,6 +446,7 @@ mod error_handling {
     }
 
     #[test]
+    #[cfg(feature = "bench")]
     fn test_bench_zero_iterations() {
         kylix()
             .args(["bench", "--iterations", "0"])
@@ -455,6 +456,7 @@ mod error_handling {
     }
 }
 
+#[cfg(feature = "bench")]
 mod bench_command {
     use super::*;
 

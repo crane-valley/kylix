@@ -12,6 +12,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 - ML-DSA-44/65/87 (FIPS 204) with SIMD (AVX2/NEON) and expanded verification
 - SLH-DSA-SHAKE all variants (FIPS 205) with parallel feature
 - NIST ACVP tests, fuzz testing, CLI, no_std, constant-time, zeroization
+- CLI bench feature extraction: benchmark code moved to optional `bench` feature in `src/bench.rs`
 
 > See `CHANGELOG.md` for release history and `BENCHMARKS.md` for performance data.
 
@@ -20,7 +21,6 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | Component | Priority | Notes |
 |-----------|----------|-------|
 | CLI Bench Compare CI | MEDIUM | Test OpenSSL/liboqs detection on Linux/macOS |
-| CLI Refactor: Separate Module | LOW | Move bench comparison logic to `src/bench_compare.rs` |
 | CLI Refactor: OpenSSL Dedup | LOW | Extract common logic from `run_openssl_kem_benchmark`/`run_openssl_sig_benchmark` |
 | CLI Refactor: Speedup Helper | LOW | Extract speedup calculation into shared helper function |
 | CLI: liboqs Header Parsing | LOW | Parse column headers for robustness against format changes |
