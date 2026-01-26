@@ -27,6 +27,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | SLH-DSA SHA2 Variants | LOW | FIPS 205 |
 | SIMD NTT (WASM) | LOW | - |
 | Property-based Tests | LOW | proptest |
+| Constant-time Verification | LOW | Formal verification with ct-verif or similar tools |
 
 ### Refactoring Backlog
 
@@ -63,6 +64,15 @@ Goal: Verify cross-platform tool detection works correctly.
 **Scope:** Cryptographic correctness, side-channel resistance, memory safety, dependency audit
 
 **Candidates:** Trail of Bits, NCC Group, Cure53, X41 D-Sec
+
+### Constant-time Verification
+
+Current status: Critical paths use `subtle` crate for constant-time operations to mitigate timing side-channel attacks, but are not formally verified.
+
+**Future work:**
+- Document which functions are intended to be constant-time
+- Evaluate formal verification tools (ct-verif, dudect, ctgrind)
+- Add constant-time property tests where feasible
 
 ---
 
@@ -144,4 +154,5 @@ SIMD complete for AVX2/NEON. WASM-SIMD128 pending (pointwise mul only).
 - [x] Zeroization
 - [ ] cargo-audit in CI
 - [ ] Property-based tests
+- [ ] Constant-time formal verification
 - [ ] Security audit
