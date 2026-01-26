@@ -765,6 +765,7 @@ dependencies = [
  "kylix-ml-dsa",
  "kylix-ml-kem",
  "kylix-slh-dsa",
+ "rand",
 ]
 
 [[package]]

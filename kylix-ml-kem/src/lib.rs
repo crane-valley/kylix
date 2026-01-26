@@ -13,7 +13,8 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```no_run
+//! # fn main() -> kylix_core::Result<()> {
 //! use kylix_ml_kem::{MlKem768, Kem};
 //! use rand::rng;
 //!
@@ -22,6 +23,8 @@
 //! let ss_receiver = MlKem768::decaps(&dk, &ct)?;
 //!
 //! assert_eq!(ss_sender.as_ref(), ss_receiver.as_ref());
+//! # Ok(())
+//! # }
 //! ```
 
 #![cfg_attr(not(feature = "std"), no_std)]
