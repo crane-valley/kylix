@@ -59,7 +59,7 @@ rand_core_06 = { package = "rand_core", version = "0.6", optional = true }
 getrandom_02 = { package = "getrandom", version = "0.2", optional = true }
 
 [dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.8", features = ["html_reports"] }
 
 [[bench]]
 name = "ml_kem"
