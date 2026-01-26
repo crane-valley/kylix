@@ -74,15 +74,29 @@ macro_rules! define_dsa_types {
             /// - t1 * 2^D in NTT domain
             /// - H(pk) hash
             ///
+            /// This is faster than regular `verify()` when verifying multiple
+            /// signatures with the same public key.
+            ///
+            /// # Performance (ML-DSA-65)
+            ///
+            /// | Method | Time per verify |
+            /// |--------|-----------------|
+            /// | `verify()` | ~101 µs |
+            /// | `verify_expanded()` | ~38 µs |
+            /// | `expand()` (one-time) | ~68 µs |
+            ///
+            /// Break-even: 2 verifications with the same key.
+            ///
             /// # Example
             ///
             /// ```ignore
             /// // Expand the verification key once
             /// let expanded = pk.expand()?;
             ///
-            /// // Verify multiple pre-existing signatures efficiently
-            /// for (msg, sig) in messages_and_signatures {
-            ///     MlDsa::verify_expanded(&expanded, msg, &sig)?;
+            /// // Verify multiple (message, signature) pairs efficiently
+            /// // Replace MlDsa65 with MlDsa44 or MlDsa87 as appropriate
+            /// for (message, signature) in messages_and_signatures {
+            ///     MlDsa65::verify_expanded(&expanded, message, &signature)?;
             /// }
             /// ```
             pub fn expand(&self) -> Result<ExpandedVerificationKey> {
@@ -91,6 +105,8 @@ macro_rules! define_dsa_types {
         }
 
         /// Expanded verification key with pre-computed values for fast repeated verification.
+        ///
+        /// See [`VerificationKey::expand`] for usage and performance details.
         pub type ExpandedVerificationKey = crate::sign::ExpandedVerificationKey<$K, $L>;
 
         /// Signature.
