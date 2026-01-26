@@ -18,7 +18,7 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::io::{self, Read};
 #[cfg(unix)]
-use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::PathBuf;
 use zeroize::Zeroize;
 
@@ -521,21 +521,41 @@ fn decode_input(data: &str, _format: OutputFormat) -> Result<Vec<u8>> {
 fn write_secret_file(path: &str, content: &str) -> Result<()> {
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
+        use std::path::Path;
 
+        let target = Path::new(path);
+        let parent = target.parent().unwrap_or_else(|| Path::new("."));
+
+        // Create temp file in same directory to ensure same filesystem for atomic rename
+        let mut temp_path = parent.to_path_buf();
+        temp_path.push(format!(
+            ".{}.tmp",
+            target.file_name().unwrap_or_default().to_string_lossy()
+        ));
+
+        // Create temp file with restrictive permissions (0o600) BEFORE writing secret data
         let mut file = OpenOptions::new()
             .write(true)
             .create(true)
             .truncate(true)
             .mode(0o600)
-            .open(path)
-            .with_context(|| format!("Failed to create secret key file: {}", path))?;
-        file.write_all(content.as_bytes())
-            .with_context(|| format!("Failed to write secret key file: {}", path))?;
+            .open(&temp_path)
+            .with_context(|| {
+                format!(
+                    "Failed to create temp file for secret key: {}",
+                    temp_path.display()
+                )
+            })?;
+        file.write_all(content.as_bytes()).with_context(|| {
+            format!(
+                "Failed to write temp file for secret key: {}",
+                temp_path.display()
+            )
+        })?;
 
-        // Explicitly set permissions to handle existing files (mode() only applies on create)
-        fs::set_permissions(path, fs::Permissions::from_mode(0o600))
-            .with_context(|| format!("Failed to set permissions on secret key file: {}", path))?;
+        // Atomic rename to target path (works because same filesystem)
+        fs::rename(&temp_path, path)
+            .with_context(|| format!("Failed to rename temp file to secret key file: {}", path))?;
 
         Ok(())
     }
