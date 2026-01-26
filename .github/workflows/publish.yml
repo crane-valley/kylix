@@ -1,11 +1,15 @@
 name: Publish to crates.io
 
-# Triggered when a GitHub Release is published.
-# Skipped for CLI-only releases (tags ending with -cli).
+# Triggered when:
+# - A GitHub Release is published (skipped for -cli tags)
+# - A tag ending with -crates is pushed (direct publish without CLI build)
 
 on:
   release:
     types: [published]
+  push:
+    tags:
+      - 'v*-crates'
 
 env:
   CARGO_TERM_COLOR: always
@@ -19,7 +23,8 @@ jobs:
     name: Publish to crates.io
     runs-on: ubuntu-latest
     # Skip if tag ends with -cli (CLI-only release)
-    if: ${{ !endsWith(github.event.release.tag_name, '-cli') }}
+    # For tag push events, github.event.release is null, so we check ref_name
+    if: ${{ github.event_name == 'push' || !endsWith(github.event.release.tag_name, '-cli') }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -32,7 +37,9 @@ jobs:
 
       - name: Verify version matches tag
         run: |
+          # Get tag and strip -crates suffix if present
           TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          TAG_VERSION="${TAG_VERSION%-crates}"
           CARGO_VERSION=$(cargo metadata --no-deps --format-version 1 | \
             jq -r '.packages[] | select(.name == "kylix-pqc") | .version')
           if [ "$TAG_VERSION" != "$CARGO_VERSION" ]; then
