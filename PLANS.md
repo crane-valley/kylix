@@ -22,7 +22,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | Component | Priority | Notes |
 |-----------|----------|-------|
 | Security Audit | HIGH | External |
-| cargo-audit CI | MEDIUM | Add automated dependency vulnerability scanning to CI |
+| cargo-audit in CI | MEDIUM | Add automated dependency vulnerability scanning to CI |
 | CLI Bench Compare CI | MEDIUM | Test OpenSSL/liboqs detection on Linux/macOS |
 | SLH-DSA SHA2 Variants | LOW | FIPS 205 |
 | SIMD NTT (WASM) | LOW | - |
