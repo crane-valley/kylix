@@ -16,6 +16,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Pre-built binaries for Linux (x64, ARM64), macOS (x64, ARM64), Windows (x64)
   - One-command installation via shell/PowerShell scripts
 
+### Security
+
+- **Secure secret key file writing (Unix)**: Keys written with `0o600` permissions using atomic temp-file-and-rename pattern
+  - Prevents race conditions and partial writes
+  - Random suffix in temp filename prevents predictable file-path attacks
+- **CLI zeroization improvements**: Consistent zeroization of sensitive data across all commands
+  - `cmd_keygen`: Zeroizes `sk_bytes` after encoding
+  - `cmd_encaps`: Zeroizes `ss_bytes` after output
+  - `cmd_decaps`: Zeroizes `sk_data`, `sk_bytes`, and `ss_bytes`
+- **Doc example validation**: Changed doc examples from `ignore` to `no_run` for compile-time validation
+
 ## [0.4.2] - 2026-01-25
 
 ### Added
