@@ -524,20 +524,31 @@ fn write_secret_file(path: &str, content: &str) -> Result<()> {
         use std::path::Path;
 
         let target = Path::new(path);
-        let parent = target.parent().unwrap_or_else(|| Path::new("."));
+        let parent = target.parent().ok_or_else(|| {
+            anyhow!(
+                "Invalid path for secret file (no parent directory): {}",
+                path
+            )
+        })?;
 
-        // Create temp file in same directory to ensure same filesystem for atomic rename
+        let filename = target
+            .file_name()
+            .ok_or_else(|| anyhow!("Invalid path for secret file (no filename): {}", path))?;
+
+        // Use random suffix to prevent attackers from pre-creating predictable temp files
+        let random_suffix: u64 = rand::random();
         let mut temp_path = parent.to_path_buf();
         temp_path.push(format!(
-            ".{}.tmp",
-            target.file_name().unwrap_or_default().to_string_lossy()
+            ".{}.{:016x}.tmp",
+            filename.to_string_lossy(),
+            random_suffix
         ));
 
         // Create temp file with restrictive permissions (0o600) BEFORE writing secret data
+        // Use create_new to prevent race conditions with attacker-created files
         let mut file = OpenOptions::new()
             .write(true)
-            .create(true)
-            .truncate(true)
+            .create_new(true)
             .mode(0o600)
             .open(&temp_path)
             .with_context(|| {
