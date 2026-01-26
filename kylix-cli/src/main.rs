@@ -526,14 +526,14 @@ fn write_secret_file(path: &str, content: &str) -> Result<()> {
         let target = Path::new(path);
         let parent = target.parent().ok_or_else(|| {
             anyhow!(
-                "Invalid path for secret file (no parent directory): {}",
+                "Cannot determine parent directory for secret file path: {}",
                 path
             )
         })?;
 
         let filename = target
             .file_name()
-            .ok_or_else(|| anyhow!("Invalid path for secret file (no filename): {}", path))?;
+            .ok_or_else(|| anyhow!("Path does not contain a valid filename: {}", path))?;
 
         // Use random suffix to prevent attackers from pre-creating predictable temp files
         let random_suffix: u64 = rand::random();
