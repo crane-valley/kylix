@@ -370,9 +370,9 @@ impl Algorithm {
     /// Detect KEM algorithm from public key size.
     fn detect_kem_from_pub_key(size: usize) -> Result<Self> {
         match size {
-            s if s == MlKem512::ENCAPSULATION_KEY_SIZE => Ok(Algorithm::MlKem512),
-            s if s == MlKem768::ENCAPSULATION_KEY_SIZE => Ok(Algorithm::MlKem768),
-            s if s == MlKem1024::ENCAPSULATION_KEY_SIZE => Ok(Algorithm::MlKem1024),
+            MlKem512::ENCAPSULATION_KEY_SIZE => Ok(Algorithm::MlKem512),
+            MlKem768::ENCAPSULATION_KEY_SIZE => Ok(Algorithm::MlKem768),
+            MlKem1024::ENCAPSULATION_KEY_SIZE => Ok(Algorithm::MlKem1024),
             _ => bail!(
                 "Unknown public key size: {} bytes. Expected {}, {}, or {}.",
                 size,
@@ -386,9 +386,9 @@ impl Algorithm {
     /// Detect KEM algorithm from secret key size.
     fn detect_kem_from_sec_key(size: usize) -> Result<Self> {
         match size {
-            s if s == MlKem512::DECAPSULATION_KEY_SIZE => Ok(Algorithm::MlKem512),
-            s if s == MlKem768::DECAPSULATION_KEY_SIZE => Ok(Algorithm::MlKem768),
-            s if s == MlKem1024::DECAPSULATION_KEY_SIZE => Ok(Algorithm::MlKem1024),
+            MlKem512::DECAPSULATION_KEY_SIZE => Ok(Algorithm::MlKem512),
+            MlKem768::DECAPSULATION_KEY_SIZE => Ok(Algorithm::MlKem768),
+            MlKem1024::DECAPSULATION_KEY_SIZE => Ok(Algorithm::MlKem1024),
             _ => bail!(
                 "Unknown secret key size: {} bytes. Expected {}, {}, or {}.",
                 size,
@@ -403,12 +403,12 @@ impl Algorithm {
     /// Note: SLH-DSA 128s/128f have same key sizes; defaults to 128f.
     fn detect_dsa_from_signing_key(size: usize) -> Result<Self> {
         match size {
-            s if s == MlDsa44::SIGNING_KEY_SIZE => Ok(Algorithm::MlDsa44),
-            s if s == MlDsa65::SIGNING_KEY_SIZE => Ok(Algorithm::MlDsa65),
-            s if s == MlDsa87::SIGNING_KEY_SIZE => Ok(Algorithm::MlDsa87),
-            s if s == SlhDsaShake128f::SIGNING_KEY_SIZE => Ok(Algorithm::SlhDsaShake128f),
-            s if s == SlhDsaShake192f::SIGNING_KEY_SIZE => Ok(Algorithm::SlhDsaShake192f),
-            s if s == SlhDsaShake256f::SIGNING_KEY_SIZE => Ok(Algorithm::SlhDsaShake256f),
+            MlDsa44::SIGNING_KEY_SIZE => Ok(Algorithm::MlDsa44),
+            MlDsa65::SIGNING_KEY_SIZE => Ok(Algorithm::MlDsa65),
+            MlDsa87::SIGNING_KEY_SIZE => Ok(Algorithm::MlDsa87),
+            SlhDsaShake128f::SIGNING_KEY_SIZE => Ok(Algorithm::SlhDsaShake128f),
+            SlhDsaShake192f::SIGNING_KEY_SIZE => Ok(Algorithm::SlhDsaShake192f),
+            SlhDsaShake256f::SIGNING_KEY_SIZE => Ok(Algorithm::SlhDsaShake256f),
             _ => bail!(
                 "Unknown signing key size: {} bytes. Expected ML-DSA (2560/4032/4896) or SLH-DSA (64/96/128).",
                 size
@@ -420,12 +420,12 @@ impl Algorithm {
     /// Note: SLH-DSA 128s/128f have same key sizes; defaults to 128f.
     fn detect_dsa_from_verification_key(size: usize) -> Result<Self> {
         match size {
-            s if s == MlDsa44::VERIFICATION_KEY_SIZE => Ok(Algorithm::MlDsa44),
-            s if s == MlDsa65::VERIFICATION_KEY_SIZE => Ok(Algorithm::MlDsa65),
-            s if s == MlDsa87::VERIFICATION_KEY_SIZE => Ok(Algorithm::MlDsa87),
-            s if s == SlhDsaShake128f::VERIFICATION_KEY_SIZE => Ok(Algorithm::SlhDsaShake128f),
-            s if s == SlhDsaShake192f::VERIFICATION_KEY_SIZE => Ok(Algorithm::SlhDsaShake192f),
-            s if s == SlhDsaShake256f::VERIFICATION_KEY_SIZE => Ok(Algorithm::SlhDsaShake256f),
+            MlDsa44::VERIFICATION_KEY_SIZE => Ok(Algorithm::MlDsa44),
+            MlDsa65::VERIFICATION_KEY_SIZE => Ok(Algorithm::MlDsa65),
+            MlDsa87::VERIFICATION_KEY_SIZE => Ok(Algorithm::MlDsa87),
+            SlhDsaShake128f::VERIFICATION_KEY_SIZE => Ok(Algorithm::SlhDsaShake128f),
+            SlhDsaShake192f::VERIFICATION_KEY_SIZE => Ok(Algorithm::SlhDsaShake192f),
+            SlhDsaShake256f::VERIFICATION_KEY_SIZE => Ok(Algorithm::SlhDsaShake256f),
             _ => bail!(
                 "Unknown verification key size: {} bytes. Expected ML-DSA (1312/1952/2592) or SLH-DSA (32/48/64).",
                 size
@@ -1009,7 +1009,7 @@ fn cmd_info() {
         let info = algo.info();
         println!(
             "    {:<12} {}  PK: {}B  SK: {}B  CT: {}B",
-            format!("{}", algo).to_lowercase().replace("-shake", ""),
+            format!("{}", algo).to_lowercase(),
             level,
             info.pub_key_size,
             info.sec_key_size,
@@ -1041,11 +1041,11 @@ fn cmd_info() {
     println!("  SLH-DSA (FIPS 205) - Stateless Hash-Based Digital Signature Algorithm");
     for (algo, level) in [
         (Algorithm::SlhDsaShake128s, "Security Level 1 (small)"),
-        (Algorithm::SlhDsaShake128f, "Security Level 1 (fast) "),
+        (Algorithm::SlhDsaShake128f, "Security Level 1 (fast)"),
         (Algorithm::SlhDsaShake192s, "Security Level 3 (small)"),
-        (Algorithm::SlhDsaShake192f, "Security Level 3 (fast) "),
+        (Algorithm::SlhDsaShake192f, "Security Level 3 (fast)"),
         (Algorithm::SlhDsaShake256s, "Security Level 5 (small)"),
-        (Algorithm::SlhDsaShake256f, "Security Level 5 (fast) "),
+        (Algorithm::SlhDsaShake256f, "Security Level 5 (fast)"),
     ] {
         let info = algo.info();
         println!(
