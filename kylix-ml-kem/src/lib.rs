@@ -48,6 +48,7 @@ mod poly;
 mod polyvec;
 mod reduce;
 mod sample;
+mod types;
 
 #[cfg(feature = "simd")]
 mod simd;
