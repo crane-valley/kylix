@@ -26,6 +26,16 @@ During development, run `cargo fmt --all` frequently (for example, after each ed
 - Ensure `Cargo.toml` version matches the tag before release
 - Release tag creation is done by humans
 
+### Selective Release
+
+Use tag suffixes for selective releases:
+
+| Tag | CLI Binaries | crates.io |
+|-----|--------------|-----------|
+| `v0.5.0` | ✓ | ✓ |
+| `v0.5.0-cli` | ✓ | ✗ |
+| `v0.5.0-crates` | ✗ | ✓ |
+
 ### Adding a New Crate
 
 When adding a new crate to the workspace:

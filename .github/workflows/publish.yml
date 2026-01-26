@@ -1,5 +1,8 @@
 name: Publish to crates.io
 
+# Triggered when a GitHub Release is published.
+# Skipped for CLI-only releases (tags ending with -cli).
+
 on:
   release:
     types: [published]
@@ -15,6 +18,8 @@ jobs:
   publish:
     name: Publish to crates.io
     runs-on: ubuntu-latest
+    # Skip if tag ends with -cli (CLI-only release)
+    if: ${{ !endsWith(github.event.release.tag_name, '-cli') }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6

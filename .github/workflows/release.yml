@@ -38,6 +38,11 @@ permissions:
 #
 # If there's a prerelease-style suffix to the version, then the release(s)
 # will be marked as a prerelease.
+#
+# Selective release support:
+# - v0.5.0       -> Both CLI binaries and crates.io
+# - v0.5.0-cli   -> CLI binaries only (skips crates.io publish)
+# - v0.5.0-crates -> crates.io only (skips CLI binary build)
 on:
   push:
     tags:
@@ -47,6 +52,8 @@ jobs:
   # Run 'dist plan' (or host) to determine what tasks we need to do
   plan:
     runs-on: "ubuntu-22.04"
+    # Skip if tag ends with -crates (crates.io-only release)
+    if: ${{ !endsWith(github.ref_name, '-crates') }}
     outputs:
       val: ${{ steps.plan.outputs.manifest }}
       tag: ${{ !github.event.pull_request && github.ref_name || '' }}
