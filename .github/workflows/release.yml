@@ -40,9 +40,10 @@ permissions:
 # will be marked as a prerelease.
 #
 # Selective release support:
-# - v0.5.0       -> Both CLI binaries and crates.io
-# - v0.5.0-cli   -> CLI binaries only (skips crates.io publish)
-# - v0.5.0-crates -> crates.io only (skips CLI binary build)
+# - vX.Y.Z        -> Both CLI binaries and crates.io
+# - vX.Y.Z-cli    -> CLI binaries only (skips crates.io publish)
+# - vX.Y.Z-crates -> crates.io only (skips CLI binary build)
+# Note: -cli tags will be marked as prerelease by cargo-dist due to SemVer suffix detection.
 on:
   push:
     tags:
