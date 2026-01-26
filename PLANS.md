@@ -32,7 +32,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | Component | Priority | Impact | Notes |
 |-----------|----------|--------|-------|
 | ~~CLI: Constant Table~~ | ~~MEDIUM~~ | ~~~40 LOC~~ | ✓ Replaced with `AlgorithmInfo` lookup |
-| Lib: Key Type Wrappers | HIGH | ~400 LOC | Consolidate `DecapsulationKey`, `SigningKey` etc. with generics/macros |
+| ~~Lib: Key Type Wrappers~~ | ~~HIGH~~ | ~~265 LOC~~ | ✓ Added `define_kem_types!` / `define_dsa_types!` macros |
 | CLI: Long Functions | MEDIUM | Readability | Break up `cmd_sign` (135L), `cmd_verify` (127L), `cmd_keygen` (94L) |
 | Lib: Dead Code Audit | MEDIUM | Clarity | Audit `#[allow(dead_code)]` in kylix-ml-dsa (9 modules) |
 | Lib: SLH-DSA Variants | LOW | ~600 LOC | Consolidate 6 variant files with macro generation |
@@ -105,18 +105,13 @@ Introduced `AlgorithmInfo` metadata struct and consolidated algorithm detection:
 
 **Remaining**: The 12-way match blocks in keygen/sign/verify remain due to heterogeneous types (`as_bytes()` vs `to_bytes()`, `Result` vs `Option`). Macro-based generation would not significantly improve maintainability.
 
-### Key Type Wrappers (HIGH)
+### Key Type Wrappers (✓ COMPLETE)
 
-12+ files contain nearly identical struct implementations:
-```rust
-pub struct DecapsulationKey { bytes: [u8; SIZE] }
-impl DecapsulationKey {
-    pub fn from_bytes(...) -> Result<Self> { ... }
-    pub fn as_bytes(&self) -> &[u8] { ... }
-}
-```
-
-**Solution:** Generic `KeyWrapper<const N: usize>` or macro generation.
+Added `define_kem_types!` and `define_dsa_types!` macros to consolidate key type definitions:
+- `kylix-ml-kem/src/types.rs`: Generates `DecapsulationKey`, `EncapsulationKey`, `Ciphertext`, `SharedSecret`
+- `kylix-ml-dsa/src/types.rs`: Generates `SigningKey`, `VerificationKey`, `Signature`, `ExpandedVerificationKey`
+- SLH-DSA not changed (uses newtype pattern wrapping internal types)
+- Net reduction: ~265 lines of code
 
 ### SLH-DSA Variants (LOW)
 
