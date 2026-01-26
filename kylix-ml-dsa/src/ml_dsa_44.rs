@@ -4,6 +4,7 @@ use crate::params::ml_dsa_44::*;
 use crate::sign::{
     expand_verification_key, ml_dsa_keygen, ml_dsa_sign, ml_dsa_verify, ml_dsa_verify_expanded,
 };
+use crate::types::define_dsa_types;
 use kylix_core::{Error, Result, Signer};
 use rand_core::CryptoRng;
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -11,92 +12,12 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 /// ML-DSA-44 algorithm marker.
 pub struct MlDsa44;
 
-/// ML-DSA-44 signing key.
-#[derive(Clone, Zeroize, ZeroizeOnDrop)]
-pub struct SigningKey {
-    bytes: [u8; SK_BYTES],
-}
-
-impl SigningKey {
-    /// Create from bytes.
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() != SK_BYTES {
-            return Err(Error::InvalidKeyLength {
-                expected: SK_BYTES,
-                actual: bytes.len(),
-            });
-        }
-        let mut key = [0u8; SK_BYTES];
-        key.copy_from_slice(bytes);
-        Ok(Self { bytes: key })
-    }
-
-    /// Get the raw bytes.
-    pub fn as_bytes(&self) -> &[u8; SK_BYTES] {
-        &self.bytes
-    }
-}
-
-/// ML-DSA-44 verification key.
-#[derive(Clone)]
-pub struct VerificationKey {
-    bytes: [u8; PK_BYTES],
-}
-
-impl VerificationKey {
-    /// Create from bytes.
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() != PK_BYTES {
-            return Err(Error::InvalidKeyLength {
-                expected: PK_BYTES,
-                actual: bytes.len(),
-            });
-        }
-        let mut key = [0u8; PK_BYTES];
-        key.copy_from_slice(bytes);
-        Ok(Self { bytes: key })
-    }
-
-    /// Get the raw bytes.
-    pub fn as_bytes(&self) -> &[u8; PK_BYTES] {
-        &self.bytes
-    }
-
-    /// Expand the verification key for fast repeated verification.
-    ///
-    /// See [`crate::ml_dsa_65::VerificationKey::expand`] for details.
-    pub fn expand(&self) -> Result<ExpandedVerificationKey> {
-        expand_verification_key::<K, L>(self.as_bytes()).ok_or(Error::EncodingError)
-    }
-}
-
-/// Expanded verification key with pre-computed values for fast repeated verification.
-pub type ExpandedVerificationKey = crate::sign::ExpandedVerificationKey<K, L>;
-
-/// ML-DSA-44 signature.
-#[derive(Clone)]
-pub struct Signature {
-    bytes: [u8; SIG_BYTES],
-}
-
-impl Signature {
-    /// Create from bytes.
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() != SIG_BYTES {
-            return Err(Error::InvalidSignatureLength {
-                expected: SIG_BYTES,
-                actual: bytes.len(),
-            });
-        }
-        let mut sig = [0u8; SIG_BYTES];
-        sig.copy_from_slice(bytes);
-        Ok(Self { bytes: sig })
-    }
-
-    /// Get the raw bytes.
-    pub fn as_bytes(&self) -> &[u8; SIG_BYTES] {
-        &self.bytes
-    }
+define_dsa_types! {
+    sk_size: SK_BYTES,
+    pk_size: PK_BYTES,
+    sig_size: SIG_BYTES,
+    K: K,
+    L: L
 }
 
 impl Signer for MlDsa44 {

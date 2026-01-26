@@ -106,6 +106,8 @@ mod sample;
 /// Core signing algorithms (internal API for ACVP testing).
 #[allow(dead_code)]
 pub mod sign;
+#[cfg(any(feature = "ml-dsa-44", feature = "ml-dsa-65", feature = "ml-dsa-87"))]
+mod types;
 
 // SIMD optimizations (optional, platform-specific)
 #[cfg(feature = "simd")]

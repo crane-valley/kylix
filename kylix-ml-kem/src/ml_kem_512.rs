@@ -5,98 +5,16 @@
 
 use crate::kem::{ml_kem_decaps, ml_kem_encaps, ml_kem_keygen};
 use crate::params::ml_kem_512::*;
+use crate::types::define_kem_types;
 use kylix_core::{Error, Kem, Result};
 use rand_core::CryptoRng;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-/// ML-KEM-512 decapsulation key.
-#[derive(Clone, Zeroize, ZeroizeOnDrop)]
-pub struct DecapsulationKey {
-    bytes: [u8; DECAPSULATION_KEY_SIZE],
-}
-
-impl DecapsulationKey {
-    /// Create a decapsulation key from bytes.
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() != DECAPSULATION_KEY_SIZE {
-            return Err(Error::InvalidKeyLength {
-                expected: DECAPSULATION_KEY_SIZE,
-                actual: bytes.len(),
-            });
-        }
-        let mut key = [0u8; DECAPSULATION_KEY_SIZE];
-        key.copy_from_slice(bytes);
-        Ok(Self { bytes: key })
-    }
-
-    /// Get the key as a byte slice.
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-}
-
-/// ML-KEM-512 encapsulation key.
-#[derive(Clone)]
-pub struct EncapsulationKey {
-    bytes: [u8; ENCAPSULATION_KEY_SIZE],
-}
-
-impl EncapsulationKey {
-    /// Create an encapsulation key from bytes.
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() != ENCAPSULATION_KEY_SIZE {
-            return Err(Error::InvalidKeyLength {
-                expected: ENCAPSULATION_KEY_SIZE,
-                actual: bytes.len(),
-            });
-        }
-        let mut key = [0u8; ENCAPSULATION_KEY_SIZE];
-        key.copy_from_slice(bytes);
-        Ok(Self { bytes: key })
-    }
-
-    /// Get the key as a byte slice.
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-}
-
-/// ML-KEM-512 ciphertext.
-#[derive(Clone)]
-pub struct Ciphertext {
-    bytes: [u8; CIPHERTEXT_SIZE],
-}
-
-impl Ciphertext {
-    /// Create a ciphertext from bytes.
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() != CIPHERTEXT_SIZE {
-            return Err(Error::InvalidCiphertextLength {
-                expected: CIPHERTEXT_SIZE,
-                actual: bytes.len(),
-            });
-        }
-        let mut ct = [0u8; CIPHERTEXT_SIZE];
-        ct.copy_from_slice(bytes);
-        Ok(Self { bytes: ct })
-    }
-
-    /// Get the ciphertext as a byte slice.
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-}
-
-/// ML-KEM-512 shared secret.
-#[derive(Clone, Zeroize, ZeroizeOnDrop)]
-pub struct SharedSecret {
-    bytes: [u8; SHARED_SECRET_SIZE],
-}
-
-impl AsRef<[u8]> for SharedSecret {
-    fn as_ref(&self) -> &[u8] {
-        &self.bytes
-    }
+define_kem_types! {
+    dk_size: DECAPSULATION_KEY_SIZE,
+    ek_size: ENCAPSULATION_KEY_SIZE,
+    ct_size: CIPHERTEXT_SIZE,
+    ss_size: SHARED_SECRET_SIZE
 }
 
 /// ML-KEM-512 key encapsulation mechanism.
