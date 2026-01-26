@@ -31,10 +31,9 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 
 | Component | Priority | Impact | Notes |
 |-----------|----------|--------|-------|
-| CLI: Algorithm Dispatch | HIGH | ~300 LOC | Extract 12-way match blocks into trait/factory pattern |
+| ~~CLI: Constant Table~~ | ~~MEDIUM~~ | ~~~40 LOC~~ | ✓ Replaced with `AlgorithmInfo` lookup |
 | Lib: Key Type Wrappers | HIGH | ~400 LOC | Consolidate `DecapsulationKey`, `SigningKey` etc. with generics/macros |
 | CLI: Long Functions | MEDIUM | Readability | Break up `cmd_sign` (135L), `cmd_verify` (127L), `cmd_keygen` (94L) |
-| CLI: Constant Table | MEDIUM | ~40 LOC | Replace 42 lines of size constants with `AlgorithmInfo` lookup |
 | Lib: Dead Code Audit | MEDIUM | Clarity | Audit `#[allow(dead_code)]` in kylix-ml-dsa (9 modules) |
 | Lib: SLH-DSA Variants | LOW | ~600 LOC | Consolidate 6 variant files with macro generation |
 | CLI: Unused `is_dsa()` | LOW | 5 LOC | Remove or use the method |
@@ -94,14 +93,17 @@ Break-even: 2 verifications with the same key.
 
 ## Refactoring Notes
 
-### CLI Algorithm Dispatch (HIGH)
+### CLI Algorithm Dispatch (PARTIAL ✓)
 
-`main.rs` contains 5+ identical 12-way match blocks for algorithm dispatch:
-- `cmd_keygen` (lines 391-452)
-- `cmd_sign` (lines 737-801)
-- `cmd_verify` (lines 875-939)
+Introduced `AlgorithmInfo` metadata struct and consolidated algorithm detection:
+- Added `AlgorithmInfo` with `pub_key_size`, `sec_key_size`, `output_size`, `pub_label`, `sec_label`
+- Added `Algorithm::info()` const method for metadata lookup
+- Added `Algorithm::detect_kem_from_pub_key()`, `detect_kem_from_sec_key()`, `detect_dsa_from_signing_key()`, `detect_dsa_from_verification_key()` methods
+- Removed 42 lines of size constants
+- Simplified `cmd_info()` to use loop-based display
+- Simplified `cmd_keygen()`, `cmd_sign()`, `cmd_verify()` to use `AlgorithmInfo`
 
-**Solution:** Trait-based dispatch or factory pattern with `AlgorithmInfo` table.
+**Remaining**: The 12-way match blocks in keygen/sign/verify remain due to heterogeneous types (`as_bytes()` vs `to_bytes()`, `Result` vs `Option`). Macro-based generation would not significantly improve maintainability.
 
 ### Key Type Wrappers (HIGH)
 
