@@ -42,6 +42,12 @@ on:
   push:
     tags:
       - '**[0-9]+.[0-9]+.[0-9]+*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Git tag to release (e.g., v0.5.0). Must already exist.'
+        required: true
+        type: string
 
 jobs:
   # Run 'dist plan' (or host) to determine what tasks we need to do
@@ -49,9 +55,9 @@ jobs:
     runs-on: "ubuntu-22.04"
     outputs:
       val: ${{ steps.plan.outputs.manifest }}
-      tag: ${{ !github.event.pull_request && github.ref_name || '' }}
-      tag-flag: ${{ !github.event.pull_request && format('--tag={0}', github.ref_name) || '' }}
-      publishing: ${{ !github.event.pull_request }}
+      tag: ${{ inputs.tag || (!github.event.pull_request && github.ref_name) || '' }}
+      tag-flag: ${{ (inputs.tag && format('--tag={0}', inputs.tag)) || (!github.event.pull_request && format('--tag={0}', github.ref_name)) || '' }}
+      publishing: ${{ !github.event.pull_request || inputs.tag != '' }}
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -59,6 +65,16 @@ jobs:
         with:
           persist-credentials: false
           submodules: recursive
+          fetch-depth: 0
+      - name: Checkout tag (workflow_dispatch)
+        if: ${{ inputs.tag }}
+        run: |
+          git fetch --tags
+          if ! git rev-parse "${{ inputs.tag }}" >/dev/null 2>&1; then
+            echo "Error: Tag '${{ inputs.tag }}' does not exist"
+            exit 1
+          fi
+          git checkout "${{ inputs.tag }}"
       - name: Install dist
         # we specify bash to get pipefail; it guards against the `curl` command
         # failing. otherwise `sh` won't catch that `curl` returned non-0
@@ -76,7 +92,20 @@ jobs:
       # but also really annoying to build CI around when it needs secrets to work right.)
       - id: plan
         run: |
-          dist ${{ (!github.event.pull_request && format('host --steps=create --tag={0}', github.ref_name)) || 'plan' }} --output-format=json > plan-dist-manifest.json
+          # Determine the tag to use
+          if [ -n "${{ inputs.tag }}" ]; then
+            TAG="${{ inputs.tag }}"
+          elif [ "${{ github.event_name }}" != "pull_request" ]; then
+            TAG="${{ github.ref_name }}"
+          else
+            TAG=""
+          fi
+
+          if [ -n "$TAG" ]; then
+            dist host --steps=create --tag="$TAG" --output-format=json > plan-dist-manifest.json
+          else
+            dist plan --output-format=json > plan-dist-manifest.json
+          fi
           echo "dist ran successfully"
           cat plan-dist-manifest.json
           echo "manifest=$(jq -c "." plan-dist-manifest.json)" >> "$GITHUB_OUTPUT"
