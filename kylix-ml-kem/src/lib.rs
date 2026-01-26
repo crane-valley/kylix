@@ -48,7 +48,11 @@ mod poly;
 mod polyvec;
 mod reduce;
 mod sample;
-#[cfg(any(feature = "ml-kem-512", feature = "ml-kem-768", feature = "ml-kem-1024"))]
+#[cfg(any(
+    feature = "ml-kem-512",
+    feature = "ml-kem-768",
+    feature = "ml-kem-1024"
+))]
 mod types;
 
 #[cfg(feature = "simd")]
