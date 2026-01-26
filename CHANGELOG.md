@@ -18,9 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-- **CLI secret key file permissions**: Secret keys written with 0o600 permissions on Unix
-  - Uses atomic temp file + rename pattern to prevent race conditions
-  - Random suffix in temp filename prevents predictable file attacks
+- **Secure secret key file writing (Unix)**: Keys written with `0o600` permissions using atomic temp-file-and-rename pattern
+  - Prevents race conditions and partial writes
+  - Random suffix in temp filename prevents predictable file-path attacks
 - **CLI zeroization improvements**: Consistent zeroization of sensitive data across all commands
   - `cmd_keygen`: Zeroizes `sk_bytes` after encoding
   - `cmd_encaps`: Zeroizes `ss_bytes` after output
