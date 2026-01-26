@@ -96,7 +96,7 @@ jobs:
 
       - name: Upload crash artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: crash-ml-kem-${{ matrix.target }}-${{ github.run_id }}
           path: kylix-ml-kem/fuzz/artifacts/${{ matrix.target }}/
@@ -230,7 +230,7 @@ jobs:
 
       - name: Upload crash artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: crash-ml-dsa-${{ matrix.target }}-${{ github.run_id }}
           path: kylix-ml-dsa/fuzz/artifacts/${{ matrix.target }}/
