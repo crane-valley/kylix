@@ -13,7 +13,7 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
 //! use kylix_ml_dsa::MlDsa65;
 //! use kylix_core::Signer;
 //!

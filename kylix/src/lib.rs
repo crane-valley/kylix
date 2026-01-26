@@ -21,19 +21,23 @@
 //!
 //! ## Example
 //!
-//! ```ignore
-//! use kylix::ml_kem::{MlKem768, Kem};
+//! ```no_run
+//! # fn main() -> kylix_pqc::Result<()> {
+//! use kylix_pqc::ml_kem::{MlKem768, Kem};
+//! use rand::rng;
 //!
 //! // Generate a key pair
-//! let (dk, ek) = MlKem768::keygen(&mut rng)?;
+//! let (dk, ek) = MlKem768::keygen(&mut rng())?;
 //!
 //! // Encapsulate a shared secret
-//! let (ct, ss_sender) = MlKem768::encaps(&ek, &mut rng)?;
+//! let (ct, ss_sender) = MlKem768::encaps(&ek, &mut rng())?;
 //!
 //! // Decapsulate the shared secret
 //! let ss_receiver = MlKem768::decaps(&dk, &ct)?;
 //!
-//! assert_eq!(ss_sender, ss_receiver);
+//! assert_eq!(ss_sender.as_ref(), ss_receiver.as_ref());
+//! # Ok(())
+//! # }
 //! ```
 
 #![cfg_attr(not(feature = "std"), no_std)]

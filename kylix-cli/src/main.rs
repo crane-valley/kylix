@@ -12,7 +12,13 @@ use kylix_pqc::slh_dsa::{
 };
 use rand::rng;
 use std::fs;
+#[cfg(unix)]
+use std::fs::OpenOptions;
 use std::io::{self, Read};
+#[cfg(unix)]
+use std::io::Write;
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::PathBuf;
 use zeroize::Zeroize;
 
@@ -499,6 +505,30 @@ fn decode_input(data: &str, _format: OutputFormat) -> Result<Vec<u8>> {
     BASE64.decode(data).context("Failed to decode base64")
 }
 
+/// Write a file with restricted permissions (0o600) on Unix systems.
+/// On non-Unix systems, falls back to standard fs::write.
+fn write_secret_file(path: &str, content: &str) -> Result<()> {
+    #[cfg(unix)]
+    {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)
+            .with_context(|| format!("Failed to create secret key file: {}", path))?;
+        file.write_all(content.as_bytes())
+            .with_context(|| format!("Failed to write secret key file: {}", path))?;
+        Ok(())
+    }
+    #[cfg(not(unix))]
+    {
+        fs::write(path, content)
+            .with_context(|| format!("Failed to write secret key file: {}", path))?;
+        Ok(())
+    }
+}
+
 /// Generate a key pair for the specified algorithm
 fn cmd_keygen(algo: Algorithm, output: &str, format: OutputFormat, verbose: bool) -> Result<()> {
     if verbose {
@@ -508,7 +538,7 @@ fn cmd_keygen(algo: Algorithm, output: &str, format: OutputFormat, verbose: bool
     let info = algo.info();
     let (pk_label, sk_label) = (info.pub_label, info.sec_label);
 
-    let (pk_bytes, sk_bytes): (Vec<u8>, Vec<u8>) = match algo {
+    let (pk_bytes, mut sk_bytes): (Vec<u8>, Vec<u8>) = match algo {
         Algorithm::MlKem512 => {
             let (dk, ek) = ml_kem::MlKem512::keygen(&mut rng())
                 .map_err(|e| anyhow!("Key generation failed: {:?}", e))?;
@@ -574,15 +604,19 @@ fn cmd_keygen(algo: Algorithm, output: &str, format: OutputFormat, verbose: bool
     let pk_encoded = encode_output(&pk_bytes, format, pk_label);
     let sk_encoded = encode_output(&sk_bytes, format, sk_label);
 
+    // Zeroize secret key bytes after encoding
+    sk_bytes.zeroize();
+
     let pub_path = format!("{}.pub", output);
     let sec_path = format!("{}.sec", output);
 
     fs::write(&pub_path, &pk_encoded).context("Failed to write public key")?;
-    fs::write(&sec_path, &sk_encoded).context("Failed to write secret key")?;
+    // Use restrictive permissions (0o600) for secret key on Unix
+    write_secret_file(&sec_path, &sk_encoded)?;
 
     if verbose {
         eprintln!("Public key size: {} bytes", pk_bytes.len());
-        eprintln!("Secret key size: {} bytes", sk_bytes.len());
+        eprintln!("Secret key size: {} bytes", sk_encoded.len());
     }
 
     println!("Public key written to: {}", pub_path);
@@ -608,7 +642,7 @@ fn cmd_encaps(
         eprintln!("Public key size: {} bytes", pk_bytes.len());
     }
 
-    let (ct_bytes, ss_bytes): (Vec<u8>, Vec<u8>) = match algo {
+    let (ct_bytes, mut ss_bytes): (Vec<u8>, Vec<u8>) = match algo {
         Algorithm::MlKem512 => {
             let ek = ml_kem::ml_kem_512::EncapsulationKey::from_bytes(&pk_bytes)
                 .map_err(|e| anyhow!("Invalid public key: {:?}", e))?;
@@ -658,6 +692,9 @@ fn cmd_encaps(
         eprintln!("Shared secret size: {} bytes", ss_bytes.len());
     }
 
+    // Zeroize shared secret after output
+    ss_bytes.zeroize();
+
     Ok(())
 }
 
@@ -668,8 +705,11 @@ fn cmd_decaps(
     format: OutputFormat,
     verbose: bool,
 ) -> Result<()> {
-    let sk_data = fs::read_to_string(key).context("Failed to read secret key file")?;
-    let sk_bytes = decode_input(&sk_data, format)?;
+    let mut sk_data = fs::read_to_string(key).context("Failed to read secret key file")?;
+    let mut sk_bytes = decode_input(&sk_data, format)?;
+
+    // Zeroize raw string data immediately after decoding
+    sk_data.zeroize();
 
     let algo = Algorithm::detect_kem_from_sec_key(sk_bytes.len())?;
 
@@ -693,7 +733,7 @@ fn cmd_decaps(
         eprintln!("Ciphertext size: {} bytes", ct_bytes.len());
     }
 
-    let ss_bytes: Vec<u8> = match algo {
+    let mut ss_bytes: Vec<u8> = match algo {
         Algorithm::MlKem512 => {
             let dk = ml_kem::ml_kem_512::DecapsulationKey::from_bytes(&sk_bytes)
                 .map_err(|e| anyhow!("Invalid secret key: {:?}", e))?;
@@ -725,12 +765,18 @@ fn cmd_decaps(
         _ => unreachable!(),
     };
 
+    // Zeroize secret key bytes after decapsulation
+    sk_bytes.zeroize();
+
     let ss_encoded = encode_output(&ss_bytes, format, "SHARED SECRET");
     println!("{}", ss_encoded);
 
     if verbose {
         eprintln!("Shared secret size: {} bytes", ss_bytes.len());
     }
+
+    // Zeroize shared secret after output
+    ss_bytes.zeroize();
 
     Ok(())
 }
