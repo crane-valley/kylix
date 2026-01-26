@@ -14,6 +14,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 - NIST ACVP tests, fuzz testing, CLI, no_std, constant-time, zeroization
 - CLI bench feature extraction: benchmark code moved to optional `bench` feature in `src/bench.rs`
 - CLI binary distribution: cargo-dist for GitHub Releases with shell/powershell installers
+- CLI security improvements: secret key file permissions (Unix 0o600), consistent zeroization, atomic file writes
 
 > See `CHANGELOG.md` for release history and `BENCHMARKS.md` for performance data.
 
