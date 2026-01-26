@@ -206,6 +206,10 @@ enum Commands {
     },
 }
 
+/// Supported post-quantum cryptographic algorithms for CLI operations.
+///
+/// This enum is used across all CLI subcommands (keygen, encaps, decaps, sign, verify, bench)
+/// to specify which algorithm variant to use.
 #[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
 pub enum Algorithm {
     /// ML-KEM-512 (NIST Security Level 1, 128-bit)
