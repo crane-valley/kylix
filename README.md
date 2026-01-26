@@ -111,8 +111,16 @@ fn main() -> kylix_pqc::Result<()> {
 The `kylix` CLI provides convenient access to all cryptographic operations:
 
 ```bash
-# Install the CLI
-cargo install kylix-cli
+# Install via shell script (Linux/macOS)
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/crane-valley/kylix/releases/latest/download/kylix-cli-installer.sh | sh
+
+# Install via PowerShell (Windows)
+irm https://github.com/crane-valley/kylix/releases/latest/download/kylix-cli-installer.ps1 | iex
+
+# Or build from source
+git clone https://github.com/crane-valley/kylix.git
+cd kylix
+cargo install --path kylix-cli
 
 # Generate ML-KEM-768 key pair
 kylix keygen --algo ml-kem-768 --output mykey
@@ -130,7 +138,8 @@ kylix sign --key signing_key.sec --input document.txt --output document.sig
 # Verify a signature
 kylix verify --pub signing_key.pub --input document.txt --signature document.sig
 
-# Run benchmarks
+# Run benchmarks (requires bench feature)
+# Build with: cargo install --path kylix-cli --features bench
 kylix bench --algo ml-kem-768 --iterations 10000
 
 # Compare with external PQC libraries (OpenSSL, liboqs)

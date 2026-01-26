@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **CLI bench feature extraction**: Benchmark functionality moved to optional `bench` feature
+  - Reduces binary size and attack surface for production builds
+  - Enable with `cargo install --path kylix-cli --features bench`
+- **Binary distribution**: Added cargo-dist for automated GitHub Releases
+  - Pre-built binaries for Linux (x64, ARM64), macOS (x64, ARM64), Windows (x64)
+  - One-command installation via shell/PowerShell scripts
+
 ## [0.4.2] - 2026-01-25
 
 ### Added
