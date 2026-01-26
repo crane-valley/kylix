@@ -20,6 +20,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 
 | Component | Priority | Notes |
 |-----------|----------|-------|
+| CLI Binary Distribution | MEDIUM | Use cargo-dist for GitHub Releases (Linux/macOS/Windows) |
 | CLI Bench Compare CI | MEDIUM | Test OpenSSL/liboqs detection on Linux/macOS |
 | CLI Refactor: OpenSSL Dedup | LOW | Extract common logic from `run_openssl_kem_benchmark`/`run_openssl_sig_benchmark` |
 | CLI Refactor: Speedup Helper | LOW | Extract speedup calculation into shared helper function |
