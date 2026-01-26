@@ -43,7 +43,7 @@ jobs:
         run: cargo install cargo-fuzz
 
       - name: Download corpus
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: kylix-ml-kem/fuzz/corpus/${{ matrix.target }}
           key: fuzz-corpus-ml-kem-${{ matrix.target }}-${{ github.run_id }}
@@ -148,7 +148,7 @@ jobs:
 
       - name: Save corpus
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: kylix-ml-kem/fuzz/corpus/${{ matrix.target }}
           key: fuzz-corpus-ml-kem-${{ matrix.target }}-${{ github.run_id }}
@@ -177,7 +177,7 @@ jobs:
         run: cargo install cargo-fuzz
 
       - name: Download corpus
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: kylix-ml-dsa/fuzz/corpus/${{ matrix.target }}
           key: fuzz-corpus-ml-dsa-${{ matrix.target }}-${{ github.run_id }}
@@ -282,7 +282,7 @@ jobs:
 
       - name: Save corpus
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: kylix-ml-dsa/fuzz/corpus/${{ matrix.target }}
           key: fuzz-corpus-ml-dsa-${{ matrix.target }}-${{ github.run_id }}
