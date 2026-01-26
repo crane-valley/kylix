@@ -506,10 +506,23 @@ fn decode_input(data: &str, _format: OutputFormat) -> Result<Vec<u8>> {
 }
 
 /// Write a file with restricted permissions (0o600) on Unix systems.
-/// On non-Unix systems, falls back to standard fs::write.
+/// On non-Unix systems, falls back to standard [`fs::write`].
+///
+/// # Parameters
+///
+/// - `path`: Filesystem path where the secret data will be written.
+/// - `content`: UTF-8 string contents to write to the secret file.
+///
+/// # Errors
+///
+/// Returns an error if the file cannot be created or written. On Unix systems,
+/// this includes failures when setting file permissions; on non-Unix systems,
+/// this includes any error returned by [`fs::write`].
 fn write_secret_file(path: &str, content: &str) -> Result<()> {
     #[cfg(unix)]
     {
+        use std::os::unix::fs::PermissionsExt;
+
         let mut file = OpenOptions::new()
             .write(true)
             .create(true)
@@ -519,6 +532,11 @@ fn write_secret_file(path: &str, content: &str) -> Result<()> {
             .with_context(|| format!("Failed to create secret key file: {}", path))?;
         file.write_all(content.as_bytes())
             .with_context(|| format!("Failed to write secret key file: {}", path))?;
+
+        // Explicitly set permissions to handle existing files (mode() only applies on create)
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600))
+            .with_context(|| format!("Failed to set permissions on secret key file: {}", path))?;
+
         Ok(())
     }
     #[cfg(not(unix))]
@@ -601,6 +619,10 @@ fn cmd_keygen(algo: Algorithm, output: &str, format: OutputFormat, verbose: bool
         }
     };
 
+    // Store sizes before zeroization for verbose output
+    let pk_size = pk_bytes.len();
+    let sk_size = sk_bytes.len();
+
     let pk_encoded = encode_output(&pk_bytes, format, pk_label);
     let sk_encoded = encode_output(&sk_bytes, format, sk_label);
 
@@ -615,8 +637,8 @@ fn cmd_keygen(algo: Algorithm, output: &str, format: OutputFormat, verbose: bool
     write_secret_file(&sec_path, &sk_encoded)?;
 
     if verbose {
-        eprintln!("Public key size: {} bytes", pk_bytes.len());
-        eprintln!("Secret key size: {} bytes", sk_encoded.len());
+        eprintln!("Public key size: {} bytes", pk_size);
+        eprintln!("Secret key size: {} bytes", sk_size);
     }
 
     println!("Public key written to: {}", pub_path);
