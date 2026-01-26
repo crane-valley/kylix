@@ -21,17 +21,29 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 
 | Component | Priority | Notes |
 |-----------|----------|-------|
+| Security Audit | HIGH | External |
 | CLI Bench Compare CI | MEDIUM | Test OpenSSL/liboqs detection on Linux/macOS |
-| CLI Refactor: OpenSSL Dedup | LOW | Extract common logic from `run_openssl_kem_benchmark`/`run_openssl_sig_benchmark` |
-| CLI Refactor: Speedup Helper | LOW | Extract speedup calculation into shared helper function |
-| CLI: liboqs Header Parsing | LOW | Parse column headers for robustness against format changes |
-| CLI: Test Message Constant | LOW | Define module-level constant for test phrases |
-| CLI: Trait-based Tool Design | LOW | Consider if more external tools are added |
-| CLI: wolfSSL Support | LOW | Add wolfSSL as external benchmark tool |
 | SLH-DSA SHA2 Variants | LOW | FIPS 205 |
 | SIMD NTT (WASM) | LOW | - |
 | Property-based Tests | LOW | proptest |
-| Security Audit | HIGH | External |
+
+### Refactoring Backlog
+
+| Component | Priority | Impact | Notes |
+|-----------|----------|--------|-------|
+| CLI: Algorithm Dispatch | HIGH | ~300 LOC | Extract 12-way match blocks into trait/factory pattern |
+| Lib: Key Type Wrappers | HIGH | ~400 LOC | Consolidate `DecapsulationKey`, `SigningKey` etc. with generics/macros |
+| CLI: Long Functions | MEDIUM | Readability | Break up `cmd_sign` (135L), `cmd_verify` (127L), `cmd_keygen` (94L) |
+| CLI: Constant Table | MEDIUM | ~40 LOC | Replace 42 lines of size constants with `AlgorithmInfo` lookup |
+| Lib: Dead Code Audit | MEDIUM | Clarity | Audit `#[allow(dead_code)]` in kylix-ml-dsa (9 modules) |
+| Lib: SLH-DSA Variants | LOW | ~600 LOC | Consolidate 6 variant files with macro generation |
+| CLI: Unused `is_dsa()` | LOW | 5 LOC | Remove or use the method |
+| CLI: Error Patterns | LOW | Consistency | Standardize `map_err` vs `ok_or_else` usage |
+| CLI: OpenSSL Dedup | LOW | ~50 LOC | Extract common logic from KEM/SIG benchmark functions |
+| CLI: Speedup Helper | LOW | ~20 LOC | Extract speedup calculation into shared function |
+| CLI: liboqs Parsing | LOW | Robustness | Parse column headers instead of hardcoded indices |
+| CLI: Test Message | LOW | Clarity | Define module-level constant for test phrases |
+| CLI: wolfSSL Support | LOW | Feature | Add wolfSSL as external benchmark tool |
 
 ### Pending: CLI Bench Compare CI Testing
 
@@ -77,6 +89,38 @@ Goal: Verify cross-platform tool detection works correctly.
 | ML-DSA-87 | 162.8 µs | 164.6 µs | 55.6 µs | 3.0x |
 
 Break-even: 2 verifications with the same key.
+
+---
+
+## Refactoring Notes
+
+### CLI Algorithm Dispatch (HIGH)
+
+`main.rs` contains 5+ identical 12-way match blocks for algorithm dispatch:
+- `cmd_keygen` (lines 391-452)
+- `cmd_sign` (lines 737-801)
+- `cmd_verify` (lines 875-939)
+
+**Solution:** Trait-based dispatch or factory pattern with `AlgorithmInfo` table.
+
+### Key Type Wrappers (HIGH)
+
+12+ files contain nearly identical struct implementations:
+```rust
+pub struct DecapsulationKey { bytes: [u8; SIZE] }
+impl DecapsulationKey {
+    pub fn from_bytes(...) -> Result<Self> { ... }
+    pub fn as_bytes(&self) -> &[u8] { ... }
+}
+```
+
+**Solution:** Generic `KeyWrapper<const N: usize>` or macro generation.
+
+### SLH-DSA Variants (LOW)
+
+6 variant files (`slh_dsa_shake_128s.rs` through `256f.rs`) share ~95% identical code.
+
+**Solution:** Parameterized module or `macro_rules!` generation.
 
 ---
 
