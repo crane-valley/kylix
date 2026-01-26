@@ -13,9 +13,12 @@ description = "Command-line interface for Kylix post-quantum cryptography operat
 name = "kylix"
 path = "src/main.rs"
 
+[features]
+default = []
+bench = ["dep:kylix-bench", "dep:which", "dep:tempfile"]
+
 [dependencies]
 kylix-pqc.workspace = true
-kylix-bench = { path = "../kylix-bench" }
 clap.workspace = true
 clap_complete.workspace = true
 hex.workspace = true
@@ -24,9 +27,14 @@ anyhow.workspace = true
 rand = "0.9"
 zeroize.workspace = true
 serde_json = "1.0"
-which = "8.0"
-tempfile = "3.10"
+
+# Benchmark-only dependencies (optional)
+kylix-bench = { path = "../kylix-bench", optional = true }
+which = { version = "8.0", optional = true }
+tempfile = { version = "3.10", optional = true }
 
 [dev-dependencies]
 assert_cmd = "2.0"
 predicates = "3.1"
+tempfile = "3.10"
+serde_json = "1.0"
