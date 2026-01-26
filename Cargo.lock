@@ -813,16 +813,16 @@ dependencies = [
 
 [[package]]
 name = "libcrux-ml-dsa"
-version = "0.0.4"
+version = "0.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3adca5778a61aa1707ad612e52a02ecbcd7e0b2912e011392def331e6e8b2aa"
+checksum = "398a4fcc74780dc6ed056a7aa612a824abbe658fb27712e316880682a23a638f"
 dependencies = [
  "core-models",
  "hax-lib",
  "libcrux-intrinsics",
  "libcrux-macros",
- "libcrux-platform 0.0.2",
- "libcrux-sha3 0.0.4",
+ "libcrux-platform",
+ "libcrux-sha3",
 ]
 
 [[package]]
@@ -833,21 +833,12 @@ checksum = "22a36f21056e552438dbe6ce413b6682001795e53bd1f0e2c941d7e231238e5a"
 dependencies = [
  "hax-lib",
  "libcrux-intrinsics",
- "libcrux-platform 0.0.3",
+ "libcrux-platform",
  "libcrux-secrets",
- "libcrux-sha3 0.0.5",
+ "libcrux-sha3",
  "libcrux-traits",
  "rand",
  "tls_codec",
-]
-
-[[package]]
-name = "libcrux-platform"
-version = "0.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db82d058aa76ea315a3b2092f69dfbd67ddb0e462038a206e1dcd73f058c0778"
-dependencies = [
- "libc",
 ]
 
 [[package]]
@@ -870,25 +861,13 @@ dependencies = [
 
 [[package]]
 name = "libcrux-sha3"
-version = "0.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2400bec764d1c75b8a496d5747cffe32f1fb864a12577f0aca2f55a92021c962"
-dependencies = [
- "hax-lib",
- "libcrux-intrinsics",
- "libcrux-platform 0.0.2",
- "libcrux-traits",
-]
-
-[[package]]
-name = "libcrux-sha3"
 version = "0.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "18e869fdeb9af62c55c3fcd60ce407552eb282d727550ce986abac94a3474479"
 dependencies = [
  "hax-lib",
  "libcrux-intrinsics",
- "libcrux-platform 0.0.3",
+ "libcrux-platform",
  "libcrux-traits",
 ]
 
