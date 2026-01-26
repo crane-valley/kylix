@@ -22,6 +22,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | Component | Priority | Notes |
 |-----------|----------|-------|
 | Security Audit | HIGH | External |
+| cargo-audit CI | MEDIUM | Add automated dependency vulnerability scanning to CI |
 | CLI Bench Compare CI | MEDIUM | Test OpenSSL/liboqs detection on Linux/macOS |
 | SLH-DSA SHA2 Variants | LOW | FIPS 205 |
 | SIMD NTT (WASM) | LOW | - |
@@ -43,6 +44,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | CLI: liboqs Parsing | LOW | Robustness | Parse column headers instead of hardcoded indices |
 | CLI: Test Message | LOW | Clarity | Define module-level constant for test phrases |
 | CLI: wolfSSL Support | LOW | Feature | Add wolfSSL as external benchmark tool |
+| ML-DSA: AVX2 Barrett | LOW | Performance | Vectorized Barrett reduction TODO in `simd/avx2.rs` |
 
 ### Pending: CLI Bench Compare CI Testing
 
@@ -145,5 +147,6 @@ SIMD complete for AVX2/NEON. WASM-SIMD128 pending (pointwise mul only).
 - [x] Cross-platform CI
 - [x] Constant-time operations
 - [x] Zeroization
+- [ ] cargo-audit in CI
 - [ ] Property-based tests
 - [ ] Security audit
