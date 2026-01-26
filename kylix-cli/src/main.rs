@@ -14,9 +14,9 @@ use rand::rng;
 use std::fs;
 #[cfg(unix)]
 use std::fs::OpenOptions;
-use std::io::{self, Read};
 #[cfg(unix)]
 use std::io::Write;
+use std::io::{self, Read};
 #[cfg(unix)]
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::PathBuf;
