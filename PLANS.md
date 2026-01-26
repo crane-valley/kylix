@@ -67,7 +67,7 @@ Goal: Verify cross-platform tool detection works correctly.
 
 ### Constant-time Verification
 
-Current status: Critical paths use `subtle` crate for constant-time operations, but not formally verified.
+Current status: Critical paths use `subtle` crate for constant-time operations to mitigate timing side-channel attacks, but are not formally verified.
 
 **Future work:**
 - Document which functions are intended to be constant-time
