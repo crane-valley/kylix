@@ -37,11 +37,6 @@ thiserror = "2.0"
 zeroize = { version = "1.8", default-features = false, features = ["derive", "alloc"] }
 rand_core = { version = "0.9", default-features = false }
 subtle = { version = "2.5", default-features = false }
-clap = { version = "4.5", features = ["derive"] }
-clap_complete = "4.5"
-hex = "0.4"
-base64 = "0.22"
-anyhow = "1.0"
 
 [profile.release]
 lto = true
@@ -50,8 +45,3 @@ panic = "abort"
 
 [profile.bench]
 lto = true
-
-# The profile that 'dist' will build with
-[profile.dist]
-inherits = "release"
-lto = "thin"
