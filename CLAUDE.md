@@ -32,9 +32,9 @@ Use tag suffixes for selective releases:
 
 | Tag | CLI Binaries | crates.io |
 |-----|--------------|-----------|
-| `vX.Y.Z` | ✓ | ✓ |
-| `vX.Y.Z-cli` | ✓ | ✗ |
-| `vX.Y.Z-crates` | ✗ | ✓ |
+| `vX.Y.Z` | Yes | Yes |
+| `vX.Y.Z-cli` | Yes | No |
+| `vX.Y.Z-crates` | No | Yes |
 
 ### Adding a New Crate
 

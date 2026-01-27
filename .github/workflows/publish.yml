@@ -24,7 +24,9 @@ jobs:
     runs-on: ubuntu-latest
     # Run on:
     # - push events for tags ending with -crates (direct crates.io publish)
+    #   Uses github.ref_name because push events don't have github.event.release
     # - release events where the tag does NOT end with -cli (skip CLI-only releases)
+    #   Uses github.event.release.tag_name because release events provide it
     if: ${{
       (github.event_name == 'push' && endsWith(github.ref_name, '-crates')) ||
       (github.event_name == 'release' && !endsWith(github.event.release.tag_name, '-cli'))
@@ -42,6 +44,7 @@ jobs:
       - name: Verify version matches tag
         run: |
           # Get tag and strip -crates/-cli suffixes if present
+          # -cli stripping is defensive; per workflow conditions, -cli tags shouldn't reach here
           TAG_VERSION="${GITHUB_REF#refs/tags/v}"
           TAG_VERSION="${TAG_VERSION%-crates}"
           TAG_VERSION="${TAG_VERSION%-cli}"
