@@ -49,8 +49,8 @@ jobs:
         run: cargo test -p kylix-core -p kylix-ml-kem -p kylix-ml-dsa --all-features
       - name: Test SLH-DSA fast variants
         run: cargo test -p kylix-slh-dsa --features "std,slh-dsa-shake-128f,slh-dsa-shake-192f,slh-dsa-shake-256f"
-      - name: Test CLI and integration
-        run: cargo test -p kylix-pqc -p kylix-cli --all-features
+      - name: Test integration
+        run: cargo test -p kylix-pqc --all-features
 
   test-no-std:
     name: no_std
@@ -85,5 +85,4 @@ jobs:
         with:
           toolchain: "1.75"
       - uses: Swatinem/rust-cache@v2
-      # Exclude kylix-bench - criterion requires newer Rust
-      - run: cargo check --workspace --exclude kylix-bench --all-features
+      - run: cargo check --workspace --all-features

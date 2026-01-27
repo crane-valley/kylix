@@ -1,17 +1,11 @@
-[workspace]
-members = ["cargo:."]
+# Note: CLI binaries are now in a separate repository: crane-valley/kylix-cli
+# This file is kept for reference but cargo-dist is no longer used for this repo.
+# Release workflow publishes crates to crates.io only (see .github/workflows/publish.yml).
 
-# Config for 'dist'
+[workspace]
+members = []
+
 [dist]
-# The preferred dist version to use in CI (Cargo.toml SemVer syntax)
 cargo-dist-version = "0.30.3"
-# CI backends to support
 ci = "github"
-# Don't run release workflow on PRs
 pr-run-mode = "skip"
-# The installers to generate for each app
-installers = ["shell", "powershell"]
-# Target platforms to build apps for (Rust target-triple syntax)
-targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
-# Allow customizations to CI workflow (selective release support)
-allow-dirty = ["ci"]

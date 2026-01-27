@@ -108,43 +108,20 @@ fn main() -> kylix_pqc::Result<()> {
 
 ## Command-Line Interface
 
-The `kylix` CLI provides convenient access to all cryptographic operations:
+The `kylix` CLI is available in a separate repository: [crane-valley/kylix-cli](https://github.com/crane-valley/kylix-cli)
 
 ```bash
 # Install via shell script (Linux/macOS)
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/crane-valley/kylix/releases/latest/download/kylix-cli-installer.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/crane-valley/kylix-cli/releases/latest/download/kylix-cli-installer.sh | sh
 
 # Install via PowerShell (Windows)
-irm https://github.com/crane-valley/kylix/releases/latest/download/kylix-cli-installer.ps1 | iex
+powershell -ExecutionPolicy ByPass -c "irm https://github.com/crane-valley/kylix-cli/releases/latest/download/kylix-cli-installer.ps1 | iex"
 
-# Or build from source
-git clone https://github.com/crane-valley/kylix.git
-cd kylix
-cargo install --path kylix-cli
-
-# Generate ML-KEM-768 key pair
-kylix keygen --algo ml-kem-768 --output mykey
-
-# Encapsulate a shared secret
-kylix encaps --pub mykey.pub --output ciphertext.bin
-
-# Decapsulate the shared secret
-kylix decaps --key mykey.sec --input ciphertext.bin
-
-# Generate ML-DSA-65 key pair and sign a file
-kylix keygen --algo ml-dsa-65 --output signing_key
-kylix sign --key signing_key.sec --input document.txt --output document.sig
-
-# Verify a signature
-kylix verify --pub signing_key.pub --input document.txt --signature document.sig
-
-# Run benchmarks (requires bench feature)
-# Build with: cargo install --path kylix-cli --features bench
-kylix bench --algo ml-kem-768 --iterations 10000
-
-# Compare with external PQC libraries (OpenSSL, liboqs)
-kylix bench --compare --algo ml-kem-768
+# Or install from source
+cargo install --git https://github.com/crane-valley/kylix-cli kylix-cli
 ```
+
+See the [kylix-cli repository](https://github.com/crane-valley/kylix-cli) for full usage documentation.
 
 ## Crate Structure
 
@@ -155,7 +132,6 @@ kylix bench --compare --algo ml-kem-768
 | `kylix-ml-kem` | ML-KEM (FIPS 203) implementation |
 | `kylix-ml-dsa` | ML-DSA (FIPS 204) implementation |
 | `kylix-slh-dsa` | SLH-DSA (FIPS 205) implementation |
-| `kylix-cli` | Command-line interface |
 
 ## Security
 
