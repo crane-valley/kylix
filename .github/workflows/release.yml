@@ -304,9 +304,10 @@ jobs:
           RELEASE_COMMIT: "${{ github.sha }}"
           RELEASE_TAG: "${{ needs.plan.outputs.original-tag }}"
         run: |
-          # Check if release already exists
+          # Check if release already exists (exit code 0 = exists, 1 = not found)
           if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
             echo "Release $RELEASE_TAG already exists, uploading assets..."
+            # --clobber replaces existing assets with same name, making workflow idempotent
             gh release upload "$RELEASE_TAG" artifacts/* --clobber
           else
             echo "Creating new release $RELEASE_TAG..."
