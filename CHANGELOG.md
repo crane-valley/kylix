@@ -9,23 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **CLI bench feature extraction**: Benchmark functionality moved to optional `bench` feature
-  - Reduces binary size and attack surface for production builds
-  - Enable with `cargo install --path kylix-cli --features bench`
-- **Binary distribution**: Added cargo-dist for automated GitHub Releases
+- **Doc example validation**: Changed doc examples from `ignore` to `no_run` for compile-time validation
+
+## [0.4.2-cli] - 2026-01-27
+
+CLI-only release with security improvements and new features.
+
+### Added
+
+- **Binary distribution**: Automated GitHub Releases via cargo-dist
   - Pre-built binaries for Linux (x64, ARM64), macOS (x64, ARM64), Windows (x64)
   - One-command installation via shell/PowerShell scripts
+- **Benchmark comparison**: Compare Kylix performance against external PQC libraries
+  - OpenSSL 3.x (oqs-provider) and liboqs support
+  - Cross-platform library detection (Windows vcpkg, macOS Homebrew, Linux system paths)
+  - Run with `kylix bench --compare --algo <algorithm>`
+
+### Changed
+
+- **Bench feature extraction**: Benchmark functionality moved to optional `bench` feature
+  - Reduces binary size and attack surface for production builds
+  - Enable with `cargo install --path kylix-cli --features bench`
+- **AlgorithmInfo refactoring**: Centralized algorithm metadata for cleaner code
 
 ### Security
 
 - **Secure secret key file writing (Unix)**: Keys written with `0o600` permissions using atomic temp-file-and-rename pattern
   - Prevents race conditions and partial writes
   - Random suffix in temp filename prevents predictable file-path attacks
-- **CLI zeroization improvements**: Consistent zeroization of sensitive data across all commands
+- **Zeroization improvements**: Consistent zeroization of sensitive data across all commands
   - `cmd_keygen`: Zeroizes `sk_bytes` after encoding
   - `cmd_encaps`: Zeroizes `ss_bytes` after output
   - `cmd_decaps`: Zeroizes `sk_data`, `sk_bytes`, and `ss_bytes`
-- **Doc example validation**: Changed doc examples from `ignore` to `no_run` for compile-time validation
 
 ## [0.4.2] - 2026-01-25
 
@@ -110,7 +125,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Constant-time operations using `subtle` crate
 - Zeroization of sensitive data using `zeroize` crate
 
-[Unreleased]: https://github.com/crane-valley/kylix/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/crane-valley/kylix/compare/v0.4.2-cli...HEAD
+[0.4.2-cli]: https://github.com/crane-valley/kylix/compare/v0.4.2...v0.4.2-cli
 [0.4.2]: https://github.com/crane-valley/kylix/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/crane-valley/kylix/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/crane-valley/kylix/compare/v0.3.0...v0.4.0
