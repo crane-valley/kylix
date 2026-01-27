@@ -36,6 +36,30 @@ Use tag suffixes for selective releases:
 | `vX.Y.Z-cli` | Yes | No |
 | `vX.Y.Z-crates` | No | Yes |
 
+**CLI-only release** (e.g., CLI bug fixes without library changes):
+1. Update `CHANGELOG.md` with CLI changes under a new version section
+2. Create and push tag:
+   ```bash
+   git tag v0.4.2-cli
+   git push origin v0.4.2-cli
+   ```
+3. Result:
+   - Cargo.toml version stays at `0.4.2` (suffix is stripped for cargo-dist)
+   - Creates GitHub Release `v0.4.2-cli` with CLI binaries
+   - Skips crates.io publish
+
+**Crates-only release** (e.g., library fixes without CLI rebuild):
+1. Update `Cargo.toml` version (e.g., `0.4.2` → `0.4.3`)
+2. Update `CHANGELOG.md` with library changes
+3. Create and push tag:
+   ```bash
+   git tag v0.4.3-crates
+   git push origin v0.4.3-crates
+   ```
+4. Result:
+   - Publishes to crates.io
+   - Skips CLI binary build (no GitHub Release created)
+
 ### Adding a New Crate
 
 When adding a new crate to the workspace:
