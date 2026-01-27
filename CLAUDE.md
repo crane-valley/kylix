@@ -17,6 +17,8 @@ Before committing or creating a PR, always run:
 2. `cargo clippy --all-targets --all-features -- -D warnings` - Check for lints
 3. `cargo test --workspace --exclude kylix-slh-dsa` - Run tests (excluding slow SLH-DSA tests)
 
+Note: CLI-related tests are in the separate [kylix-cli repository](https://github.com/crane-valley/kylix-cli).
+
 During development, run `cargo fmt --all` frequently (for example, after each edit) to keep formatting consistent and get fast feedback.
 
 ## Release
@@ -25,40 +27,7 @@ During development, run `cargo fmt --all` frequently (for example, after each ed
 - Create a GitHub Release with tag `vX.Y.Z` to auto-publish to crates.io
 - Ensure `Cargo.toml` version matches the tag before release
 - Release tag creation is done by humans
-
-### Selective Release
-
-Use tag suffixes for selective releases:
-
-| Tag | CLI Binaries | crates.io |
-|-----|--------------|-----------|
-| `vX.Y.Z` | Yes | Yes |
-| `vX.Y.Z-cli` | Yes | No |
-| `vX.Y.Z-crates` | No | Yes |
-
-**CLI-only release** (e.g., CLI bug fixes without library changes):
-1. Update `CHANGELOG.md` with CLI changes under a new version section
-2. Create and push tag:
-   ```bash
-   git tag v0.4.2-cli
-   git push origin v0.4.2-cli
-   ```
-3. Result:
-   - `Cargo.toml` should already have version `0.4.2`; the workflow strips the `-cli` suffix for cargo-dist
-   - Creates GitHub Release `v0.4.2-cli` with CLI binaries
-   - Skips crates.io publish
-
-**Crates-only release** (e.g., library fixes without CLI rebuild):
-1. Update `Cargo.toml` version to match the `vX.Y.Z` part of the new tag (e.g., `0.4.2` → `0.4.3`)
-2. Update `CHANGELOG.md` with library changes
-3. Create and push tag:
-   ```bash
-   git tag v0.4.3-crates
-   git push origin v0.4.3-crates
-   ```
-4. Result:
-   - Publishes to crates.io
-   - Skips CLI binary build (no GitHub Release created)
+- CLI is in a separate repository: [crane-valley/kylix-cli](https://github.com/crane-valley/kylix-cli)
 
 ### Adding a New Crate
 
