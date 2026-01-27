@@ -18,9 +18,13 @@ jobs:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
-      - run: cargo bench --no-run
+      # Note: kylix-bench moved to crane-valley/kylix-cli
+      # Benchmark comparison disabled until benchmarks are restored
+      - run: echo "Benchmarks temporarily disabled - kylix-bench moved to separate repo"
 
-  bench-compare:
+  # Temporarily disabled - kylix-bench moved to crane-valley/kylix-cli
+  bench-compare-disabled:
+    if: false  # Disabled
     name: Compare (${{ matrix.platform }})
     runs-on: ${{ matrix.os }}
     strategy:
