@@ -44,7 +44,7 @@ Use tag suffixes for selective releases:
    git push origin v0.4.2-cli
    ```
 3. Result:
-   - Cargo.toml version stays at `0.4.2` (suffix is stripped for cargo-dist)
+   - `Cargo.toml` should already have version `0.4.2`; the workflow strips the `-cli` suffix for cargo-dist
    - Creates GitHub Release `v0.4.2-cli` with CLI binaries
    - Skips crates.io publish
 
