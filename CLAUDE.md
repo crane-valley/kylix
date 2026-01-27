@@ -49,7 +49,7 @@ Use tag suffixes for selective releases:
    - Skips crates.io publish
 
 **Crates-only release** (e.g., library fixes without CLI rebuild):
-1. Update `Cargo.toml` version (e.g., `0.4.2` → `0.4.3`)
+1. Update `Cargo.toml` version to match the `vX.Y.Z` part of the new tag (e.g., `0.4.2` → `0.4.3`)
 2. Update `CHANGELOG.md` with library changes
 3. Create and push tag:
    ```bash

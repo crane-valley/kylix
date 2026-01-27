@@ -54,7 +54,7 @@ jobs:
   plan:
     runs-on: "ubuntu-22.04"
     # Skip if tag ends with -crates (crates.io-only release)
-    if: ${{ !endsWith(github.ref_name, '-crates') }}
+    if: "!endsWith(github.ref_name, '-crates')"
     outputs:
       val: ${{ steps.plan.outputs.manifest }}
       # Use base-tag (with -cli stripped) for cargo-dist version matching
