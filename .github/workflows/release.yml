@@ -38,6 +38,12 @@ permissions:
 #
 # If there's a prerelease-style suffix to the version, then the release(s)
 # will be marked as a prerelease.
+#
+# Selective release support:
+# - vX.Y.Z        -> Both CLI binaries and crates.io
+# - vX.Y.Z-cli    -> CLI binaries only (skips crates.io publish)
+# - vX.Y.Z-crates -> crates.io only (skips CLI binary build)
+# Note: -cli suffix is stripped before passing to cargo-dist to match Cargo.toml version.
 on:
   push:
     tags:
@@ -47,10 +53,15 @@ jobs:
   # Run 'dist plan' (or host) to determine what tasks we need to do
   plan:
     runs-on: "ubuntu-22.04"
+    # Skip if tag ends with -crates (crates.io-only release)
+    if: "!endsWith(github.ref_name, '-crates')"
     outputs:
       val: ${{ steps.plan.outputs.manifest }}
-      tag: ${{ !github.event.pull_request && github.ref_name || '' }}
-      tag-flag: ${{ !github.event.pull_request && format('--tag={0}', github.ref_name) || '' }}
+      # Use base-tag (with -cli stripped) for cargo-dist version matching
+      tag: ${{ steps.get-tag.outputs.base-tag }}
+      tag-flag: ${{ steps.get-tag.outputs.tag-flag }}
+      # Keep original tag for GitHub Release naming
+      original-tag: ${{ steps.get-tag.outputs.original-tag }}
       publishing: ${{ !github.event.pull_request }}
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -59,6 +70,21 @@ jobs:
         with:
           persist-credentials: false
           submodules: recursive
+      - name: Get tag
+        id: get-tag
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "base-tag=" >> "$GITHUB_OUTPUT"
+            echo "tag-flag=" >> "$GITHUB_OUTPUT"
+            echo "original-tag=" >> "$GITHUB_OUTPUT"
+          else
+            ORIGINAL_TAG="${{ github.ref_name }}"
+            # Strip -cli suffix for cargo-dist version matching
+            BASE_TAG="${ORIGINAL_TAG%-cli}"
+            echo "base-tag=$BASE_TAG" >> "$GITHUB_OUTPUT"
+            echo "tag-flag=--tag=$BASE_TAG" >> "$GITHUB_OUTPUT"
+            echo "original-tag=$ORIGINAL_TAG" >> "$GITHUB_OUTPUT"
+          fi
       - name: Install dist
         # we specify bash to get pipefail; it guards against the `curl` command
         # failing. otherwise `sh` won't catch that `curl` returned non-0
@@ -76,7 +102,12 @@ jobs:
       # but also really annoying to build CI around when it needs secrets to work right.)
       - id: plan
         run: |
-          dist ${{ (!github.event.pull_request && format('host --steps=create --tag={0}', github.ref_name)) || 'plan' }} --output-format=json > plan-dist-manifest.json
+          # Use base-tag (with -cli stripped) for cargo-dist
+          if [ -n "${{ steps.get-tag.outputs.base-tag }}" ]; then
+            dist host --steps=create --tag=${{ steps.get-tag.outputs.base-tag }} --output-format=json > plan-dist-manifest.json
+          else
+            dist plan --output-format=json > plan-dist-manifest.json
+          fi
           echo "dist ran successfully"
           cat plan-dist-manifest.json
           echo "manifest=$(jq -c "." plan-dist-manifest.json)" >> "$GITHUB_OUTPUT"
@@ -275,7 +306,8 @@ jobs:
           # Write and read notes from a file to avoid quoting breaking things
           echo "$ANNOUNCEMENT_BODY" > $RUNNER_TEMP/notes.txt
 
-          gh release create "${{ needs.plan.outputs.tag }}" --target "$RELEASE_COMMIT" $PRERELEASE_FLAG --title "$ANNOUNCEMENT_TITLE" --notes-file "$RUNNER_TEMP/notes.txt" artifacts/*
+          # Use original-tag for GitHub Release (preserves -cli suffix)
+          gh release create "${{ needs.plan.outputs.original-tag }}" --target "$RELEASE_COMMIT" $PRERELEASE_FLAG --title "$ANNOUNCEMENT_TITLE" --notes-file "$RUNNER_TEMP/notes.txt" artifacts/*
 
   announce:
     needs:
