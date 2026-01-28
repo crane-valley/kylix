@@ -600,6 +600,7 @@ fn parse_digest<const K: usize, const A: usize, const H_PRIME: usize, const D: u
 mod tests {
     use super::*;
     use crate::hash_shake::Shake128Hash;
+    use alloc::vec;
     use rand::SeedableRng;
     use rand_chacha::ChaCha20Rng;
 
