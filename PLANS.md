@@ -26,7 +26,6 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | Security Audit | HIGH | External |
 | SLH-DSA SHA2 Variants | LOW | FIPS 205 |
 | SIMD NTT (WASM) | LOW | - |
-| Property-based Tests | LOW | proptest |
 
 ### Refactoring Backlog
 
@@ -35,6 +34,16 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | ~~Lib: Dead Code Audit~~ | ~~MEDIUM~~ | ~~Clarity~~ | ✓ Removed ~112 LOC from kylix-ml-dsa |
 | ~~Lib: SLH-DSA Variants~~ | ~~LOW~~ | ~~~600 LOC~~ | ✓ Consolidated with `define_slh_dsa_variant!` macro |
 | ~~ML-DSA: AVX2 Barrett~~ | ~~LOW~~ | ~~Performance~~ | ✓ Vectorized Barrett reduction and caddq in `simd/avx2.rs` |
+| API: Key/Sig Bytes Method | LOW | Consistency | Unify `as_bytes()` vs `to_bytes()` across crates (see note below) |
+
+#### API Consistency Note
+
+ML-KEM/ML-DSA use `as_bytes() -> &[u8]`, SLH-DSA uses `to_bytes()` with mixed semantics:
+- `SigningKey.to_bytes() -> Zeroizing<Vec<u8>>` (owned, OK)
+- `VerificationKey.to_bytes() -> Vec<u8>` (owned, OK)
+- `Signature.to_bytes() -> &[u8]` (borrowed, **should be `as_bytes()`** per Rust convention)
+
+Recommended fix: Add `as_bytes()` methods returning `&[u8]` for all types, deprecate inconsistent `to_bytes()` on `Signature`.
 
 ---
 
@@ -98,6 +107,6 @@ SIMD complete for AVX2/NEON. WASM-SIMD128 pending (pointwise mul only).
 - [x] Dudect timing tests (ML-KEM passes, ML-DSA expected variance due to rejection sampling)
 - [x] Dudect CI integration (ML-KEM regression detection)
 - [x] cargo-audit in CI
-- [ ] Property-based tests
+- [x] Property-based tests (proptest: roundtrip, key/sig sizes, tampering detection)
 - [ ] Constant-time formal verification
 - [ ] Security audit
