@@ -81,6 +81,7 @@ cd timing && cargo run --release --bin ml_dsa
 ```
 
 **Future work:**
+- Add ML-DSA subroutine-level timing tests (NTT, poly ops, secret vector operations)
 - Add SLH-DSA timing tests (slow due to hash-based signatures)
 - Formal verification with ct-verif or ctgrind for critical paths
 
