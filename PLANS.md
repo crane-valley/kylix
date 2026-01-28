@@ -70,14 +70,14 @@ pub struct PublicKey<const N: usize> {
 // types.rs - direct fixed-size array storage
 pub struct SigningKey { bytes: [u8; SK_BYTES] }
 pub struct VerificationKey { bytes: [u8; PK_BYTES] }
-pub struct Signature { bytes: [u8; SIG_BYTES] }
+pub struct Signature(Vec<u8>);  // Heap-allocated due to large size (up to 49KB)
 ```
 
 **Benefits:**
-- **Performance:** No heap allocation, better cache locality
-- **Security:** Simpler zeroization (single contiguous region)
+- **Performance:** No heap allocation for keys, better cache locality
+- **Security:** Simpler zeroization for keys (single contiguous region)
 - **Maintainability:** Consistent API across all three crates
-- **Type Safety:** Fixed-size arrays prevent size mismatches
+- **Type Safety:** Fixed-size arrays prevent size mismatches for keys
 
 **API Changes (Breaking):**
 | Type | Current | New |
@@ -94,7 +94,7 @@ pub struct Signature { bytes: [u8; SIG_BYTES] }
 1. Update `define_slh_dsa_variant!` macro in `types.rs`:
    - Change `SigningKey` to hold `[u8; SK_BYTES]`
    - Change `VerificationKey` to hold `[u8; PK_BYTES]`
-   - Change `Signature` to hold `[u8; SIG_BYTES]`
+   - Keep `Signature` as `Vec<u8>` (up to 49KB, too large for stack)
    - Implement `as_bytes() -> &[u8]` for all types
    - Change `from_bytes()` to return `Result<Self, Error>`
    - Derive `Zeroize + ZeroizeOnDrop` for `SigningKey`
