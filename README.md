@@ -31,6 +31,9 @@ See [SECURITY.md](SECURITY.md) for security policy and vulnerability reporting.
   - SLH-DSA-SHAKE-128s/128f (Security Level 1)
   - SLH-DSA-SHAKE-192s/192f (Security Level 3)
   - SLH-DSA-SHAKE-256s/256f (Security Level 5)
+  - SLH-DSA-SHA2-128s/128f (Security Level 1)
+  - SLH-DSA-SHA2-192s/192f (Security Level 3)
+  - SLH-DSA-SHA2-256s/256f (Security Level 5)
 - `no_std` compatible for embedded systems
 - Constant-time implementations to prevent timing attacks
 - Secure memory handling with automatic zeroization
