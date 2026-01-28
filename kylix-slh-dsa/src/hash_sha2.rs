@@ -51,7 +51,7 @@ fn adrs_compress(adrs: &Address) -> [u8; 22] {
     // FIPS 205 Table 3: FORS_PRF uses keypair, not tree height
     match adrs_type {
         0 | 1 | 5 | 6 => compressed[16..20].copy_from_slice(&bytes[20..24]), // WOTS and FORS_PRF: keypair
-        _ => compressed[16..20].copy_from_slice(&bytes[24..28]),             // TREE, FORS_TREE, FORS_PK: height
+        _ => compressed[16..20].copy_from_slice(&bytes[24..28]), // TREE, FORS_TREE, FORS_PK: height
     }
 
     // Bytes 20-21: bits 16-31 of the relevant field
