@@ -14,6 +14,8 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 - NIST ACVP tests, fuzz testing, no_std, constant-time, zeroization
 - Key type wrapper macros (`define_kem_types!` / `define_dsa_types!`)
 - Dudect timing tests for constant-time verification
+- Dudect CI integration (ML-KEM regression detection)
+- Benchmark stability with fixed seed (kylix-cli)
 
 > See `CHANGELOG.md` for release history and `BENCHMARKS.md` for performance data.
 
@@ -22,8 +24,6 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | Component | Priority | Notes |
 |-----------|----------|-------|
 | Security Audit | HIGH | External |
-| ML-DSA Benchmark Stability | MEDIUM | Use fixed seed to eliminate rejection sampling variance |
-| ~~Dudect CI Integration~~ | ~~MEDIUM~~ | ✓ Added ML-KEM timing test to CI (fails if \|max t\| > 4.5) |
 | SLH-DSA SHA2 Variants | LOW | FIPS 205 |
 | SIMD NTT (WASM) | LOW | - |
 | Property-based Tests | LOW | proptest |
