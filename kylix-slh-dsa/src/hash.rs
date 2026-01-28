@@ -12,6 +12,7 @@
 //! - **Tl**: Multi-input hash function for WOTS+ and FORS public key compression
 
 use crate::address::Address;
+use zeroize::Zeroizing;
 
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
@@ -39,8 +40,8 @@ pub trait HashSuite {
     /// * `adrs` - Address structure for domain separation
     ///
     /// # Returns
-    /// n-byte pseudorandom output
-    fn prf(pk_seed: &[u8], sk_seed: &[u8], adrs: &Address) -> Vec<u8>;
+    /// n-byte pseudorandom output wrapped in `Zeroizing` for automatic memory cleanup
+    fn prf(pk_seed: &[u8], sk_seed: &[u8], adrs: &Address) -> Zeroizing<Vec<u8>>;
 
     /// PRFmsg: Generate n-byte randomizer for message signing.
     ///
@@ -54,8 +55,8 @@ pub trait HashSuite {
     /// * `message` - Message to sign
     ///
     /// # Returns
-    /// n-byte randomizer
-    fn prf_msg(sk_prf: &[u8], opt_rand: &[u8], message: &[u8]) -> Vec<u8>;
+    /// n-byte randomizer wrapped in `Zeroizing` for automatic memory cleanup
+    fn prf_msg(sk_prf: &[u8], opt_rand: &[u8], message: &[u8]) -> Zeroizing<Vec<u8>>;
 
     /// Hmsg: Generate message digest for FORS signing.
     ///
