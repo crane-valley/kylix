@@ -10,6 +10,13 @@
 
 A post-quantum cryptography library implementing NIST FIPS standards in pure Rust.
 
+## Security
+
+> [!WARNING]
+> This library is experimental and has **NOT been audited**. It is **NOT intended for production use**.
+
+See [SECURITY.md](SECURITY.md) for security policy and vulnerability reporting.
+
 ## Features
 
 - **ML-KEM** (FIPS 203): Module-Lattice-Based Key Encapsulation Mechanism
@@ -132,12 +139,6 @@ See the [kylix-cli repository](https://github.com/crane-valley/kylix-cli) for fu
 | `kylix-ml-kem` | ML-KEM (FIPS 203) implementation |
 | `kylix-ml-dsa` | ML-DSA (FIPS 204) implementation |
 | `kylix-slh-dsa` | SLH-DSA (FIPS 205) implementation |
-
-## Security
-
-**WARNING**: This library has not been audited. Use at your own risk.
-
-See [SECURITY.md](SECURITY.md) for security policy and reporting vulnerabilities.
 
 ## Minimum Supported Rust Version
 
