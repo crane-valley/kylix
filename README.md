@@ -28,9 +28,14 @@ See [SECURITY.md](SECURITY.md) for security policy and vulnerability reporting.
   - ML-DSA-65 (Security Level 3)
   - ML-DSA-87 (Security Level 5)
 - **SLH-DSA** (FIPS 205): Stateless Hash-Based Digital Signature Algorithm
-  - SLH-DSA-SHAKE-128s/128f (Security Level 1)
-  - SLH-DSA-SHAKE-192s/192f (Security Level 3)
-  - SLH-DSA-SHAKE-256s/256f (Security Level 5)
+  - SHAKE-based variants:
+    - SLH-DSA-SHAKE-128s/128f (Security Level 1)
+    - SLH-DSA-SHAKE-192s/192f (Security Level 3)
+    - SLH-DSA-SHAKE-256s/256f (Security Level 5)
+  - SHA2-based variants:
+    - SLH-DSA-SHA2-128s/128f (Security Level 1)
+    - SLH-DSA-SHA2-192s/192f (Security Level 3)
+    - SLH-DSA-SHA2-256s/256f (Security Level 5)
 - `no_std` compatible for embedded systems
 - Constant-time implementations to prevent timing attacks
 - Secure memory handling with automatic zeroization
