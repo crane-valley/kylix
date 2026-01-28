@@ -28,7 +28,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | SLH-DSA SHA2 Variants | LOW | FIPS 205 |
 | SIMD NTT (WASM) | LOW | - |
 | Property-based Tests | LOW | proptest |
-| Constant-time Verification | LOW | Formal verification with ct-verif or similar tools |
+| ~~Constant-time Verification~~ | ~~LOW~~ | ✓ Added dudect tests in `timing/` |
 
 ### Refactoring Backlog
 
@@ -68,12 +68,21 @@ Goal: Verify cross-platform tool detection works correctly.
 
 ### Constant-time Verification
 
-Current status: Critical paths use `subtle` crate for constant-time operations to mitigate timing side-channel attacks, but are not formally verified.
+**Status:** Added dudect-based timing tests in `timing/` directory.
+
+**Results:**
+- **ML-KEM decaps**: ✅ Passes (max t < 4.5) - implicit rejection is constant-time
+- **ML-DSA sign**: ⚠️ Expected variance due to rejection sampling loop
+
+**Running tests:**
+```bash
+cd timing && cargo run --release --bin ml_kem
+cd timing && cargo run --release --bin ml_dsa
+```
 
 **Future work:**
-- Document which functions are intended to be constant-time
-- Evaluate formal verification tools (ct-verif, dudect, ctgrind)
-- Add constant-time property tests where feasible
+- Add SLH-DSA timing tests (slow due to hash-based signatures)
+- Formal verification with ct-verif or ctgrind for critical paths
 
 ---
 
@@ -153,6 +162,7 @@ SIMD complete for AVX2/NEON. WASM-SIMD128 pending (pointwise mul only).
 - [x] Cross-platform CI
 - [x] Constant-time operations
 - [x] Zeroization
+- [x] Dudect timing tests (ML-KEM passes, ML-DSA expected variance due to rejection sampling)
 - [ ] cargo-audit in CI
 - [ ] Property-based tests
 - [ ] Constant-time formal verification

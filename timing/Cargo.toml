@@ -1,0 +1,22 @@
+[package]
+name = "kylix-timing"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Constant-time verification tests using dudect"
+
+[dependencies]
+kylix-ml-kem = { path = "../kylix-ml-kem" }
+kylix-ml-dsa = { path = "../kylix-ml-dsa" }
+kylix-core = { path = "../kylix-core" }
+dudect-bencher = "0.6"
+rand = "0.9"
+once_cell = "1.21"
+
+[[bin]]
+name = "ml_kem"
+path = "src/bin/ml_kem.rs"
+
+[[bin]]
+name = "ml_dsa"
+path = "src/bin/ml_dsa.rs"
