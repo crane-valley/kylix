@@ -166,15 +166,6 @@ mod tests {
         shift: 48
     }
 
-    define_montgomery_reduce! {
-        name: test_montgomery,
-        coeff: i32,
-        wide: i64,
-        q: 8380417,
-        qinv: 58_728_449i32,
-        shift: 32
-    }
-
     define_caddq! {
         name: test_caddq,
         coeff: i32,
@@ -187,10 +178,18 @@ mod tests {
         assert_eq!(test_barrett(0), 0);
         // For a = q, result may be 0 or q depending on constants
         let r = test_barrett(8380417);
-        assert!(r == 0 || r == 8380417, "Barrett(q) should be 0 or q, got {}", r);
+        assert!(
+            r == 0 || r == 8380417,
+            "Barrett(q) should be 0 or q, got {}",
+            r
+        );
         // For a = q + 1, result should be 1 or q + 1
         let r = test_barrett(8380418);
-        assert!(r == 1 || r == 8380418, "Barrett(q+1) should be 1 or q+1, got {}", r);
+        assert!(
+            r == 1 || r == 8380418,
+            "Barrett(q+1) should be 1 or q+1, got {}",
+            r
+        );
     }
 
     #[test]

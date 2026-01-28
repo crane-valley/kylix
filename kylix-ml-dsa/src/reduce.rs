@@ -4,7 +4,9 @@
 //!
 //! This module uses macros from kylix-core to generate the reduction functions.
 
-use kylix_core::{define_barrett_reduce, define_caddq, define_montgomery_mul, define_montgomery_reduce};
+use kylix_core::{
+    define_barrett_reduce, define_caddq, define_montgomery_mul, define_montgomery_reduce,
+};
 
 /// The prime modulus q = 8380417
 pub const Q: i32 = 8_380_417;
