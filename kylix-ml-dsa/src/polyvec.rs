@@ -217,13 +217,6 @@ impl<const K: usize, const L: usize> Matrix<K, L> {
     }
 }
 
-/// Pointwise multiply polynomial by vector and accumulate.
-pub fn poly_mul_vec_acc<const L: usize>(r: &mut Poly, c: &Poly, v: &PolyVecL<L>) {
-    for i in 0..L {
-        r.pointwise_mul_acc(c, &v.polys[i]);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
