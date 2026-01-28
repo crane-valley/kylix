@@ -33,11 +33,13 @@ impl Signer for MlDsa65 {
         let mut xi = [0u8; 32];
         rng.fill_bytes(&mut xi);
 
-        let (sk_bytes, pk_bytes) = ml_dsa_keygen::<K, L, ETA>(&xi);
+        let (mut sk_bytes, pk_bytes) = ml_dsa_keygen::<K, L, ETA>(&xi);
 
         xi.zeroize();
 
         let sk = SigningKey::from_bytes(&sk_bytes)?;
+        sk_bytes.zeroize();
+
         let pk = VerificationKey::from_bytes(&pk_bytes)?;
 
         Ok((sk, pk))

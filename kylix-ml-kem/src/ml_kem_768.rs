@@ -41,16 +41,18 @@ impl Kem for MlKem768 {
         rng.fill_bytes(&mut d);
         rng.fill_bytes(&mut z);
 
-        let (dk_bytes, ek_bytes) = ml_kem_keygen::<K, ETA1>(&d, &z);
+        let (mut dk_bytes, ek_bytes) = ml_kem_keygen::<K, ETA1>(&d, &z);
 
         // Zeroize seeds
         d.zeroize();
         z.zeroize();
 
-        Ok((
-            DecapsulationKey::from_bytes(&dk_bytes)?,
-            EncapsulationKey::from_bytes(&ek_bytes)?,
-        ))
+        let dk = DecapsulationKey::from_bytes(&dk_bytes)?;
+        dk_bytes.zeroize();
+
+        let ek = EncapsulationKey::from_bytes(&ek_bytes)?;
+
+        Ok((dk, ek))
     }
 
     fn encaps(
