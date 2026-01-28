@@ -3,7 +3,7 @@
 [![CI](https://github.com/crane-valley/kylix/actions/workflows/ci.yml/badge.svg)](https://github.com/crane-valley/kylix/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/kylix-pqc.svg)](https://crates.io/crates/kylix-pqc)
 [![Documentation](https://docs.rs/kylix-pqc/badge.svg)](https://docs.rs/kylix-pqc)
-[![Website](https://img.shields.io/website/https/kylix-pqc.dev.svg)](https://kylix-pqc.dev/)
+[![Website](https://img.shields.io/website?url=https://kylix-pqc.dev/)](https://kylix-pqc.dev/)
 [![Benchmarks](https://img.shields.io/badge/Benchmarks-GitHub%20Pages-orange)](https://crane-valley.github.io/kylix-cli/dev/bench/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![MSRV](https://img.shields.io/badge/MSRV-1.75-blue.svg)](https://blog.rust-lang.org/2023/12/28/Rust-1.75.0.html)
