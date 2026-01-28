@@ -202,6 +202,14 @@ pub unsafe fn poly_sub(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) {
 /// The rounding constant 2^22 ensures the approximation error is at most 1,
 /// so r is in the range [-Q, 2Q) before the conditional steps.
 ///
+/// # Input Range
+///
+/// This function is designed for ML-DSA coefficient reduction where inputs
+/// are bounded by small multiples of Q (typically |a| < 256 * Q ≈ 2^31).
+/// For inputs in range |a| < 2^30, correct behavior is guaranteed.
+/// For very large inputs (|a| >= 2^31 - 2^22), the internal addition may
+/// overflow; however, such values do not occur in normal ML-DSA operations.
+///
 /// # Safety
 ///
 /// Requires AVX2 support.
@@ -739,16 +747,26 @@ mod tests {
             return;
         }
 
-        // Test with various input ranges
+        // A simple, correct reference implementation for testing.
+        fn reduce_reference(a: i32) -> i32 {
+            let mut r = (a as i64) % (Q as i64);
+            if r < 0 {
+                r += Q as i64;
+            }
+            r as i32
+        }
+
+        // Test with various input ranges within the practical ML-DSA range
         let test_cases: [i32; N] = core::array::from_fn(|i| {
             // Mix of positive, negative, small, and large values
+            // Stay within |a| < 2^30 to avoid overflow edge cases
             (i as i32 * 123457) % (4 * Q) - 2 * Q
         });
 
-        // Scalar reference
+        // Correct reference implementation
         let mut expected = test_cases;
         for c in &mut expected {
-            *c = crate::reduce::reduce32(*c);
+            *c = reduce_reference(*c);
         }
 
         // SIMD version
@@ -766,29 +784,26 @@ mod tests {
             return;
         }
 
-        // Test specific edge cases within the practical operating range.
-        // Note: The scalar reduce32 has a subtle bug for inputs like -Q-1
-        // where it returns -1 instead of Q-1. The SIMD implementation
-        // correctly returns values in [0, Q-1] for all inputs.
-        let edge_cases = [
-            0,
-            1,
-            Q - 1,
-            Q,
-            Q + 1,
-            2 * Q,
-            2 * Q - 1,
-            -1,
-            -Q,
-            -Q + 1,
-            // Note: -Q-1 is excluded because scalar has edge case bug
-            Q * 100,
-            -Q * 100,
+        // Test specific edge cases with known-correct expected outputs.
+        // The SIMD implementation correctly returns values in [0, Q-1] for all inputs.
+        let edge_cases: [(i32, i32); 13] = [
+            (0, 0),
+            (1, 1),
+            (Q - 1, Q - 1),
+            (Q, 0),
+            (Q + 1, 1),
+            (2 * Q, 0),
+            (2 * Q - 1, Q - 1),
+            (-1, Q - 1),
+            (-Q, 0),
+            (-Q + 1, 1),
+            (-Q - 1, Q - 1), // SIMD handles this correctly
+            (Q * 100, 0),    // Q*100 is a multiple of Q
+            (-Q * 100, 0),
         ];
 
-        for &val in &edge_cases {
+        for &(val, expected) in &edge_cases {
             let mut input = [val; N];
-            let expected = crate::reduce::reduce32(val);
 
             unsafe {
                 reduce_avx2(&mut input);
