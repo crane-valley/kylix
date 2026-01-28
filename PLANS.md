@@ -23,7 +23,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 |-----------|----------|-------|
 | Security Audit | HIGH | External |
 | ML-DSA Benchmark Stability | MEDIUM | Use fixed seed to eliminate rejection sampling variance |
-| ~~Dudect CI Integration~~ | ~~MEDIUM~~ | ✓ Added ML-KEM timing test to CI |
+| ~~Dudect CI Integration~~ | ~~MEDIUM~~ | ✓ Added ML-KEM timing test to CI (fails if \|max t\| > 4.5) |
 | SLH-DSA SHA2 Variants | LOW | FIPS 205 |
 | SIMD NTT (WASM) | LOW | - |
 | Property-based Tests | LOW | proptest |
