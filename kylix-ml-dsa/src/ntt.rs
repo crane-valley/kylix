@@ -163,7 +163,6 @@ pub fn pointwise_acc(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
