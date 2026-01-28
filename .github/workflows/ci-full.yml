@@ -21,8 +21,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --all-features
 
-  test-ubuntu-msrv:
-    name: Test (ubuntu, 1.75)
+  check-ubuntu-msrv:
+    name: Check (ubuntu, 1.75)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -30,8 +30,8 @@ jobs:
         with:
           toolchain: "1.75"
       - uses: Swatinem/rust-cache@v2
-      # Exclude kylix-bench - criterion requires newer Rust
-      - run: cargo test --workspace --exclude kylix-bench --all-features
+      # MSRV check only - dev-dependencies (proptest, criterion) require newer Rust
+      - run: cargo check --workspace --exclude kylix-bench --all-features
 
   test-macos:
     name: Test (macos, stable)
