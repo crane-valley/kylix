@@ -37,8 +37,9 @@ impl Signer for MlDsa87 {
 
         xi.zeroize();
 
-        let sk = SigningKey::from_bytes(&sk_bytes)?;
+        let sk_res = SigningKey::from_bytes(&sk_bytes);
         sk_bytes.zeroize();
+        let sk = sk_res?;
 
         let pk = VerificationKey::from_bytes(&pk_bytes)?;
 

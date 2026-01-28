@@ -47,8 +47,9 @@ impl Kem for MlKem1024 {
         d.zeroize();
         z.zeroize();
 
-        let dk = DecapsulationKey::from_bytes(&dk_bytes)?;
+        let dk_res = DecapsulationKey::from_bytes(&dk_bytes);
         dk_bytes.zeroize();
+        let dk = dk_res?;
 
         let ek = EncapsulationKey::from_bytes(&ek_bytes)?;
 
