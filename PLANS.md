@@ -11,6 +11,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 - ML-KEM-512/768/1024 (FIPS 203) with SIMD (AVX2/NEON) optimizations for NTT, basemul, and Barrett reduction
 - ML-DSA-44/65/87 (FIPS 204) with SIMD (AVX2/NEON) and expanded verification
 - SLH-DSA-SHAKE all variants (FIPS 205) with parallel feature
+- SLH-DSA-SHA2 all variants (FIPS 205 Section 10.2)
 - NIST ACVP tests, fuzz testing, no_std, constant-time, zeroization
 - Key type wrapper macros (`define_kem_types!` / `define_dsa_types!` / `define_slh_dsa_variant!`)
 - Dudect timing tests for constant-time verification
@@ -24,7 +25,6 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | Component | Priority | Notes |
 |-----------|----------|-------|
 | Security Audit | HIGH | External |
-| SLH-DSA SHA2 Variants | LOW | FIPS 205 |
 | SIMD NTT (WASM) | LOW | - |
 
 ### Refactoring Backlog
