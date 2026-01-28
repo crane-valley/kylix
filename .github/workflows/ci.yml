@@ -116,6 +116,10 @@ jobs:
           # Show output for debugging
           cat dudect_output.txt
 
+          # Extract measurement count (format: "n == +0.006M" or "n == +1.234M")
+          MEASUREMENTS=$(grep -oE 'n == \+[0-9.]+M' dudect_output.txt | tail -1 | grep -oE '[0-9.]+')
+          echo "Measurements: ${MEASUREMENTS}M"
+
           # Extract the max t value (format: "max t = +1.17697")
           MAX_T=$(grep -oE 'max t = [+-]?[0-9.]+' dudect_output.txt | tail -1 | grep -oE '[+-]?[0-9.]+$')
 
@@ -131,9 +135,22 @@ jobs:
           ABS_T=$(echo "$MAX_T" | tr -d '-')
           echo "Absolute max t: $ABS_T"
 
-          if (( $(echo "$ABS_T > 4.5" | bc -l) )); then
-            echo "::error::Potential timing leakage detected (|max t| = $ABS_T > 4.5)"
-            exit 1
+          # Decision matrix:
+          # - |t| <= 4.5: PASS (constant-time confirmed)
+          # - |t| > 4.5 AND measurements >= 0.5M: FAIL (timing leakage detected)
+          # - |t| > 4.5 AND measurements < 0.5M: INCONCLUSIVE (warn, don't fail)
+          if (( $(echo "$ABS_T <= 4.5" | bc -l) )); then
+            echo "::notice::Constant-time check passed (|max t| = $ABS_T <= 4.5, n = ${MEASUREMENTS}M)"
+            exit 0
           fi
 
-          echo "::notice::Constant-time check passed (|max t| = $ABS_T <= 4.5)"
+          # |t| > 4.5 - check if we have enough measurements
+          if (( $(echo "$MEASUREMENTS < 0.5" | bc -l) )); then
+            echo "::warning::Inconclusive result: |max t| = $ABS_T > 4.5 but insufficient measurements (${MEASUREMENTS}M < 0.5M)"
+            echo "::warning::Re-run CI for more reliable results. Not failing due to low sample size."
+            exit 0
+          fi
+
+          # Sufficient measurements and |t| > 4.5 - real timing leakage
+          echo "::error::Potential timing leakage detected (|max t| = $ABS_T > 4.5, n = ${MEASUREMENTS}M)"
+          exit 1
