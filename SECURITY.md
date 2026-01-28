@@ -49,7 +49,7 @@ Include the following information where possible:
 - **Status Update**: Within 7 days (best-effort)
 - **Resolution Target**: Within 90 days (depending on severity and complexity)
 
-### What to Expect
+## What to Expect
 
 1. **Acknowledgment**: We will acknowledge receipt of your report.
 2. **Assessment**: We will assess the issue and determine its severity and scope.
