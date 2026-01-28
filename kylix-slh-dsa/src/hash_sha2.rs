@@ -27,14 +27,15 @@ pub struct Sha2_256Hash;
 
 /// Compress 32-byte ADRS to 22-byte ADRS^c for SHA2 variants.
 ///
-/// FIPS 205, Section 10.2: The compressed address ADRSc is formed by:
+/// FIPS 205, Section 10.2, Table 3: The compressed address ADRSc is formed by:
 /// - Bytes 0-3: Layer address (4 bytes)
-/// - Bytes 4-11: Tree address (8 bytes, lower 64 bits)
+/// - Bytes 4-11: Tree address lower 64 bits (8 bytes)
 /// - Bytes 12-15: Type (4 bytes)
-/// - Bytes 16-19: Key pair / tree height (4 bytes)
-/// - Bytes 20-21: Chain/hash / tree index (2 bytes, truncated)
+/// - Bytes 16-19: Key pair address (WOTS types) or tree height (other types)
+/// - Bytes 20-21: Bits 16-31 of chain address (WOTS_PRF/FORS_PRF) or hash/tree index (others)
 fn adrs_compress(adrs: &Address) -> [u8; 22] {
     let bytes = adrs.as_bytes();
+    let adrs_type = u32::from_be_bytes([bytes[16], bytes[17], bytes[18], bytes[19]]);
     let mut compressed = [0u8; 22];
 
     // Layer address (bytes 0-3)
@@ -46,12 +47,20 @@ fn adrs_compress(adrs: &Address) -> [u8; 22] {
     // Type (bytes 16-19 of original -> bytes 12-15 of compressed)
     compressed[12..16].copy_from_slice(&bytes[16..20]);
 
-    // Key pair / tree height (bytes 20-23 of original -> bytes 16-19 of compressed)
-    compressed[16..20].copy_from_slice(&bytes[20..24]);
+    // Bytes 16-19: key pair address (WOTS types 0,1,5) or tree height (other types 2,3,4,6)
+    // WOTS types use keypair at offset 20, others use height/index at offset 24
+    match adrs_type {
+        0 | 1 | 5 => compressed[16..20].copy_from_slice(&bytes[20..24]), // WOTS: keypair
+        _ => compressed[16..20].copy_from_slice(&bytes[24..28]),         // Others: height/index
+    }
 
-    // Chain/hash / tree index (bytes 28-31 of original -> bytes 20-21 of compressed, truncated)
-    // Take the lower 2 bytes (big-endian)
-    compressed[20..22].copy_from_slice(&bytes[30..32]);
+    // Bytes 20-21: bits 16-31 of the relevant field
+    // WOTS_PRF (5) and FORS_PRF (6): chain/tree index at offset 24, use bytes 26-27
+    // Others: hash/tree index at offset 28, use bytes 30-31
+    match adrs_type {
+        5 | 6 => compressed[20..22].copy_from_slice(&bytes[26..28]),
+        _ => compressed[20..22].copy_from_slice(&bytes[30..32]),
+    }
 
     compressed
 }
@@ -60,15 +69,18 @@ fn adrs_compress(adrs: &Address) -> [u8; 22] {
 ///
 /// FIPS 205, Section 10.2.1: MGF1-SHA-256 is used for variable-length outputs.
 fn mgf1_sha256(seed: &[u8], mask_len: usize) -> Vec<u8> {
-    let mut output = Vec::with_capacity(mask_len);
-    let mut counter: u32 = 0;
+    const HASH_LEN: usize = 32; // SHA-256 output size
+    let num_blocks = mask_len.div_ceil(HASH_LEN);
+    let mut output = Vec::with_capacity(num_blocks * HASH_LEN);
 
-    while output.len() < mask_len {
-        let mut hasher = Sha256::new();
-        hasher.update(seed);
-        hasher.update(counter.to_be_bytes());
+    // Pre-hash the seed once, then clone for each block
+    let mut base_hasher = Sha256::new();
+    base_hasher.update(seed);
+
+    for i in 0..num_blocks as u32 {
+        let mut hasher = base_hasher.clone();
+        hasher.update(i.to_be_bytes());
         output.extend_from_slice(&hasher.finalize());
-        counter += 1;
     }
 
     output.truncate(mask_len);
@@ -111,12 +123,13 @@ macro_rules! impl_sha2_hash_suite {
             ) -> Vec<u8> {
                 // Hmsg(R, PK.seed, PK.root, M) =
                 //   MGF1-SHA-256(R || PK.seed || SHA-256(R || PK.seed || PK.root || M), m)
-                let mut inner_hasher = Sha256::new();
-                inner_hasher.update(r);
-                inner_hasher.update(pk_seed);
-                inner_hasher.update(pk_root);
-                inner_hasher.update(message);
-                let inner_hash = inner_hasher.finalize();
+                use sha2::digest::Update;
+                let inner_hash = Sha256::new()
+                    .chain(r)
+                    .chain(pk_seed)
+                    .chain(pk_root)
+                    .chain(message)
+                    .finalize();
 
                 let mut seed = Vec::with_capacity(r.len() + pk_seed.len() + 32);
                 seed.extend_from_slice(r);
@@ -172,17 +185,82 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_adrs_compress() {
-        let mut adrs = Address::new();
-        adrs.set_layer(0x0102_0304);
-        adrs.set_tree(0x0506_0708_0910_1112);
-        adrs.set_keypair(0x1314_1516);
-
+    fn test_adrs_compress_wots_hash() {
+        // WOTS_HASH (type 0): uses keypair (bytes 20-23) and hash (bytes 30-31)
+        let adrs = Address::wots_hash(0x0102_0304, 0x0506_0708_0910_1112, 0xAABB_CCDD, 5, 7);
         let compressed = adrs_compress(&adrs);
-        assert_eq!(compressed.len(), 22);
 
+        assert_eq!(compressed.len(), 22);
         // Layer address (bytes 0-3)
         assert_eq!(&compressed[0..4], &[0x01, 0x02, 0x03, 0x04]);
+        // Tree address lower 64 bits (bytes 4-11)
+        assert_eq!(
+            &compressed[4..12],
+            &[0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12]
+        );
+        // Type (bytes 12-15) = WOTS_HASH = 0
+        assert_eq!(&compressed[12..16], &[0, 0, 0, 0]);
+        // Key pair (bytes 16-19) for WOTS types
+        assert_eq!(&compressed[16..20], &[0xAA, 0xBB, 0xCC, 0xDD]);
+        // Hash address bits 16-31 (bytes 20-21) - hash=7, bits 16-31 = 0x0007
+        assert_eq!(&compressed[20..22], &[0x00, 0x07]);
+    }
+
+    #[test]
+    fn test_adrs_compress_wots_prf() {
+        // WOTS_PRF (type 5): uses keypair (bytes 20-23) and chain (bytes 26-27)
+        let adrs = Address::wots_prf(1, 2, 0x1234_5678, 0xABCD_EF01);
+        let compressed = adrs_compress(&adrs);
+
+        // Type (bytes 12-15) = WOTS_PRF = 5
+        assert_eq!(&compressed[12..16], &[0, 0, 0, 5]);
+        // Key pair (bytes 16-19) for WOTS types
+        assert_eq!(&compressed[16..20], &[0x12, 0x34, 0x56, 0x78]);
+        // Chain address bits 16-31 (bytes 20-21) - chain=0xABCDEF01, bits 16-31 = 0xEF01
+        assert_eq!(&compressed[20..22], &[0xEF, 0x01]);
+    }
+
+    #[test]
+    fn test_adrs_compress_tree() {
+        // TREE (type 2): uses height (bytes 24-27) and index (bytes 30-31)
+        let adrs = Address::tree_node(1, 2, 0x1111_2222, 0x3333_4444);
+        let compressed = adrs_compress(&adrs);
+
+        // Type (bytes 12-15) = TREE = 2
+        assert_eq!(&compressed[12..16], &[0, 0, 0, 2]);
+        // Tree height (bytes 16-19) for non-WOTS types
+        assert_eq!(&compressed[16..20], &[0x11, 0x11, 0x22, 0x22]);
+        // Tree index bits 16-31 (bytes 20-21) - index=0x33334444, bits 16-31 = 0x4444
+        assert_eq!(&compressed[20..22], &[0x44, 0x44]);
+    }
+
+    #[test]
+    fn test_adrs_compress_fors_prf() {
+        // FORS_PRF (type 6): uses height (bytes 24-27) for compressed bytes 16-19,
+        // and height bits 16-31 (bytes 26-27) for compressed bytes 20-21
+        let adrs = Address::fors_prf(0, 0, 99, 0xAAAA_BBBB, 0xCCCC_DDDD);
+        let compressed = adrs_compress(&adrs);
+
+        // Type (bytes 12-15) = FORS_PRF = 6
+        assert_eq!(&compressed[12..16], &[0, 0, 0, 6]);
+        // Tree height (bytes 16-19) for non-WOTS types
+        assert_eq!(&compressed[16..20], &[0xAA, 0xAA, 0xBB, 0xBB]);
+        // Height bits 16-31 (bytes 20-21) - height=0xAAAABBBB, bits 16-31 = 0xBBBB
+        assert_eq!(&compressed[20..22], &[0xBB, 0xBB]);
+    }
+
+    #[test]
+    fn test_wots_prf_chain_separation() {
+        // Verify that different chain indices produce different ADRS^c
+        let adrs1 = Address::wots_prf(0, 0, 0, 0); // chain = 0
+        let adrs2 = Address::wots_prf(0, 0, 0, 1); // chain = 1
+
+        let compressed1 = adrs_compress(&adrs1);
+        let compressed2 = adrs_compress(&adrs2);
+
+        // The compressed addresses should differ in bytes 20-21
+        assert_ne!(compressed1, compressed2);
+        assert_ne!(&compressed1[20..22], &compressed2[20..22]);
     }
 
     #[test]
