@@ -49,8 +49,8 @@ mod slh_dsa_shake_128f_props {
             let mut rng = StdRng::from_seed(seed);
             let (sk, pk) = SlhDsaShake128f::keygen(&mut rng).unwrap();
 
-            prop_assert_eq!(sk.to_bytes().len(), SlhDsaShake128f::SIGNING_KEY_SIZE);
-            prop_assert_eq!(pk.to_bytes().len(), SlhDsaShake128f::VERIFICATION_KEY_SIZE);
+            prop_assert_eq!(sk.as_bytes().len(), SlhDsaShake128f::SIGNING_KEY_SIZE);
+            prop_assert_eq!(pk.as_bytes().len(), SlhDsaShake128f::VERIFICATION_KEY_SIZE);
         }
 
         /// Signature size is correct.
@@ -60,7 +60,7 @@ mod slh_dsa_shake_128f_props {
             let (sk, _) = SlhDsaShake128f::keygen(&mut rng).unwrap();
 
             let sig = SlhDsaShake128f::sign(&sk, &message).unwrap();
-            prop_assert_eq!(sig.to_bytes().len(), SlhDsaShake128f::SIGNATURE_SIZE);
+            prop_assert_eq!(sig.as_bytes().len(), SlhDsaShake128f::SIGNATURE_SIZE);
         }
 
         /// Verification with wrong public key fails.
@@ -128,8 +128,8 @@ mod slh_dsa_shake_128s_props {
             let mut rng = StdRng::from_seed(seed);
             let (sk, pk) = SlhDsaShake128s::keygen(&mut rng).unwrap();
 
-            prop_assert_eq!(sk.to_bytes().len(), SlhDsaShake128s::SIGNING_KEY_SIZE);
-            prop_assert_eq!(pk.to_bytes().len(), SlhDsaShake128s::VERIFICATION_KEY_SIZE);
+            prop_assert_eq!(sk.as_bytes().len(), SlhDsaShake128s::SIGNING_KEY_SIZE);
+            prop_assert_eq!(pk.as_bytes().len(), SlhDsaShake128s::VERIFICATION_KEY_SIZE);
         }
 
         /// Signature size is correct.
@@ -139,7 +139,7 @@ mod slh_dsa_shake_128s_props {
             let (sk, _) = SlhDsaShake128s::keygen(&mut rng).unwrap();
 
             let sig = SlhDsaShake128s::sign(&sk, &message).unwrap();
-            prop_assert_eq!(sig.to_bytes().len(), SlhDsaShake128s::SIGNATURE_SIZE);
+            prop_assert_eq!(sig.as_bytes().len(), SlhDsaShake128s::SIGNATURE_SIZE);
         }
 
         /// Verification with wrong public key fails.
@@ -206,8 +206,8 @@ mod slh_dsa_shake_192f_props {
             let mut rng = StdRng::from_seed(seed);
             let (sk, pk) = SlhDsaShake192f::keygen(&mut rng).unwrap();
 
-            prop_assert_eq!(sk.to_bytes().len(), SlhDsaShake192f::SIGNING_KEY_SIZE);
-            prop_assert_eq!(pk.to_bytes().len(), SlhDsaShake192f::VERIFICATION_KEY_SIZE);
+            prop_assert_eq!(sk.as_bytes().len(), SlhDsaShake192f::SIGNING_KEY_SIZE);
+            prop_assert_eq!(pk.as_bytes().len(), SlhDsaShake192f::VERIFICATION_KEY_SIZE);
         }
 
         /// Signature size is correct.
@@ -217,7 +217,7 @@ mod slh_dsa_shake_192f_props {
             let (sk, _) = SlhDsaShake192f::keygen(&mut rng).unwrap();
 
             let sig = SlhDsaShake192f::sign(&sk, &message).unwrap();
-            prop_assert_eq!(sig.to_bytes().len(), SlhDsaShake192f::SIGNATURE_SIZE);
+            prop_assert_eq!(sig.as_bytes().len(), SlhDsaShake192f::SIGNATURE_SIZE);
         }
 
         /// Verification with wrong public key fails.
@@ -284,8 +284,8 @@ mod slh_dsa_shake_256f_props {
             let mut rng = StdRng::from_seed(seed);
             let (sk, pk) = SlhDsaShake256f::keygen(&mut rng).unwrap();
 
-            prop_assert_eq!(sk.to_bytes().len(), SlhDsaShake256f::SIGNING_KEY_SIZE);
-            prop_assert_eq!(pk.to_bytes().len(), SlhDsaShake256f::VERIFICATION_KEY_SIZE);
+            prop_assert_eq!(sk.as_bytes().len(), SlhDsaShake256f::SIGNING_KEY_SIZE);
+            prop_assert_eq!(pk.as_bytes().len(), SlhDsaShake256f::VERIFICATION_KEY_SIZE);
         }
 
         /// Signature size is correct.
@@ -295,7 +295,7 @@ mod slh_dsa_shake_256f_props {
             let (sk, _) = SlhDsaShake256f::keygen(&mut rng).unwrap();
 
             let sig = SlhDsaShake256f::sign(&sk, &message).unwrap();
-            prop_assert_eq!(sig.to_bytes().len(), SlhDsaShake256f::SIGNATURE_SIZE);
+            prop_assert_eq!(sig.as_bytes().len(), SlhDsaShake256f::SIGNATURE_SIZE);
         }
 
         /// Verification with wrong public key fails.

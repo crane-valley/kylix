@@ -27,7 +27,10 @@ use zeroize::Zeroize;
 use alloc::vec::Vec;
 
 /// Secret key components.
-#[derive(Clone)]
+///
+/// Implements `Zeroize` via derive and manual `Drop` to ensure secret material
+/// is securely erased from memory when the key is dropped.
+#[derive(Clone, Zeroize)]
 pub struct SecretKey<const N: usize> {
     /// Secret seed for key generation.
     pub sk_seed: [u8; N],
@@ -40,10 +43,23 @@ pub struct SecretKey<const N: usize> {
 }
 
 impl<const N: usize> SecretKey<N> {
+    /// Write the secret key to a fixed-size byte array.
+    ///
+    /// This avoids heap allocation by writing directly to the provided buffer.
+    /// Layout: sk_seed || sk_prf || pk_seed || pk_root
+    pub fn write_to<const SIZE: usize>(&self, out: &mut [u8; SIZE]) {
+        debug_assert_eq!(SIZE, N * 4, "Output buffer size must be 4*N");
+        out[..N].copy_from_slice(&self.sk_seed);
+        out[N..2 * N].copy_from_slice(&self.sk_prf);
+        out[2 * N..3 * N].copy_from_slice(&self.pk_seed);
+        out[3 * N..].copy_from_slice(&self.pk_root);
+    }
+
     /// Serialize the secret key to bytes.
     ///
     /// Note: This method copies secret material to a new Vec.
     /// The returned Vec should be zeroized after use.
+    /// Prefer `write_to` when possible to avoid heap allocation.
     pub fn to_bytes(&self) -> zeroize::Zeroizing<Vec<u8>> {
         let mut bytes = zeroize::Zeroizing::new(Vec::with_capacity(N * 4));
         bytes.extend_from_slice(&self.sk_seed);
@@ -54,32 +70,33 @@ impl<const N: usize> SecretKey<N> {
     }
 
     /// Deserialize a secret key from bytes.
+    ///
+    /// Writes directly into struct fields to avoid intermediate buffers
+    /// that would need manual zeroization.
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
         if bytes.len() != N * 4 {
             return None;
         }
-        let mut sk_seed = [0u8; N];
-        let mut sk_prf = [0u8; N];
-        let mut pk_seed = [0u8; N];
-        let mut pk_root = [0u8; N];
-        sk_seed.copy_from_slice(&bytes[..N]);
-        sk_prf.copy_from_slice(&bytes[N..2 * N]);
-        pk_seed.copy_from_slice(&bytes[2 * N..3 * N]);
-        pk_root.copy_from_slice(&bytes[3 * N..]);
-        Some(Self {
-            sk_seed,
-            sk_prf,
-            pk_seed,
-            pk_root,
-        })
+        // Initialize struct with zeroed arrays, then copy directly into fields
+        // This avoids intermediate stack buffers for sensitive data
+        let mut key = Self {
+            sk_seed: [0u8; N],
+            sk_prf: [0u8; N],
+            pk_seed: [0u8; N],
+            pk_root: [0u8; N],
+        };
+        key.sk_seed.copy_from_slice(&bytes[..N]);
+        key.sk_prf.copy_from_slice(&bytes[N..2 * N]);
+        key.pk_seed.copy_from_slice(&bytes[2 * N..3 * N]);
+        key.pk_root.copy_from_slice(&bytes[3 * N..]);
+        Some(key)
     }
 }
 
 impl<const N: usize> Drop for SecretKey<N> {
     fn drop(&mut self) {
-        // Zeroize secret material using zeroize crate to prevent compiler optimization
-        self.sk_seed.zeroize();
-        self.sk_prf.zeroize();
+        // Zeroize all fields using the derived Zeroize impl
+        self.zeroize();
     }
 }
 
@@ -93,7 +110,19 @@ pub struct PublicKey<const N: usize> {
 }
 
 impl<const N: usize> PublicKey<N> {
+    /// Write the public key to a fixed-size byte array.
+    ///
+    /// This avoids heap allocation by writing directly to the provided buffer.
+    /// Layout: pk_seed || pk_root
+    pub fn write_to<const SIZE: usize>(&self, out: &mut [u8; SIZE]) {
+        debug_assert_eq!(SIZE, N * 2, "Output buffer size must be 2*N");
+        out[..N].copy_from_slice(&self.pk_seed);
+        out[N..].copy_from_slice(&self.pk_root);
+    }
+
     /// Serialize the public key to bytes.
+    ///
+    /// Prefer `write_to` when possible to avoid heap allocation.
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::with_capacity(N * 2);
         bytes.extend_from_slice(&self.pk_seed);
