@@ -50,7 +50,10 @@ macro_rules! define_slh_dsa_variant {
                 }
                 let mut key = [0u8; SK_BYTES];
                 key.copy_from_slice(bytes);
-                Ok(Self { bytes: key })
+                let sk = Self { bytes: key };
+                // Zeroize temporary buffer to prevent secret material from lingering on stack
+                key.zeroize();
+                Ok(sk)
             }
 
             /// Get the signing key bytes as a slice.
@@ -181,10 +184,11 @@ macro_rules! define_slh_dsa_variant {
                 sk.write_to(&mut sk_bytes);
                 pk.write_to(&mut pk_bytes);
 
-                Ok((
-                    SigningKey { bytes: sk_bytes },
-                    VerificationKey { bytes: pk_bytes },
-                ))
+                let signing_key = SigningKey { bytes: sk_bytes };
+                // Zeroize temporary buffer to prevent secret material from lingering on stack
+                sk_bytes.zeroize();
+
+                Ok((signing_key, VerificationKey { bytes: pk_bytes }))
             }
 
             fn sign(sk: &Self::SigningKey, message: &[u8]) -> Result<Self::Signature> {
