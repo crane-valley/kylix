@@ -25,6 +25,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | Security Audit | HIGH | External |
 | cargo-audit in CI | MEDIUM | Add automated dependency vulnerability scanning to CI |
 | CLI Bench Compare CI | MEDIUM | Test OpenSSL/liboqs detection on Linux/macOS |
+| ML-DSA Benchmark Stability | MEDIUM | Use fixed seed to eliminate rejection sampling variance |
 | SLH-DSA SHA2 Variants | LOW | FIPS 205 |
 | SIMD NTT (WASM) | LOW | - |
 | Property-based Tests | LOW | proptest |
