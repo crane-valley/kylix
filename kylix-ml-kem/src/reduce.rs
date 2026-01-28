@@ -2,11 +2,16 @@
 //!
 //! This module provides constant-time Barrett and Montgomery reduction
 //! for efficient modular arithmetic in the polynomial ring Z_q\[X\]/(X^256 + 1).
+//!
+//! This module uses macros from kylix-core to generate the reduction functions.
 
 // Reduction functions include both Barrett and Montgomery; not all always used.
 #![allow(dead_code)]
 
 use crate::params::common::Q;
+use kylix_core::{
+    define_barrett_reduce_rounded, define_caddq, define_montgomery_mul, define_montgomery_reduce,
+};
 
 /// Q inverse mod 2^16: q^(-1) mod 2^16 = -3327
 pub const QINV: i32 = -3327;
@@ -24,22 +29,39 @@ pub const BARRETT_MUL: i32 = 20159;
 /// Inverse of N (256) in Montgomery form: 256^(-1) * 2^16 mod q = 1441
 pub const INV_N_MONT: i16 = 1441;
 
-/// Barrett reduction: compute a mod q for |a| < 2^15
-///
-/// This computes `a mod q` without division, using precomputed constants.
-///
-/// # Arguments
-/// * `a` - Input value in range approximately [-2^15, 2^15]
-///
-/// # Returns
-/// Result in range [0, q-1]
-#[inline]
-pub const fn barrett_reduce(a: i16) -> i16 {
-    let a = a as i32;
-    // t = floor((a * v + 2^25) / 2^26) - approximation of floor(a/q)
-    let t = ((a * BARRETT_MUL + (1 << 25)) >> 26) as i16;
-    // a - t*q
-    (a - (t as i32) * (Q as i32)) as i16
+// Generate Barrett reduction with rounding
+define_barrett_reduce_rounded! {
+    name: barrett_reduce,
+    coeff: i16,
+    wide: i32,
+    q: Q,
+    barrett_mul: BARRETT_MUL,
+    shift: 26
+}
+
+// Generate Montgomery reduction
+define_montgomery_reduce! {
+    name: montgomery_reduce,
+    coeff: i16,
+    wide: i32,
+    q: Q,
+    qinv: QINV,
+    shift: 16
+}
+
+// Generate Montgomery multiplication
+define_montgomery_mul! {
+    name: montgomery_mul,
+    coeff: i16,
+    wide: i32,
+    montgomery_reduce: montgomery_reduce
+}
+
+// Generate conditional reduce (subtract q if >= q)
+define_caddq! {
+    name: cond_reduce_internal,
+    coeff: i16,
+    q: Q as i16
 }
 
 /// Conditional reduce: subtract q if r >= q
@@ -49,7 +71,6 @@ pub const fn barrett_reduce(a: i16) -> i16 {
 pub const fn cond_reduce(r: i16) -> i16 {
     let diff = r - Q as i16;
     // If diff >= 0, use diff; otherwise use r
-    // Since r is result of barrett_reduce, r is in [0, 2q-1]
     if diff >= 0 {
         diff
     } else {
@@ -69,40 +90,6 @@ pub const fn barrett_reduce_full(a: i16) -> i16 {
     } else {
         r
     }
-}
-
-/// Montgomery reduction: compute a * R^(-1) mod q where R = 2^16
-///
-/// Given `a` in range [-q*2^15, q*2^15], computes `a * 2^(-16) mod q`.
-///
-/// # Arguments
-/// * `a` - Input value (typically product of two i16 values)
-///
-/// # Returns
-/// Result in range [-(q-1)/2, (q-1)/2], approximately [-1664, 1664]
-#[inline]
-pub const fn montgomery_reduce(a: i32) -> i16 {
-    // t = a * q^(-1) mod 2^16 (keep low 16 bits)
-    let t = (a.wrapping_mul(QINV)) as i16;
-    // t = (a - t*q) >> 16
-    let t = (a - (t as i32) * (Q as i32)) >> 16;
-    t as i16
-}
-
-/// Multiply two values in Montgomery domain.
-///
-/// Given `a = a' * R mod q` and `b = b' * R mod q` (Montgomery form),
-/// computes `a' * b' * R mod q` (product in Montgomery form).
-///
-/// # Arguments
-/// * `a` - First operand in Montgomery form
-/// * `b` - Second operand in Montgomery form
-///
-/// # Returns
-/// Product in Montgomery form
-#[inline]
-pub const fn montgomery_mul(a: i16, b: i16) -> i16 {
-    montgomery_reduce((a as i32) * (b as i32))
 }
 
 /// Convert a value to Montgomery form: a -> a * R mod q

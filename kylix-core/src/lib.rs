@@ -5,6 +5,7 @@
 //! This crate provides:
 //! - Common error types
 //! - Cryptographic primitive traits (`Kem`, `Signer`)
+//! - Modular arithmetic macros for lattice-based cryptography
 //! - Secure memory handling with zeroize integration
 
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -13,6 +14,7 @@
 #![deny(unsafe_code)]
 
 mod error;
+mod reduce;
 mod traits;
 
 pub use error::{Error, Result};
