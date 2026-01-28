@@ -68,14 +68,17 @@ fn adrs_compress(adrs: &Address) -> [u8; 22] {
 /// MGF1 mask generation function using SHA-256.
 ///
 /// FIPS 205, Section 10.2.1: MGF1-SHA-256 is used for variable-length outputs.
-fn mgf1_sha256(seed: &[u8], mask_len: usize) -> Vec<u8> {
+/// Takes a slice of byte slices to avoid intermediate Vec allocation.
+fn mgf1_sha256(seed_parts: &[&[u8]], mask_len: usize) -> Vec<u8> {
     const HASH_LEN: usize = 32; // SHA-256 output size
     let num_blocks = mask_len.div_ceil(HASH_LEN);
     let mut output = Vec::with_capacity(num_blocks * HASH_LEN);
 
-    // Pre-hash the seed once, then clone for each block
+    // Pre-hash all seed parts once, then clone for each block
     let mut base_hasher = Sha256::new();
-    base_hasher.update(seed);
+    for part in seed_parts {
+        base_hasher.update(part);
+    }
 
     for i in 0..num_blocks as u32 {
         let mut hasher = base_hasher.clone();
@@ -97,19 +100,28 @@ const PADDING_256: [u8; 32] = [0u8; 32]; // 64 - 32
 /// Macro to implement HashSuite for SHA2-based security levels.
 macro_rules! impl_sha2_hash_suite {
     ($name:ident, $n:expr, $padding:ident) => {
-        impl HashSuite for $name {
-            const N: usize = $n;
-
-            fn prf(pk_seed: &[u8], sk_seed: &[u8], adrs: &Address) -> Zeroizing<Vec<u8>> {
-                // PRF(PK.seed, SK.seed, ADRS) = Trunc_n(SHA-256(PK.seed || toByte(0, 64-n) || ADRSc || SK.seed))
+        impl $name {
+            /// Common SHA2 hash with padding and truncation: Trunc_n(SHA-256(PK.seed || padding || ADRSc || M...))
+            fn sha2_hash_trunc_n(pk_seed: &[u8], adrs: &Address, ms: &[&[u8]]) -> Vec<u8> {
                 let adrs_c = adrs_compress(adrs);
                 let mut hasher = Sha256::new();
                 hasher.update(pk_seed);
                 hasher.update(&$padding);
                 hasher.update(&adrs_c);
-                hasher.update(sk_seed);
+                for m in ms {
+                    hasher.update(m);
+                }
                 let hash = hasher.finalize();
-                Zeroizing::new(hash[..$n].to_vec())
+                hash[..$n].to_vec()
+            }
+        }
+
+        impl HashSuite for $name {
+            const N: usize = $n;
+
+            fn prf(pk_seed: &[u8], sk_seed: &[u8], adrs: &Address) -> Zeroizing<Vec<u8>> {
+                // PRF(PK.seed, SK.seed, ADRS) = Trunc_n(SHA-256(PK.seed || toByte(0, 64-n) || ADRSc || SK.seed))
+                Zeroizing::new(Self::sha2_hash_trunc_n(pk_seed, adrs, &[sk_seed]))
             }
 
             fn prf_msg(sk_prf: &[u8], opt_rand: &[u8], message: &[u8]) -> Zeroizing<Vec<u8>> {
@@ -141,49 +153,22 @@ macro_rules! impl_sha2_hash_suite {
                     .chain(message)
                     .finalize();
 
-                let mut seed = Vec::with_capacity(r.len() + pk_seed.len() + 32);
-                seed.extend_from_slice(r);
-                seed.extend_from_slice(pk_seed);
-                seed.extend_from_slice(&inner_hash);
-
-                mgf1_sha256(&seed, out_len)
+                mgf1_sha256(&[r, pk_seed, &inner_hash], out_len)
             }
 
             fn f(pk_seed: &[u8], adrs: &Address, m1: &[u8]) -> Vec<u8> {
                 // F(PK.seed, ADRS, M1) = Trunc_n(SHA-256(PK.seed || toByte(0, 64-n) || ADRSc || M1))
-                let adrs_c = adrs_compress(adrs);
-                let mut hasher = Sha256::new();
-                hasher.update(pk_seed);
-                hasher.update(&$padding);
-                hasher.update(&adrs_c);
-                hasher.update(m1);
-                let hash = hasher.finalize();
-                hash[..$n].to_vec()
+                Self::sha2_hash_trunc_n(pk_seed, adrs, &[m1])
             }
 
             fn h(pk_seed: &[u8], adrs: &Address, m1: &[u8], m2: &[u8]) -> Vec<u8> {
                 // H(PK.seed, ADRS, M1 || M2) = Trunc_n(SHA-256(PK.seed || toByte(0, 64-n) || ADRSc || M1 || M2))
-                let adrs_c = adrs_compress(adrs);
-                let mut hasher = Sha256::new();
-                hasher.update(pk_seed);
-                hasher.update(&$padding);
-                hasher.update(&adrs_c);
-                hasher.update(m1);
-                hasher.update(m2);
-                let hash = hasher.finalize();
-                hash[..$n].to_vec()
+                Self::sha2_hash_trunc_n(pk_seed, adrs, &[m1, m2])
             }
 
             fn t_l(pk_seed: &[u8], adrs: &Address, m: &[u8]) -> Vec<u8> {
                 // Tl(PK.seed, ADRS, M) = Trunc_n(SHA-256(PK.seed || toByte(0, 64-n) || ADRSc || M))
-                let adrs_c = adrs_compress(adrs);
-                let mut hasher = Sha256::new();
-                hasher.update(pk_seed);
-                hasher.update(&$padding);
-                hasher.update(&adrs_c);
-                hasher.update(m);
-                let hash = hasher.finalize();
-                hash[..$n].to_vec()
+                Self::sha2_hash_trunc_n(pk_seed, adrs, &[m])
             }
         }
     };
@@ -294,15 +279,21 @@ mod tests {
     #[test]
     fn test_mgf1_sha256() {
         let seed = b"test seed";
-        let output = mgf1_sha256(seed, 64);
+        let output = mgf1_sha256(&[seed.as_slice()], 64);
         assert_eq!(output.len(), 64);
 
         // Verify determinism
-        assert_eq!(output, mgf1_sha256(seed, 64));
+        assert_eq!(output, mgf1_sha256(&[seed.as_slice()], 64));
 
         // Verify prefix property (longer output starts with shorter output)
-        let output_32 = mgf1_sha256(seed, 32);
+        let output_32 = mgf1_sha256(&[seed.as_slice()], 32);
         assert_eq!(&output[..32], &output_32[..]);
+
+        // Verify multi-part seed produces correct concatenation
+        let part1 = b"test ";
+        let part2 = b"seed";
+        let output_multi = mgf1_sha256(&[part1.as_slice(), part2.as_slice()], 64);
+        assert_eq!(output, output_multi);
     }
 
     #[test]
