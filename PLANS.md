@@ -35,6 +35,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | ~~Lib: SLH-DSA Variants~~ | ~~LOW~~ | ~~~600 LOC~~ | ✓ Consolidated with `define_slh_dsa_variant!` macro |
 | ~~ML-DSA: AVX2 Barrett~~ | ~~LOW~~ | ~~Performance~~ | ✓ Vectorized Barrett reduction and caddq in `simd/avx2.rs` |
 | API: Key/Sig Bytes Method | LOW | Consistency | Unify `as_bytes()` vs `to_bytes()` across crates (see note below) |
+| SLH-DSA: no_std test imports | LOW | Test | Add `use alloc::vec;` to test modules (utils.rs, sign.rs) for no_std builds |
 
 #### API Consistency Note
 
