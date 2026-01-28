@@ -83,6 +83,14 @@ extern crate alloc;
 mod address;
 mod hash;
 /// SHA2-based hash function implementations.
+#[cfg(any(
+    feature = "slh-dsa-sha2-128s",
+    feature = "slh-dsa-sha2-128f",
+    feature = "slh-dsa-sha2-192s",
+    feature = "slh-dsa-sha2-192f",
+    feature = "slh-dsa-sha2-256s",
+    feature = "slh-dsa-sha2-256f"
+))]
 pub mod hash_sha2;
 /// SHAKE-based hash function implementations.
 pub mod hash_shake;
@@ -136,6 +144,14 @@ pub mod slh_dsa_sha2_256s;
 // Public exports
 pub use address::{Address, AdrsType};
 pub use hash::HashSuite;
+#[cfg(any(
+    feature = "slh-dsa-sha2-128s",
+    feature = "slh-dsa-sha2-128f",
+    feature = "slh-dsa-sha2-192s",
+    feature = "slh-dsa-sha2-192f",
+    feature = "slh-dsa-sha2-256s",
+    feature = "slh-dsa-sha2-256f"
+))]
 pub use hash_sha2::{Sha2_128Hash, Sha2_192Hash, Sha2_256Hash};
 pub use hash_shake::{Shake128Hash, Shake192Hash, Shake256Hash};
 

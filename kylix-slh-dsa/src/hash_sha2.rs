@@ -5,7 +5,7 @@
 //!
 //! FIPS 205, Section 10.2 defines the SHA2-based hash functions.
 
-use crate::address::Address;
+use crate::address::{Address, AdrsType};
 use crate::hash::HashSuite;
 use hmac::{Hmac, Mac};
 use sha2::{Digest, Sha256};
@@ -25,6 +25,12 @@ pub struct Sha2_192Hash;
 /// SHA2-based hash suite for 256-bit security (n=32).
 pub struct Sha2_256Hash;
 
+// Address type constants for readable match patterns (FIPS 205, Table 1)
+const WOTS_HASH: u32 = AdrsType::WotsHash as u32;
+const WOTS_PK: u32 = AdrsType::WotsPk as u32;
+const WOTS_PRF: u32 = AdrsType::WotsPrf as u32;
+const FORS_PRF: u32 = AdrsType::ForsPrf as u32;
+
 /// Compress 32-byte ADRS to 22-byte ADRS^c for SHA2 variants.
 ///
 /// FIPS 205, Section 10.2, Table 3: The compressed address ADRSc is formed by:
@@ -32,7 +38,7 @@ pub struct Sha2_256Hash;
 /// - Bytes 4-11: Tree address lower 64 bits (8 bytes)
 /// - Bytes 12-15: Type (4 bytes)
 /// - Bytes 16-19: Key pair address (WOTS types) or tree height (other types)
-/// - Bytes 20-21: Bits 16-31 of chain address (WOTS_PRF/FORS_PRF) or hash/tree index (others)
+/// - Bytes 20-21: Bits 16-31 of chain address (WOTS_PRF) or hash/tree index (others)
 fn adrs_compress(adrs: &Address) -> [u8; 22] {
     let bytes = adrs.as_bytes();
     let adrs_type = u32::from_be_bytes([bytes[16], bytes[17], bytes[18], bytes[19]]);
@@ -47,19 +53,21 @@ fn adrs_compress(adrs: &Address) -> [u8; 22] {
     // Type (bytes 16-19 of original -> bytes 12-15 of compressed)
     compressed[12..16].copy_from_slice(&bytes[16..20]);
 
-    // Bytes 16-19: key pair address (WOTS types 0,1,5 and FORS_PRF 6) or tree height (TREE 2, FORS_TREE 3, FORS_PK 4)
+    // Bytes 16-19: key pair address (WOTS types and FORS_PRF) or tree height (TREE, FORS_TREE, FORS_PK)
     // FIPS 205 Table 3: FORS_PRF uses keypair, not tree height
     match adrs_type {
-        0 | 1 | 5 | 6 => compressed[16..20].copy_from_slice(&bytes[20..24]), // WOTS and FORS_PRF: keypair
-        _ => compressed[16..20].copy_from_slice(&bytes[24..28]), // TREE, FORS_TREE, FORS_PK: height
+        WOTS_HASH | WOTS_PK | WOTS_PRF | FORS_PRF => {
+            compressed[16..20].copy_from_slice(&bytes[20..24]); // keypair
+        }
+        _ => compressed[16..20].copy_from_slice(&bytes[24..28]), // height
     }
 
     // Bytes 20-21: bits 16-31 of the relevant field
-    // WOTS_PRF (5) only: chain address at offset 24, use bytes 26-27
-    // Others (including FORS_PRF 6): tree index at offset 28, use bytes 30-31
+    // WOTS_PRF only: chain address at offset 24, use bytes 26-27
+    // Others (including FORS_PRF): tree index at offset 28, use bytes 30-31
     match adrs_type {
-        5 => compressed[20..22].copy_from_slice(&bytes[26..28]), // WOTS_PRF: chain bits 16-31
-        _ => compressed[20..22].copy_from_slice(&bytes[30..32]), // Others: index bits 16-31
+        WOTS_PRF => compressed[20..22].copy_from_slice(&bytes[26..28]), // chain bits 16-31
+        _ => compressed[20..22].copy_from_slice(&bytes[30..32]),        // index bits 16-31
     }
 
     compressed
