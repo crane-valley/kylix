@@ -42,14 +42,15 @@ fn bench_sign_65(runner: &mut CtRunner, rng: &mut BenchRng) {
     let data = &*TEST_DATA;
 
     // Pre-generate class assignments
-    let mut classes = Vec::with_capacity(ITERATIONS);
-    for _ in 0..ITERATIONS {
-        if rng.gen::<bool>() {
-            classes.push(Class::Left);
-        } else {
-            classes.push(Class::Right);
-        }
-    }
+    let classes: Vec<_> = (0..ITERATIONS)
+        .map(|_| {
+            if rng.gen::<bool>() {
+                Class::Left
+            } else {
+                Class::Right
+            }
+        })
+        .collect();
 
     // Run the timing tests
     for class in classes {

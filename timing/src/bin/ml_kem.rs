@@ -26,7 +26,7 @@ static TEST_DATA: Lazy<TestData> = Lazy::new(|| {
     let (ct_valid, _ss) = MlKem768::encaps(&ek, &mut rand::rng()).expect("encaps failed");
 
     // Create invalid ciphertext by corrupting the valid one
-    let mut ct_invalid_bytes = [0u8; 1088]; // ML-KEM-768 ciphertext size
+    let mut ct_invalid_bytes = [0u8; MlKem768::CIPHERTEXT_SIZE];
     ct_invalid_bytes.copy_from_slice(ct_valid.as_bytes());
     ct_invalid_bytes[0] ^= 0xff;
     ct_invalid_bytes[100] ^= 0xaa;
@@ -53,14 +53,15 @@ fn bench_decaps_768(runner: &mut CtRunner, rng: &mut BenchRng) {
     let data = &*TEST_DATA;
 
     // Pre-generate class assignments
-    let mut classes = Vec::with_capacity(ITERATIONS);
-    for _ in 0..ITERATIONS {
-        if rng.gen::<bool>() {
-            classes.push(Class::Left);
-        } else {
-            classes.push(Class::Right);
-        }
-    }
+    let classes: Vec<_> = (0..ITERATIONS)
+        .map(|_| {
+            if rng.gen::<bool>() {
+                Class::Left
+            } else {
+                Class::Right
+            }
+        })
+        .collect();
 
     // Run the timing tests
     for class in classes {
