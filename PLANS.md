@@ -102,9 +102,12 @@ pub struct Signature(Vec<u8>);  // Heap-allocated due to large size (up to 49KB)
 2. Update `sign.rs` internal functions:
    - Keep `SecretKey<N>` / `PublicKey<N>` for internal use (keygen, sign, verify)
    - Add conversion between `[u8; SIZE]` and internal structs
-   - Update `slh_keygen` to return `([u8; SK_BYTES], [u8; PK_BYTES])`
-   - Update `slh_sign` to accept `&[u8; SK_BYTES]` and return `[u8; SIG_BYTES]`
-   - Update `slh_verify` to accept `&[u8; PK_BYTES]` and `&[u8; SIG_BYTES]`
+   - Add `write_to()` methods to `SecretKey`/`PublicKey` for direct buffer writes
+   - Internal functions retain current signatures:
+     - `slh_keygen` returns `(SecretKey<N>, PublicKey<N>)`
+     - `slh_sign` accepts `&SecretKey<N>` and returns `Vec<u8>` (large signatures)
+     - `slh_verify` accepts `&PublicKey<N>` and `&[u8]`
+   - Wrapper types in `types.rs` handle conversion to/from byte arrays
 
 3. Update all variant modules (shake_128f, shake_128s, etc.):
    - Pass correct SIZE constants to macro

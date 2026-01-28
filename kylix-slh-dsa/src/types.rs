@@ -42,13 +42,16 @@ macro_rules! define_slh_dsa_variant {
             ///
             /// Returns an error if the slice length doesn't match the expected key size.
             pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-                // Use try_into to avoid intermediate buffer that would need zeroization
-                let bytes: [u8; SK_BYTES] =
+                // Use try_into for conversion; zeroize the intermediate buffer
+                // to prevent secret material from lingering on the stack
+                let mut sk_bytes: [u8; SK_BYTES] =
                     bytes.try_into().map_err(|_| Error::InvalidKeyLength {
                         expected: SK_BYTES,
                         actual: bytes.len(),
                     })?;
-                Ok(Self { bytes })
+                let key = Self { bytes: sk_bytes };
+                sk_bytes.zeroize();
+                Ok(key)
             }
 
             /// Get the signing key bytes as a slice.
@@ -99,15 +102,12 @@ macro_rules! define_slh_dsa_variant {
             ///
             /// Returns an error if the slice length doesn't match the expected key size.
             pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-                if bytes.len() != PK_BYTES {
-                    return Err(Error::InvalidKeyLength {
+                let bytes: [u8; PK_BYTES] =
+                    bytes.try_into().map_err(|_| Error::InvalidKeyLength {
                         expected: PK_BYTES,
                         actual: bytes.len(),
-                    });
-                }
-                let mut key = [0u8; PK_BYTES];
-                key.copy_from_slice(bytes);
-                Ok(Self { bytes: key })
+                    })?;
+                Ok(Self { bytes })
             }
 
             /// Get the verification key bytes as a slice.
