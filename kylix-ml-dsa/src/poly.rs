@@ -38,6 +38,10 @@ impl Poly {
 
     /// Reduce all coefficients to [0, q-1].
     pub fn reduce(&mut self) {
+        #[cfg(feature = "simd")]
+        if crate::simd::reduce(&mut self.coeffs) {
+            return;
+        }
         for c in &mut self.coeffs {
             *c = reduce32(*c);
         }
@@ -45,6 +49,10 @@ impl Poly {
 
     /// Reduce all coefficients with conditional add.
     pub fn caddq(&mut self) {
+        #[cfg(feature = "simd")]
+        if crate::simd::caddq(&mut self.coeffs) {
+            return;
+        }
         for c in &mut self.coeffs {
             *c = caddq(*c);
         }
