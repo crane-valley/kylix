@@ -23,7 +23,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 |-----------|----------|-------|
 | Security Audit | HIGH | External |
 | ML-DSA Benchmark Stability | MEDIUM | Use fixed seed to eliminate rejection sampling variance |
-| Dudect CI Integration | MEDIUM | Add ML-KEM timing test to CI for regression detection |
+| ~~Dudect CI Integration~~ | ~~MEDIUM~~ | ✓ Added ML-KEM timing test to CI |
 | SLH-DSA SHA2 Variants | LOW | FIPS 205 |
 | SIMD NTT (WASM) | LOW | - |
 | Property-based Tests | LOW | proptest |
@@ -60,7 +60,6 @@ cd timing && cargo run --release --bin ml_dsa
 
 **Future work:**
 - Add ML-DSA subroutine-level timing tests (NTT, poly ops, secret vector operations)
-- CI integration: Add ML-KEM decaps test to PR workflow (fails if max t > 4.5)
 - SLH-DSA timing tests (LOW priority) - hash-based design is inherently constant-time, very slow execution
 - Formal verification with ct-verif or ctgrind for critical paths
 
@@ -97,7 +96,7 @@ SIMD complete for AVX2/NEON. WASM-SIMD128 pending (pointwise mul only).
 - [x] Constant-time operations
 - [x] Zeroization
 - [x] Dudect timing tests (ML-KEM passes, ML-DSA expected variance due to rejection sampling)
-- [ ] Dudect CI integration (ML-KEM regression detection)
+- [x] Dudect CI integration (ML-KEM regression detection)
 - [x] cargo-audit in CI
 - [ ] Property-based tests
 - [ ] Constant-time formal verification
