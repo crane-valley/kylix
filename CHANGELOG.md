@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Automatic memory zeroization on drop for improved security
   - Performance improvement by eliminating unnecessary allocation and copy
   - **BREAKING**: Callers can use the bytes via `Deref` (e.g., `&*sk_bytes`)
+- **Doc example validation**: Changed doc examples from `ignore` to `no_run` for compile-time validation
 
 ### Refactored
 
