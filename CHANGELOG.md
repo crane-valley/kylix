@@ -23,6 +23,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Each variant file reduced from ~170 lines to ~15 lines
   - Single point of maintenance for all SLH-DSA implementations
 
+### Security
+
+- **PRF output zeroization (SLH-DSA)**: `prf()` and `prf_msg()` now return `Zeroizing<Vec<u8>>`
+  - Ensures automatic memory cleanup of one-time secret keys
+
+### Performance
+
+- **Buffer allocation optimizations**: Reduced allocations in ML-KEM and ML-DSA
+  - ML-KEM: Reuse PRF output buffers, remove unnecessary clone
+  - ML-DSA: Reuse packing buffers with explicit zeroization for secret material
+
 ### CI
 
 - **cargo-audit**: Added RustSec security audit to CI pipeline
