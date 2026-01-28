@@ -13,6 +13,7 @@
 use crate::address::{Address, AdrsType};
 use crate::hash::HashSuite;
 use crate::utils::base_2b;
+use zeroize::Zeroizing;
 
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
@@ -29,8 +30,12 @@ use alloc::vec::Vec;
 /// * `adrs` - Address (type ForsPrf)
 ///
 /// # Returns
-/// Secret key element (n bytes)
-pub fn fors_sk_gen<H: HashSuite>(sk_seed: &[u8], pk_seed: &[u8], adrs: &Address) -> Vec<u8> {
+/// Secret key element (n bytes) wrapped in `Zeroizing` for automatic memory cleanup
+pub fn fors_sk_gen<H: HashSuite>(
+    sk_seed: &[u8],
+    pk_seed: &[u8],
+    adrs: &Address,
+) -> Zeroizing<Vec<u8>> {
     H::prf(pk_seed, sk_seed, adrs)
 }
 
