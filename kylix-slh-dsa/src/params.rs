@@ -388,6 +388,325 @@ pub mod slh_dsa_shake_256f {
     }
 }
 
+// =============================================================================
+// SHA2-128s: Small signatures, slower signing (SHA2-based)
+// =============================================================================
+
+/// SLH-DSA-SHA2-128s parameters.
+#[cfg(feature = "slh-dsa-sha2-128s")]
+pub mod slh_dsa_sha2_128s {
+    pub use super::common::*;
+
+    /// Security parameter (16 bytes = 128 bits).
+    pub const N: usize = 16;
+    /// XMSS tree height.
+    pub const H_PRIME: usize = 9;
+    /// Total hypertree height.
+    pub const H: usize = 63;
+    /// Number of hypertree layers.
+    pub const D: usize = 7;
+    /// FORS tree height.
+    pub const A: usize = 12;
+    /// Number of FORS trees.
+    pub const K: usize = 14;
+    /// WOTS+ len1.
+    pub const WOTS_LEN1: usize = 32;
+    /// WOTS+ len2.
+    pub const WOTS_LEN2: usize = 3;
+    /// WOTS+ total length.
+    pub const WOTS_LEN: usize = WOTS_LEN1 + WOTS_LEN2;
+    /// Public key size.
+    pub const PK_BYTES: usize = 2 * N;
+    /// Secret key size.
+    pub const SK_BYTES: usize = 4 * N;
+    /// Signature size.
+    pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
+    /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
+    /// FIPS 205 Section 11.1: m = ceil(k*a/8) + ceil(tree_bits/8) + ceil(leaf_bits/8)
+    #[allow(clippy::manual_div_ceil)]
+    pub const MD_BYTES: usize = (K * A + 7) / 8 + (H - H_PRIME + 7) / 8 + (H_PRIME + 7) / 8;
+
+    /// Parameter set marker type.
+    pub struct Params128s;
+
+    impl super::Params for Params128s {
+        const N: usize = N;
+        const H_PRIME: usize = H_PRIME;
+        const H: usize = H;
+        const D: usize = D;
+        const A: usize = A;
+        const K: usize = K;
+        const WOTS_LEN1: usize = WOTS_LEN1;
+        const WOTS_LEN2: usize = WOTS_LEN2;
+        const MD_BYTES: usize = MD_BYTES;
+    }
+}
+
+// =============================================================================
+// SHA2-128f: Fast signing, larger signatures (SHA2-based)
+// =============================================================================
+
+/// SLH-DSA-SHA2-128f parameters.
+#[cfg(feature = "slh-dsa-sha2-128f")]
+pub mod slh_dsa_sha2_128f {
+    pub use super::common::*;
+
+    /// Security parameter (16 bytes = 128 bits).
+    pub const N: usize = 16;
+    /// XMSS tree height.
+    pub const H_PRIME: usize = 3;
+    /// Total hypertree height.
+    pub const H: usize = 66;
+    /// Number of hypertree layers.
+    pub const D: usize = 22;
+    /// FORS tree height.
+    pub const A: usize = 6;
+    /// Number of FORS trees.
+    pub const K: usize = 33;
+    /// WOTS+ len1.
+    pub const WOTS_LEN1: usize = 32;
+    /// WOTS+ len2.
+    pub const WOTS_LEN2: usize = 3;
+    /// WOTS+ total length.
+    pub const WOTS_LEN: usize = WOTS_LEN1 + WOTS_LEN2;
+    /// Public key size.
+    pub const PK_BYTES: usize = 2 * N;
+    /// Secret key size.
+    pub const SK_BYTES: usize = 4 * N;
+    /// Signature size.
+    pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
+    /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
+    #[allow(clippy::manual_div_ceil)]
+    pub const MD_BYTES: usize = (K * A + 7) / 8 + (H - H_PRIME + 7) / 8 + (H_PRIME + 7) / 8;
+
+    /// Parameter set marker type.
+    pub struct Params128f;
+
+    impl super::Params for Params128f {
+        const N: usize = N;
+        const H_PRIME: usize = H_PRIME;
+        const H: usize = H;
+        const D: usize = D;
+        const A: usize = A;
+        const K: usize = K;
+        const WOTS_LEN1: usize = WOTS_LEN1;
+        const WOTS_LEN2: usize = WOTS_LEN2;
+        const MD_BYTES: usize = MD_BYTES;
+    }
+}
+
+// =============================================================================
+// SHA2-192s: Small signatures, slower signing (SHA2-based)
+// =============================================================================
+
+/// SLH-DSA-SHA2-192s parameters.
+#[cfg(feature = "slh-dsa-sha2-192s")]
+pub mod slh_dsa_sha2_192s {
+    pub use super::common::*;
+
+    /// Security parameter (24 bytes = 192 bits).
+    pub const N: usize = 24;
+    /// XMSS tree height.
+    pub const H_PRIME: usize = 9;
+    /// Total hypertree height.
+    pub const H: usize = 63;
+    /// Number of hypertree layers.
+    pub const D: usize = 7;
+    /// FORS tree height.
+    pub const A: usize = 14;
+    /// Number of FORS trees.
+    pub const K: usize = 17;
+    /// WOTS+ len1.
+    pub const WOTS_LEN1: usize = 48;
+    /// WOTS+ len2.
+    pub const WOTS_LEN2: usize = 3;
+    /// WOTS+ total length.
+    pub const WOTS_LEN: usize = WOTS_LEN1 + WOTS_LEN2;
+    /// Public key size.
+    pub const PK_BYTES: usize = 2 * N;
+    /// Secret key size.
+    pub const SK_BYTES: usize = 4 * N;
+    /// Signature size.
+    pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
+    /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
+    #[allow(clippy::manual_div_ceil)]
+    pub const MD_BYTES: usize = (K * A + 7) / 8 + (H - H_PRIME + 7) / 8 + (H_PRIME + 7) / 8;
+
+    /// Parameter set marker type.
+    pub struct Params192s;
+
+    impl super::Params for Params192s {
+        const N: usize = N;
+        const H_PRIME: usize = H_PRIME;
+        const H: usize = H;
+        const D: usize = D;
+        const A: usize = A;
+        const K: usize = K;
+        const WOTS_LEN1: usize = WOTS_LEN1;
+        const WOTS_LEN2: usize = WOTS_LEN2;
+        const MD_BYTES: usize = MD_BYTES;
+    }
+}
+
+// =============================================================================
+// SHA2-192f: Fast signing, larger signatures (SHA2-based)
+// =============================================================================
+
+/// SLH-DSA-SHA2-192f parameters.
+#[cfg(feature = "slh-dsa-sha2-192f")]
+pub mod slh_dsa_sha2_192f {
+    pub use super::common::*;
+
+    /// Security parameter (24 bytes = 192 bits).
+    pub const N: usize = 24;
+    /// XMSS tree height.
+    pub const H_PRIME: usize = 3;
+    /// Total hypertree height.
+    pub const H: usize = 66;
+    /// Number of hypertree layers.
+    pub const D: usize = 22;
+    /// FORS tree height.
+    pub const A: usize = 8;
+    /// Number of FORS trees.
+    pub const K: usize = 33;
+    /// WOTS+ len1.
+    pub const WOTS_LEN1: usize = 48;
+    /// WOTS+ len2.
+    pub const WOTS_LEN2: usize = 3;
+    /// WOTS+ total length.
+    pub const WOTS_LEN: usize = WOTS_LEN1 + WOTS_LEN2;
+    /// Public key size.
+    pub const PK_BYTES: usize = 2 * N;
+    /// Secret key size.
+    pub const SK_BYTES: usize = 4 * N;
+    /// Signature size.
+    pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
+    /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
+    #[allow(clippy::manual_div_ceil)]
+    pub const MD_BYTES: usize = (K * A + 7) / 8 + (H - H_PRIME + 7) / 8 + (H_PRIME + 7) / 8;
+
+    /// Parameter set marker type.
+    pub struct Params192f;
+
+    impl super::Params for Params192f {
+        const N: usize = N;
+        const H_PRIME: usize = H_PRIME;
+        const H: usize = H;
+        const D: usize = D;
+        const A: usize = A;
+        const K: usize = K;
+        const WOTS_LEN1: usize = WOTS_LEN1;
+        const WOTS_LEN2: usize = WOTS_LEN2;
+        const MD_BYTES: usize = MD_BYTES;
+    }
+}
+
+// =============================================================================
+// SHA2-256s: Small signatures, slower signing (SHA2-based)
+// =============================================================================
+
+/// SLH-DSA-SHA2-256s parameters.
+#[cfg(feature = "slh-dsa-sha2-256s")]
+pub mod slh_dsa_sha2_256s {
+    pub use super::common::*;
+
+    /// Security parameter (32 bytes = 256 bits).
+    pub const N: usize = 32;
+    /// XMSS tree height.
+    pub const H_PRIME: usize = 8;
+    /// Total hypertree height.
+    pub const H: usize = 64;
+    /// Number of hypertree layers.
+    pub const D: usize = 8;
+    /// FORS tree height.
+    pub const A: usize = 14;
+    /// Number of FORS trees.
+    pub const K: usize = 22;
+    /// WOTS+ len1.
+    pub const WOTS_LEN1: usize = 64;
+    /// WOTS+ len2.
+    pub const WOTS_LEN2: usize = 3;
+    /// WOTS+ total length.
+    pub const WOTS_LEN: usize = WOTS_LEN1 + WOTS_LEN2;
+    /// Public key size.
+    pub const PK_BYTES: usize = 2 * N;
+    /// Secret key size.
+    pub const SK_BYTES: usize = 4 * N;
+    /// Signature size.
+    pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
+    /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
+    #[allow(clippy::manual_div_ceil)]
+    pub const MD_BYTES: usize = (K * A + 7) / 8 + (H - H_PRIME + 7) / 8 + (H_PRIME + 7) / 8;
+
+    /// Parameter set marker type.
+    pub struct Params256s;
+
+    impl super::Params for Params256s {
+        const N: usize = N;
+        const H_PRIME: usize = H_PRIME;
+        const H: usize = H;
+        const D: usize = D;
+        const A: usize = A;
+        const K: usize = K;
+        const WOTS_LEN1: usize = WOTS_LEN1;
+        const WOTS_LEN2: usize = WOTS_LEN2;
+        const MD_BYTES: usize = MD_BYTES;
+    }
+}
+
+// =============================================================================
+// SHA2-256f: Fast signing, larger signatures (SHA2-based)
+// =============================================================================
+
+/// SLH-DSA-SHA2-256f parameters.
+#[cfg(feature = "slh-dsa-sha2-256f")]
+pub mod slh_dsa_sha2_256f {
+    pub use super::common::*;
+
+    /// Security parameter (32 bytes = 256 bits).
+    pub const N: usize = 32;
+    /// XMSS tree height.
+    pub const H_PRIME: usize = 4;
+    /// Total hypertree height.
+    pub const H: usize = 68;
+    /// Number of hypertree layers.
+    pub const D: usize = 17;
+    /// FORS tree height.
+    pub const A: usize = 9;
+    /// Number of FORS trees.
+    pub const K: usize = 35;
+    /// WOTS+ len1.
+    pub const WOTS_LEN1: usize = 64;
+    /// WOTS+ len2.
+    pub const WOTS_LEN2: usize = 3;
+    /// WOTS+ total length.
+    pub const WOTS_LEN: usize = WOTS_LEN1 + WOTS_LEN2;
+    /// Public key size.
+    pub const PK_BYTES: usize = 2 * N;
+    /// Secret key size.
+    pub const SK_BYTES: usize = 4 * N;
+    /// Signature size.
+    pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
+    /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
+    #[allow(clippy::manual_div_ceil)]
+    pub const MD_BYTES: usize = (K * A + 7) / 8 + (H - H_PRIME + 7) / 8 + (H_PRIME + 7) / 8;
+
+    /// Parameter set marker type.
+    pub struct Params256f;
+
+    impl super::Params for Params256f {
+        const N: usize = N;
+        const H_PRIME: usize = H_PRIME;
+        const H: usize = H;
+        const D: usize = D;
+        const A: usize = A;
+        const K: usize = K;
+        const WOTS_LEN1: usize = WOTS_LEN1;
+        const WOTS_LEN2: usize = WOTS_LEN2;
+        const MD_BYTES: usize = MD_BYTES;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -441,6 +760,62 @@ mod tests {
     #[test]
     fn test_shake_256f_sizes() {
         use slh_dsa_shake_256f::*;
+        assert_eq!(PK_BYTES, 64);
+        assert_eq!(SK_BYTES, 128);
+        assert_eq!(SIG_BYTES, 49856);
+    }
+
+    // SHA2 variant tests (same sizes as SHAKE variants)
+
+    #[cfg(feature = "slh-dsa-sha2-128s")]
+    #[test]
+    fn test_sha2_128s_sizes() {
+        use slh_dsa_sha2_128s::*;
+        assert_eq!(PK_BYTES, 32);
+        assert_eq!(SK_BYTES, 64);
+        assert_eq!(SIG_BYTES, 7856);
+    }
+
+    #[cfg(feature = "slh-dsa-sha2-128f")]
+    #[test]
+    fn test_sha2_128f_sizes() {
+        use slh_dsa_sha2_128f::*;
+        assert_eq!(PK_BYTES, 32);
+        assert_eq!(SK_BYTES, 64);
+        assert_eq!(SIG_BYTES, 17088);
+    }
+
+    #[cfg(feature = "slh-dsa-sha2-192s")]
+    #[test]
+    fn test_sha2_192s_sizes() {
+        use slh_dsa_sha2_192s::*;
+        assert_eq!(PK_BYTES, 48);
+        assert_eq!(SK_BYTES, 96);
+        assert_eq!(SIG_BYTES, 16224);
+    }
+
+    #[cfg(feature = "slh-dsa-sha2-192f")]
+    #[test]
+    fn test_sha2_192f_sizes() {
+        use slh_dsa_sha2_192f::*;
+        assert_eq!(PK_BYTES, 48);
+        assert_eq!(SK_BYTES, 96);
+        assert_eq!(SIG_BYTES, 35664);
+    }
+
+    #[cfg(feature = "slh-dsa-sha2-256s")]
+    #[test]
+    fn test_sha2_256s_sizes() {
+        use slh_dsa_sha2_256s::*;
+        assert_eq!(PK_BYTES, 64);
+        assert_eq!(SK_BYTES, 128);
+        assert_eq!(SIG_BYTES, 29792);
+    }
+
+    #[cfg(feature = "slh-dsa-sha2-256f")]
+    #[test]
+    fn test_sha2_256f_sizes() {
+        use slh_dsa_sha2_256f::*;
         assert_eq!(PK_BYTES, 64);
         assert_eq!(SK_BYTES, 128);
         assert_eq!(SIG_BYTES, 49856);

@@ -17,6 +17,17 @@
 //! | SLH-DSA-SHAKE-256s | Level 5 | 64 bytes | 29,792 bytes |
 //! | SLH-DSA-SHAKE-256f | Level 5 | 64 bytes | 49,856 bytes |
 //!
+//! ## SHA2-based variants
+//!
+//! | Variant | Security Level | Public Key | Signature |
+//! |---------|----------------|------------|-----------|
+//! | SLH-DSA-SHA2-128s | Level 1 | 32 bytes | 7,856 bytes |
+//! | SLH-DSA-SHA2-128f | Level 1 | 32 bytes | 17,088 bytes |
+//! | SLH-DSA-SHA2-192s | Level 3 | 48 bytes | 16,224 bytes |
+//! | SLH-DSA-SHA2-192f | Level 3 | 48 bytes | 35,664 bytes |
+//! | SLH-DSA-SHA2-256s | Level 5 | 64 bytes | 29,792 bytes |
+//! | SLH-DSA-SHA2-256f | Level 5 | 64 bytes | 49,856 bytes |
+//!
 //! The "s" variants produce smaller signatures but are slower to sign.
 //! The "f" variants are faster to sign but produce larger signatures.
 //!
@@ -71,6 +82,16 @@ extern crate alloc;
 // Core modules
 mod address;
 mod hash;
+/// SHA2-based hash function implementations.
+#[cfg(any(
+    feature = "slh-dsa-sha2-128s",
+    feature = "slh-dsa-sha2-128f",
+    feature = "slh-dsa-sha2-192s",
+    feature = "slh-dsa-sha2-192f",
+    feature = "slh-dsa-sha2-256s",
+    feature = "slh-dsa-sha2-256f"
+))]
+pub mod hash_sha2;
 /// SHAKE-based hash function implementations.
 pub mod hash_shake;
 /// SLH-DSA parameter constants for all variants.
@@ -106,9 +127,32 @@ pub mod slh_dsa_shake_256f;
 #[cfg(feature = "slh-dsa-shake-256s")]
 pub mod slh_dsa_shake_256s;
 
+// SHA2 variant modules
+#[cfg(feature = "slh-dsa-sha2-128f")]
+pub mod slh_dsa_sha2_128f;
+#[cfg(feature = "slh-dsa-sha2-128s")]
+pub mod slh_dsa_sha2_128s;
+#[cfg(feature = "slh-dsa-sha2-192f")]
+pub mod slh_dsa_sha2_192f;
+#[cfg(feature = "slh-dsa-sha2-192s")]
+pub mod slh_dsa_sha2_192s;
+#[cfg(feature = "slh-dsa-sha2-256f")]
+pub mod slh_dsa_sha2_256f;
+#[cfg(feature = "slh-dsa-sha2-256s")]
+pub mod slh_dsa_sha2_256s;
+
 // Public exports
 pub use address::{Address, AdrsType};
 pub use hash::HashSuite;
+#[cfg(any(
+    feature = "slh-dsa-sha2-128s",
+    feature = "slh-dsa-sha2-128f",
+    feature = "slh-dsa-sha2-192s",
+    feature = "slh-dsa-sha2-192f",
+    feature = "slh-dsa-sha2-256s",
+    feature = "slh-dsa-sha2-256f"
+))]
+pub use hash_sha2::{Sha2_128Hash, Sha2_192Hash, Sha2_256Hash};
 pub use hash_shake::{Shake128Hash, Shake192Hash, Shake256Hash};
 
 // Re-export core types
@@ -127,3 +171,17 @@ pub use slh_dsa_shake_192s::SlhDsaShake192s;
 pub use slh_dsa_shake_256f::SlhDsaShake256f;
 #[cfg(feature = "slh-dsa-shake-256s")]
 pub use slh_dsa_shake_256s::SlhDsaShake256s;
+
+// SHA2 variant exports
+#[cfg(feature = "slh-dsa-sha2-128f")]
+pub use slh_dsa_sha2_128f::SlhDsaSha2_128f;
+#[cfg(feature = "slh-dsa-sha2-128s")]
+pub use slh_dsa_sha2_128s::SlhDsaSha2_128s;
+#[cfg(feature = "slh-dsa-sha2-192f")]
+pub use slh_dsa_sha2_192f::SlhDsaSha2_192f;
+#[cfg(feature = "slh-dsa-sha2-192s")]
+pub use slh_dsa_sha2_192s::SlhDsaSha2_192s;
+#[cfg(feature = "slh-dsa-sha2-256f")]
+pub use slh_dsa_sha2_256f::SlhDsaSha2_256f;
+#[cfg(feature = "slh-dsa-sha2-256s")]
+pub use slh_dsa_sha2_256s::SlhDsaSha2_256s;
