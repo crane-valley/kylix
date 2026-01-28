@@ -104,12 +104,17 @@ macro_rules! define_slh_dsa_variant {
             ///
             /// Returns an error if the slice length doesn't match the expected key size.
             pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-                let bytes: [u8; PK_BYTES] =
-                    bytes.try_into().map_err(|_| Error::InvalidKeyLength {
+                if bytes.len() != PK_BYTES {
+                    return Err(Error::InvalidKeyLength {
                         expected: PK_BYTES,
                         actual: bytes.len(),
-                    })?;
-                Ok(Self { bytes })
+                    });
+                }
+                let mut key = Self {
+                    bytes: [0u8; PK_BYTES],
+                };
+                key.bytes.copy_from_slice(bytes);
+                Ok(key)
             }
 
             /// Get the verification key bytes as a slice.

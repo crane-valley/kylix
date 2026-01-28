@@ -84,6 +84,15 @@ Ok(result)
 
 **Note:** SLH-DSA `types.rs` was already fixed in PR #113 to use the direct-write pattern.
 
+#### API Consistency Note
+
+ML-KEM/ML-DSA use `as_bytes() -> &[u8]`, SLH-DSA uses `to_bytes()` with mixed semantics:
+- `SigningKey.to_bytes() -> Zeroizing<Vec<u8>>` (owned, OK)
+- `VerificationKey.to_bytes() -> Vec<u8>` (owned, OK)
+- `Signature.to_bytes() -> &[u8]` (borrowed, **should be `as_bytes()`** per Rust convention)
+
+Recommended fix: Add `as_bytes()` methods returning `&[u8]` for all types, deprecate inconsistent `to_bytes()` on `Signature`.
+
 #### SLH-DSA Internal Structure Refactoring Plan
 
 **Goal:** Unify SLH-DSA with ML-KEM/ML-DSA by changing internal storage from struct-based to `[u8; SIZE]`.
