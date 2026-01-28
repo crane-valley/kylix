@@ -40,7 +40,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | Core: NTT Abstraction | HIGH | ~300 LOC | Extract generic NTT trait to kylix-core (forward/inverse NTT duplicated in ML-KEM/ML-DSA) |
 | Core: SIMD Wrapper Macro | MEDIUM | ~200 LOC | Unify SIMD dispatch pattern (AVX2/NEON/fallback) into shared macro |
 | Poly API Consistency | MEDIUM | Ergonomics | ML-KEM uses module functions (`poly_add()`), ML-DSA uses methods (`.add()`). Standardize to methods |
-| ML-KEM/ML-DSA: Clippy Fixes | LOW | Quality | Fix `needless_range_loop`, `cast_possible_truncation` instead of suppressing |
+| ML-KEM/ML-DSA: Clippy Fixes | LOW | Quality | Fix outstanding clippy warnings instead of suppressing them |
 
 #### API Consistency Note
 

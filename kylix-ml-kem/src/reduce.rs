@@ -5,7 +5,6 @@
 
 // Reduction functions include both Barrett and Montgomery; not all always used.
 #![allow(dead_code)]
-#![allow(clippy::let_and_return)]
 
 use crate::params::common::Q;
 
@@ -39,9 +38,8 @@ pub const fn barrett_reduce(a: i16) -> i16 {
     let a = a as i32;
     // t = floor((a * v + 2^25) / 2^26) - approximation of floor(a/q)
     let t = ((a * BARRETT_MUL + (1 << 25)) >> 26) as i16;
-    // r = a - t*q
-    let r = (a - (t as i32) * (Q as i32)) as i16;
-    r
+    // a - t*q
+    (a - (t as i32) * (Q as i32)) as i16
 }
 
 /// Conditional reduce: subtract q if r >= q
