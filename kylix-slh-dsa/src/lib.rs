@@ -75,6 +75,7 @@ mod hash;
 pub mod hash_shake;
 /// SLH-DSA parameter constants for all variants.
 pub mod params;
+mod types;
 mod utils;
 
 // Building blocks
