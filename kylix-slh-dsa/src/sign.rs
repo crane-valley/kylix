@@ -27,7 +27,10 @@ use zeroize::Zeroize;
 use alloc::vec::Vec;
 
 /// Secret key components.
-#[derive(Clone)]
+///
+/// Implements `Zeroize` via derive and manual `Drop` to ensure secret material
+/// is securely erased from memory when the key is dropped.
+#[derive(Clone, Zeroize)]
 pub struct SecretKey<const N: usize> {
     /// Secret seed for key generation.
     pub sk_seed: [u8; N],
@@ -90,9 +93,8 @@ impl<const N: usize> SecretKey<N> {
 
 impl<const N: usize> Drop for SecretKey<N> {
     fn drop(&mut self) {
-        // Zeroize secret material using zeroize crate to prevent compiler optimization
-        self.sk_seed.zeroize();
-        self.sk_prf.zeroize();
+        // Zeroize all fields using the derived Zeroize impl
+        self.zeroize();
     }
 }
 
