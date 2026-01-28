@@ -21,6 +21,8 @@ macro_rules! define_slh_dsa_variant {
         pk_size: $pk_size:expr,
         sig_size: $sig_size:expr
     ) => {
+        extern crate alloc;
+        use alloc::vec::Vec;
         use crate::sign::{slh_keygen, slh_sign, slh_verify, PublicKey, SecretKey};
 
         use kylix_core::{Error, Result, Signer};
