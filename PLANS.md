@@ -23,7 +23,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | Component | Priority | Notes |
 |-----------|----------|-------|
 | Security Audit | HIGH | External |
-| cargo-audit in CI | MEDIUM | Add automated dependency vulnerability scanning to CI |
+| ~~cargo-audit in CI~~ | ~~MEDIUM~~ | ✓ Added to CI workflow |
 | CLI Bench Compare CI | MEDIUM | Test OpenSSL/liboqs detection on Linux/macOS |
 | ML-DSA Benchmark Stability | MEDIUM | Use fixed seed to eliminate rejection sampling variance |
 | Dudect CI Integration | MEDIUM | Add ML-KEM timing test to CI for regression detection |
@@ -168,7 +168,7 @@ SIMD complete for AVX2/NEON. WASM-SIMD128 pending (pointwise mul only).
 - [x] Zeroization
 - [x] Dudect timing tests (ML-KEM passes, ML-DSA expected variance due to rejection sampling)
 - [ ] Dudect CI integration (ML-KEM regression detection)
-- [ ] cargo-audit in CI
+- [x] cargo-audit in CI
 - [ ] Property-based tests
 - [ ] Constant-time formal verification
 - [ ] Security audit
