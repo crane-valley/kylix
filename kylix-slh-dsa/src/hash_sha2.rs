@@ -87,17 +87,25 @@ fn mgf1_sha256(seed: &[u8], mask_len: usize) -> Vec<u8> {
     output
 }
 
+/// Zero padding for SHA2 block alignment: 64 - n bytes.
+/// FIPS 205 Section 10.2 specifies that SHA2 variants require zero padding
+/// between PK.seed and ADRSc: `toByte(0, 64 - n)` where n is the security parameter.
+const PADDING_128: [u8; 48] = [0u8; 48]; // 64 - 16
+const PADDING_192: [u8; 40] = [0u8; 40]; // 64 - 24
+const PADDING_256: [u8; 32] = [0u8; 32]; // 64 - 32
+
 /// Macro to implement HashSuite for SHA2-based security levels.
 macro_rules! impl_sha2_hash_suite {
-    ($name:ident, $n:expr) => {
+    ($name:ident, $n:expr, $padding:ident) => {
         impl HashSuite for $name {
             const N: usize = $n;
 
             fn prf(pk_seed: &[u8], sk_seed: &[u8], adrs: &Address) -> Zeroizing<Vec<u8>> {
-                // PRF(PK.seed, SK.seed, ADRS) = Trunc_n(SHA-256(PK.seed || ADRS^c || SK.seed))
+                // PRF(PK.seed, SK.seed, ADRS) = Trunc_n(SHA-256(PK.seed || toByte(0, 64-n) || ADRSc || SK.seed))
                 let adrs_c = adrs_compress(adrs);
                 let mut hasher = Sha256::new();
                 hasher.update(pk_seed);
+                hasher.update(&$padding);
                 hasher.update(&adrs_c);
                 hasher.update(sk_seed);
                 let hash = hasher.finalize();
@@ -106,6 +114,7 @@ macro_rules! impl_sha2_hash_suite {
 
             fn prf_msg(sk_prf: &[u8], opt_rand: &[u8], message: &[u8]) -> Zeroizing<Vec<u8>> {
                 // PRFmsg(SK.prf, OptRand, M) = Trunc_n(HMAC-SHA-256(SK.prf, OptRand || M))
+                // Note: HMAC does not use the zero padding
                 let mut mac =
                     HmacSha256::new_from_slice(sk_prf).expect("HMAC accepts any key length");
                 mac.update(opt_rand);
@@ -123,6 +132,7 @@ macro_rules! impl_sha2_hash_suite {
             ) -> Vec<u8> {
                 // Hmsg(R, PK.seed, PK.root, M) =
                 //   MGF1-SHA-256(R || PK.seed || SHA-256(R || PK.seed || PK.root || M), m)
+                // Note: MGF1 does not use the zero padding
                 use sha2::digest::Update;
                 let inner_hash = Sha256::new()
                     .chain(r)
@@ -140,10 +150,11 @@ macro_rules! impl_sha2_hash_suite {
             }
 
             fn f(pk_seed: &[u8], adrs: &Address, m1: &[u8]) -> Vec<u8> {
-                // F(PK.seed, ADRS, M1) = Trunc_n(SHA-256(PK.seed || ADRS^c || M1))
+                // F(PK.seed, ADRS, M1) = Trunc_n(SHA-256(PK.seed || toByte(0, 64-n) || ADRSc || M1))
                 let adrs_c = adrs_compress(adrs);
                 let mut hasher = Sha256::new();
                 hasher.update(pk_seed);
+                hasher.update(&$padding);
                 hasher.update(&adrs_c);
                 hasher.update(m1);
                 let hash = hasher.finalize();
@@ -151,10 +162,11 @@ macro_rules! impl_sha2_hash_suite {
             }
 
             fn h(pk_seed: &[u8], adrs: &Address, m1: &[u8], m2: &[u8]) -> Vec<u8> {
-                // H(PK.seed, ADRS, M1 || M2) = Trunc_n(SHA-256(PK.seed || ADRS^c || M1 || M2))
+                // H(PK.seed, ADRS, M1 || M2) = Trunc_n(SHA-256(PK.seed || toByte(0, 64-n) || ADRSc || M1 || M2))
                 let adrs_c = adrs_compress(adrs);
                 let mut hasher = Sha256::new();
                 hasher.update(pk_seed);
+                hasher.update(&$padding);
                 hasher.update(&adrs_c);
                 hasher.update(m1);
                 hasher.update(m2);
@@ -163,10 +175,11 @@ macro_rules! impl_sha2_hash_suite {
             }
 
             fn t_l(pk_seed: &[u8], adrs: &Address, m: &[u8]) -> Vec<u8> {
-                // Tl(PK.seed, ADRS, M) = Trunc_n(SHA-256(PK.seed || ADRS^c || M))
+                // Tl(PK.seed, ADRS, M) = Trunc_n(SHA-256(PK.seed || toByte(0, 64-n) || ADRSc || M))
                 let adrs_c = adrs_compress(adrs);
                 let mut hasher = Sha256::new();
                 hasher.update(pk_seed);
+                hasher.update(&$padding);
                 hasher.update(&adrs_c);
                 hasher.update(m);
                 let hash = hasher.finalize();
@@ -176,9 +189,9 @@ macro_rules! impl_sha2_hash_suite {
     };
 }
 
-impl_sha2_hash_suite!(Sha2_128Hash, 16);
-impl_sha2_hash_suite!(Sha2_192Hash, 24);
-impl_sha2_hash_suite!(Sha2_256Hash, 32);
+impl_sha2_hash_suite!(Sha2_128Hash, 16, PADDING_128);
+impl_sha2_hash_suite!(Sha2_192Hash, 24, PADDING_192);
+impl_sha2_hash_suite!(Sha2_256Hash, 32, PADDING_256);
 
 #[cfg(test)]
 mod tests {
