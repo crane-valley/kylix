@@ -85,26 +85,17 @@
 #[cfg(not(feature = "std"))]
 extern crate alloc;
 
-#[allow(dead_code)]
 mod hash;
-#[allow(dead_code)]
 mod ntt;
-#[allow(dead_code)]
 mod packing;
 /// ML-DSA parameter constants for all variants.
 pub mod params;
-#[allow(dead_code)]
 mod poly;
-#[allow(dead_code)]
 mod polyvec;
-#[allow(dead_code)]
 mod reduce;
-#[allow(dead_code)]
 mod rounding;
-#[allow(dead_code)]
 mod sample;
 /// Core signing algorithms (internal API for ACVP testing).
-#[allow(dead_code)]
 pub mod sign;
 #[cfg(any(feature = "ml-dsa-44", feature = "ml-dsa-65", feature = "ml-dsa-87"))]
 mod types;

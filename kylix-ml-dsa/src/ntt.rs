@@ -6,10 +6,6 @@
 use crate::poly::N;
 use crate::reduce::{montgomery_mul, montgomery_reduce};
 
-/// Primitive 512th root of unity modulo q.
-/// ζ = 1753, with ζ^512 ≡ 1 (mod q) and ζ^256 ≡ -1 (mod q).
-pub const ZETA: i32 = 1753;
-
 /// Scaling factor for inverse NTT: R^2 * N^(-1) mod q
 /// This produces output in Montgomery form (scaled by R).
 /// N^(-1) mod q = 8347681, R^2 mod q = 2365951
@@ -167,38 +163,6 @@ pub fn pointwise_acc(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) {
     }
 }
 
-/// Initialize zetas table at runtime (for verification).
-/// This computes ζ^(brv(i)) * R mod q.
-#[cfg(test)]
-fn compute_zetas() -> [i32; 256] {
-    use crate::reduce::{to_mont, Q};
-
-    let mut zetas = [0i32; 256];
-
-    // Compute powers of zeta in bit-reversed order
-    fn bit_reverse(mut x: usize, bits: usize) -> usize {
-        let mut result = 0;
-        for _ in 0..bits {
-            result = (result << 1) | (x & 1);
-            x >>= 1;
-        }
-        result
-    }
-
-    // zetas[0] = R (Montgomery representation of 1)
-    zetas[0] = to_mont(1);
-
-    // Compute ζ^1, ζ^2, ..., ζ^255 and store in bit-reversed order
-    let mut power = 1i64;
-    for i in 1..256 {
-        power = (power * (ZETA as i64)) % (Q as i64);
-        let brv_i = bit_reverse(i, 8);
-        zetas[brv_i] = to_mont(power as i32);
-    }
-
-    zetas
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -287,6 +251,9 @@ mod tests {
 
     #[test]
     fn test_zeta_properties() {
+        // Primitive 512th root of unity modulo q
+        const ZETA: i32 = 1753;
+
         // ζ^256 should be -1 mod q
         let mut power = 1i64;
         for _ in 0..256 {

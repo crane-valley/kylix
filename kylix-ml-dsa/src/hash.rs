@@ -13,13 +13,6 @@ pub struct Shake256Xof {
 }
 
 impl Shake256Xof {
-    /// Create a new SHAKE256 instance.
-    pub fn new() -> Self {
-        Self {
-            reader: Shake256::default().finalize_xof(),
-        }
-    }
-
     /// Create SHAKE256 from initial data.
     pub fn from_data(data: &[u8]) -> Self {
         let mut hasher = Shake256::default();
@@ -96,13 +89,6 @@ pub fn hash_message(tr: &[u8; 64], message: &[u8]) -> [u8; 64] {
     let mut mu = [0u8; 64];
     h2(tr, message, &mut mu);
     mu
-}
-
-/// Compute rho' for signing: H(K || rnd || mu, 64).
-pub fn derive_rho_prime(k: &[u8; 32], rnd: &[u8; 32], mu: &[u8; 64]) -> [u8; 64] {
-    let mut rho_prime = [0u8; 64];
-    h3(k, rnd, mu, &mut rho_prime);
-    rho_prime
 }
 
 #[cfg(test)]
