@@ -12,8 +12,6 @@ use sha2::{Digest, Sha256};
 use zeroize::Zeroizing;
 
 #[cfg(not(feature = "std"))]
-use alloc::vec;
-#[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 
 type HmacSha256 = Hmac<Sha256>;
@@ -176,9 +174,9 @@ mod tests {
     #[test]
     fn test_adrs_compress() {
         let mut adrs = Address::new();
-        adrs.set_layer(0x01020304);
-        adrs.set_tree(0x0506070809101112);
-        adrs.set_keypair(0x13141516);
+        adrs.set_layer(0x0102_0304);
+        adrs.set_tree(0x0506_0708_0910_1112);
+        adrs.set_keypair(0x1314_1516);
 
         let compressed = adrs_compress(&adrs);
         assert_eq!(compressed.len(), 22);
