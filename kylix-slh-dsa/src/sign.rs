@@ -40,10 +40,23 @@ pub struct SecretKey<const N: usize> {
 }
 
 impl<const N: usize> SecretKey<N> {
+    /// Write the secret key to a fixed-size byte array.
+    ///
+    /// This avoids heap allocation by writing directly to the provided buffer.
+    /// Layout: sk_seed || sk_prf || pk_seed || pk_root
+    pub fn write_to<const SIZE: usize>(&self, out: &mut [u8; SIZE]) {
+        debug_assert_eq!(SIZE, N * 4, "Output buffer size must be 4*N");
+        out[..N].copy_from_slice(&self.sk_seed);
+        out[N..2 * N].copy_from_slice(&self.sk_prf);
+        out[2 * N..3 * N].copy_from_slice(&self.pk_seed);
+        out[3 * N..].copy_from_slice(&self.pk_root);
+    }
+
     /// Serialize the secret key to bytes.
     ///
     /// Note: This method copies secret material to a new Vec.
     /// The returned Vec should be zeroized after use.
+    /// Prefer `write_to` when possible to avoid heap allocation.
     pub fn to_bytes(&self) -> zeroize::Zeroizing<Vec<u8>> {
         let mut bytes = zeroize::Zeroizing::new(Vec::with_capacity(N * 4));
         bytes.extend_from_slice(&self.sk_seed);
@@ -93,7 +106,19 @@ pub struct PublicKey<const N: usize> {
 }
 
 impl<const N: usize> PublicKey<N> {
+    /// Write the public key to a fixed-size byte array.
+    ///
+    /// This avoids heap allocation by writing directly to the provided buffer.
+    /// Layout: pk_seed || pk_root
+    pub fn write_to<const SIZE: usize>(&self, out: &mut [u8; SIZE]) {
+        debug_assert_eq!(SIZE, N * 2, "Output buffer size must be 2*N");
+        out[..N].copy_from_slice(&self.pk_seed);
+        out[N..].copy_from_slice(&self.pk_root);
+    }
+
     /// Serialize the public key to bytes.
+    ///
+    /// Prefer `write_to` when possible to avoid heap allocation.
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::with_capacity(N * 2);
         bytes.extend_from_slice(&self.pk_seed);

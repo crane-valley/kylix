@@ -173,15 +173,11 @@ macro_rules! define_slh_dsa_variant {
             ) -> Result<(Self::SigningKey, Self::VerificationKey)> {
                 let (sk, pk) = slh_keygen::<$hash_type, N, WOTS_LEN, H_PRIME, D>(rng);
 
-                // Convert SecretKey to bytes
-                let sk_bytes_vec = sk.to_bytes();
+                // Write directly to fixed-size arrays (no heap allocation)
                 let mut sk_bytes = [0u8; SK_BYTES];
-                sk_bytes.copy_from_slice(&sk_bytes_vec);
-
-                // Convert PublicKey to bytes
-                let pk_bytes_vec = pk.to_bytes();
                 let mut pk_bytes = [0u8; PK_BYTES];
-                pk_bytes.copy_from_slice(&pk_bytes_vec);
+                sk.write_to(&mut sk_bytes);
+                pk.write_to(&mut pk_bytes);
 
                 Ok((
                     SigningKey { bytes: sk_bytes },
