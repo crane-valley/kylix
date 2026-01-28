@@ -191,11 +191,9 @@ macro_rules! define_slh_dsa_variant {
 
             fn sign(sk: &Self::SigningKey, message: &[u8]) -> Result<Self::Signature> {
                 // Convert bytes back to SecretKey for signing
-                let secret_key =
-                    SecretKey::<N>::from_bytes(&sk.bytes).ok_or(Error::InvalidKeyLength {
-                        expected: SK_BYTES,
-                        actual: sk.bytes.len(),
-                    })?;
+                // This conversion is infallible since sk.bytes has the correct fixed size
+                let secret_key = SecretKey::<N>::from_bytes(&sk.bytes)
+                    .expect("infallible: SigningKey has correct size");
 
                 let sig_vec =
                     slh_sign::<$hash_type, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
@@ -213,11 +211,9 @@ macro_rules! define_slh_dsa_variant {
                 signature: &Self::Signature,
             ) -> Result<()> {
                 // Convert bytes back to PublicKey for verification
-                let public_key =
-                    PublicKey::<N>::from_bytes(&pk.bytes).ok_or(Error::InvalidKeyLength {
-                        expected: PK_BYTES,
-                        actual: pk.bytes.len(),
-                    })?;
+                // This conversion is infallible since pk.bytes has the correct fixed size
+                let public_key = PublicKey::<N>::from_bytes(&pk.bytes)
+                    .expect("infallible: VerificationKey has correct size");
 
                 if slh_verify::<$hash_type, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(
                     &public_key,
