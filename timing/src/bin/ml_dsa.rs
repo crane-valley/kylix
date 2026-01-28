@@ -12,6 +12,7 @@ use dudect_bencher::{ctbench_main, BenchRng, Class, CtRunner};
 use kylix_ml_dsa::dsa65::{MlDsa65, SigningKey, VerificationKey};
 use kylix_ml_dsa::Signer;
 use once_cell::sync::Lazy;
+use rand::{rngs::StdRng, SeedableRng};
 
 /// Pre-generated key pairs for testing.
 struct TestData {
@@ -20,10 +21,12 @@ struct TestData {
 }
 
 static TEST_DATA: Lazy<TestData> = Lazy::new(|| {
+    // Use seeded RNG for reproducible test data
+    let mut rng = StdRng::from_seed([42u8; 32]);
     let (sk_left, _): (SigningKey, VerificationKey) =
-        MlDsa65::keygen(&mut rand::rng()).expect("keygen failed");
+        MlDsa65::keygen(&mut rng).expect("keygen failed");
     let (sk_right, _): (SigningKey, VerificationKey) =
-        MlDsa65::keygen(&mut rand::rng()).expect("keygen failed");
+        MlDsa65::keygen(&mut rng).expect("keygen failed");
 
     TestData { sk_left, sk_right }
 });

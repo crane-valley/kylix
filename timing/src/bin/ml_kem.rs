@@ -10,6 +10,7 @@ use dudect_bencher::{ctbench_main, BenchRng, Class, CtRunner};
 use kylix_core::Kem;
 use kylix_ml_kem::ml_kem_768::{Ciphertext, DecapsulationKey, EncapsulationKey, MlKem768};
 use once_cell::sync::Lazy;
+use rand::{rngs::StdRng, SeedableRng};
 
 /// Pre-generated key pair and ciphertexts for testing.
 struct TestData {
@@ -19,11 +20,13 @@ struct TestData {
 }
 
 static TEST_DATA: Lazy<TestData> = Lazy::new(|| {
+    // Use seeded RNG for reproducible test data
+    let mut rng = StdRng::from_seed([42u8; 32]);
     let (dk, ek): (DecapsulationKey, EncapsulationKey) =
-        MlKem768::keygen(&mut rand::rng()).expect("keygen failed");
+        MlKem768::keygen(&mut rng).expect("keygen failed");
 
     // Generate valid ciphertext
-    let (ct_valid, _ss) = MlKem768::encaps(&ek, &mut rand::rng()).expect("encaps failed");
+    let (ct_valid, _ss) = MlKem768::encaps(&ek, &mut rng).expect("encaps failed");
 
     // Create invalid ciphertext by corrupting the valid one
     let mut ct_invalid_bytes = [0u8; MlKem768::CIPHERTEXT_SIZE];
