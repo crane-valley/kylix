@@ -361,27 +361,27 @@ pub fn ml_dsa_keygen<const K: usize, const L: usize, const ETA: usize>(
     sk.extend_from_slice(&key_k);
     sk.extend_from_slice(&tr);
 
-    // Pack s1
+    // Pack s1 and s2 using a single reusable buffer
+    let mut eta_buf = vec![0u8; eta_bytes];
     for i in 0..L {
-        let mut buf = vec![0u8; eta_bytes];
         if ETA == 2 {
-            pack_eta2(&s1.polys[i], &mut buf);
+            pack_eta2(&s1.polys[i], &mut eta_buf);
         } else {
-            pack_eta4(&s1.polys[i], &mut buf);
+            pack_eta4(&s1.polys[i], &mut eta_buf);
         }
-        sk.extend_from_slice(&buf);
+        sk.extend_from_slice(&eta_buf);
     }
 
     // Pack s2
     for i in 0..K {
-        let mut buf = vec![0u8; eta_bytes];
         if ETA == 2 {
-            pack_eta2(&s2.polys[i], &mut buf);
+            pack_eta2(&s2.polys[i], &mut eta_buf);
         } else {
-            pack_eta4(&s2.polys[i], &mut buf);
+            pack_eta4(&s2.polys[i], &mut eta_buf);
         }
-        sk.extend_from_slice(&buf);
+        sk.extend_from_slice(&eta_buf);
     }
+    eta_buf.zeroize(); // Zeroize buffer that held secret key material
 
     // Pack t0
     for i in 0..K {
@@ -857,14 +857,14 @@ pub fn ml_dsa_sign<
 
         sig.extend_from_slice(c_tilde);
 
+        let mut z_buf = vec![0u8; z_bytes];
         for i in 0..L {
-            let mut buf = vec![0u8; z_bytes];
             if gamma1_bits == 17 {
-                pack_z_17(&z_centered.polys[i], &mut buf);
+                pack_z_17(&z_centered.polys[i], &mut z_buf);
             } else {
-                pack_z_19(&z_centered.polys[i], &mut buf);
+                pack_z_19(&z_centered.polys[i], &mut z_buf);
             }
-            sig.extend_from_slice(&buf);
+            sig.extend_from_slice(&z_buf);
         }
 
         sig.extend_from_slice(&h[..OMEGA + K]);

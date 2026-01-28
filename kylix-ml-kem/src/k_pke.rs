@@ -67,8 +67,8 @@ pub fn k_pke_keygen<const K: usize, const ETA1: usize>(d: &[u8; 32]) -> (Vec<u8>
     // 3. Sample s from sigma using CBD with eta1
     let mut s: PolyVec<K> = PolyVec::new();
     let prf_output_len = 64 * ETA1;
+    let mut prf_output = vec![0u8; prf_output_len];
     for i in 0..K {
-        let mut prf_output = vec![0u8; prf_output_len];
         prf(&sigma, i as u8, &mut prf_output);
         s.polys[i] = poly_cbd(ETA1, &prf_output);
     }
@@ -76,7 +76,6 @@ pub fn k_pke_keygen<const K: usize, const ETA1: usize>(d: &[u8; 32]) -> (Vec<u8>
     // 4. Sample e from sigma using CBD with eta1
     let mut e: PolyVec<K> = PolyVec::new();
     for i in 0..K {
-        let mut prf_output = vec![0u8; prf_output_len];
         prf(&sigma, (K + i) as u8, &mut prf_output);
         e.polys[i] = poly_cbd(ETA1, &prf_output);
     }
@@ -155,25 +154,24 @@ pub fn k_pke_encrypt<
     // 3. Sample r_vec from r using CBD with eta1
     let mut r_vec: PolyVec<K> = PolyVec::new();
     let prf_output_len1 = 64 * ETA1;
+    let mut prf_output1 = vec![0u8; prf_output_len1];
     for i in 0..K {
-        let mut prf_output = vec![0u8; prf_output_len1];
-        prf(r, i as u8, &mut prf_output);
-        r_vec.polys[i] = poly_cbd(ETA1, &prf_output);
+        prf(r, i as u8, &mut prf_output1);
+        r_vec.polys[i] = poly_cbd(ETA1, &prf_output1);
     }
 
     // 4. Sample e1 from r using CBD with eta2
     let mut e1: PolyVec<K> = PolyVec::new();
     let prf_output_len2 = 64 * ETA2;
+    let mut prf_output2 = vec![0u8; prf_output_len2];
     for i in 0..K {
-        let mut prf_output = vec![0u8; prf_output_len2];
-        prf(r, (K + i) as u8, &mut prf_output);
-        e1.polys[i] = poly_cbd(ETA2, &prf_output);
+        prf(r, (K + i) as u8, &mut prf_output2);
+        e1.polys[i] = poly_cbd(ETA2, &prf_output2);
     }
 
     // 5. Sample e2 from r using CBD with eta2
-    let mut e2_prf_output = vec![0u8; prf_output_len2];
-    prf(r, (2 * K) as u8, &mut e2_prf_output);
-    let e2 = poly_cbd(ETA2, &e2_prf_output);
+    prf(r, (2 * K) as u8, &mut prf_output2);
+    let e2 = poly_cbd(ETA2, &prf_output2);
 
     // 6. Convert r_vec to NTT domain
     r_vec.ntt();

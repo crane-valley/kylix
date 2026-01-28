@@ -38,15 +38,12 @@ pub fn ml_kem_keygen<const K: usize, const ETA1: usize>(
     z: &[u8; 32],
 ) -> (Vec<u8>, Vec<u8>) {
     // 1. Generate K-PKE key pair
-    let (ek_pke, dk_pke) = k_pke_keygen::<K, ETA1>(d);
+    let (ek, dk_pke) = k_pke_keygen::<K, ETA1>(d);
 
-    // 2. ek = ek_pke
-    let ek = ek_pke.clone();
-
-    // 3. H(ek)
+    // 2. H(ek)
     let h_ek = hash_h(&ek);
 
-    // 4. dk = dk_pke || ek || H(ek) || z
+    // 3. dk = dk_pke || ek || H(ek) || z
     let dk_pke_size = K * 384;
     let ek_size = K * 384 + 32;
     let dk_size = dk_pke_size + ek_size + 32 + 32;
