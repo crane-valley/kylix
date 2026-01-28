@@ -7,9 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-01-28
+
 ### Changed
 
+- **SLH-DSA SigningKey::to_bytes()**: Now returns `Zeroizing<Vec<u8>>` instead of `Vec<u8>`
+  - Automatic memory zeroization on drop for improved security
+  - Performance improvement by eliminating unnecessary allocation and copy
+  - **BREAKING**: Callers can use the bytes via `Deref` (e.g., `&*sk_bytes`)
 - **Doc example validation**: Changed doc examples from `ignore` to `no_run` for compile-time validation
+
+### Refactored
+
+- **SLH-DSA variant consolidation**: Replaced 6 variant files (~1,050 LOC) with `define_slh_dsa_variant!` macro
+  - Each variant file reduced from ~170 lines to ~15 lines
+  - Single point of maintenance for all SLH-DSA implementations
+
+### Security
+
+- **PRF output zeroization (SLH-DSA)**: `prf()` and `prf_msg()` now return `Zeroizing<Vec<u8>>`
+  - Ensures automatic memory cleanup of one-time secret keys
+
+### Performance
+
+- **Buffer allocation optimizations**: Reduced allocations in ML-KEM and ML-DSA
+  - ML-KEM: Reuse PRF output buffers, remove unnecessary clone
+  - ML-DSA: Reuse packing buffers with explicit zeroization for secret material
+
+### CI
+
+- **cargo-audit**: Added RustSec security audit to CI pipeline
+- **Dudect CI**: Added ML-KEM constant-time regression detection (fails if |max t| > 4.5)
 
 ## [0.4.2-cli] - 2026-01-27
 
@@ -125,7 +153,8 @@ CLI-only release with security improvements and new features.
 - Constant-time operations using `subtle` crate
 - Zeroization of sensitive data using `zeroize` crate
 
-[Unreleased]: https://github.com/crane-valley/kylix/compare/v0.4.2-cli...HEAD
+[Unreleased]: https://github.com/crane-valley/kylix/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/crane-valley/kylix/compare/v0.4.2-cli...v0.4.3
 [0.4.2-cli]: https://github.com/crane-valley/kylix/compare/v0.4.2...v0.4.2-cli
 [0.4.2]: https://github.com/crane-valley/kylix/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/crane-valley/kylix/compare/v0.4.0...v0.4.1
