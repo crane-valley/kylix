@@ -26,7 +26,6 @@ During development, run `cargo fmt --all` frequently (for example, after each ed
 - Main crate is `kylix-pqc` (not `kylix` - that name was taken on crates.io)
 - Create a GitHub Release with tag `vX.Y.Z` to auto-publish to crates.io
 - Ensure `Cargo.toml` version matches the tag before release
-- Release tag creation is done by humans
 - CLI is in a separate repository: [crane-valley/kylix-cli](https://github.com/crane-valley/kylix-cli)
 
 ### Adding a New Crate
