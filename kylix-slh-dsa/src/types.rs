@@ -8,6 +8,11 @@
 ///
 /// Creates SigningKey, VerificationKey, Signature types and implements
 /// the Signer trait for the variant marker type.
+///
+/// The key types use fixed-size byte arrays for consistent API with ML-KEM/ML-DSA:
+/// - `SigningKey`: `[u8; SK_BYTES]` with automatic zeroization
+/// - `VerificationKey`: `[u8; PK_BYTES]`
+/// - `Signature`: `Vec<u8>` (heap-allocated due to large size, up to 49KB)
 macro_rules! define_slh_dsa_variant {
     (
         variant_name: $variant_name:ident,
@@ -22,44 +27,54 @@ macro_rules! define_slh_dsa_variant {
         use rand_core::CryptoRng;
         use zeroize::{Zeroize, ZeroizeOnDrop};
 
-        #[cfg(not(feature = "std"))]
-        use alloc::vec::Vec;
-
         /// Signing key (secret key).
-        pub struct SigningKey(SecretKey<N>);
+        ///
+        /// Stores the key as a fixed-size byte array. Secret material is
+        /// automatically zeroized when dropped.
+        pub struct SigningKey {
+            bytes: [u8; SK_BYTES],
+        }
 
         impl SigningKey {
             /// Create a signing key from bytes.
-            pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-                SecretKey::from_bytes(bytes).map(Self)
+            ///
+            /// Returns an error if the slice length doesn't match the expected key size.
+            pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+                if bytes.len() != SK_BYTES {
+                    return Err(Error::InvalidKeyLength {
+                        expected: SK_BYTES,
+                        actual: bytes.len(),
+                    });
+                }
+                let mut key = [0u8; SK_BYTES];
+                key.copy_from_slice(bytes);
+                Ok(Self { bytes: key })
             }
 
-            /// Serialize the signing key to bytes.
-            ///
-            /// Returns a `Zeroizing` wrapper that automatically clears memory on drop.
-            pub fn to_bytes(&self) -> zeroize::Zeroizing<Vec<u8>> {
-                self.0.to_bytes()
+            /// Get the signing key bytes as a slice.
+            pub fn as_bytes(&self) -> &[u8] {
+                &self.bytes
             }
 
             /// Get the corresponding verification key.
             pub fn verification_key(&self) -> VerificationKey {
-                VerificationKey(PublicKey {
-                    pk_seed: self.0.pk_seed,
-                    pk_root: self.0.pk_root,
-                })
+                // Extract pk_seed and pk_root from bytes
+                // Layout: sk_seed || sk_prf || pk_seed || pk_root
+                let mut pk_bytes = [0u8; PK_BYTES];
+                pk_bytes.copy_from_slice(&self.bytes[2 * N..]);
+                VerificationKey { bytes: pk_bytes }
             }
         }
 
         impl Clone for SigningKey {
             fn clone(&self) -> Self {
-                Self(self.0.clone())
+                Self { bytes: self.bytes }
             }
         }
 
         impl Zeroize for SigningKey {
             fn zeroize(&mut self) {
-                self.0.sk_seed.zeroize();
-                self.0.sk_prf.zeroize();
+                self.bytes.zeroize();
             }
         }
 
@@ -72,36 +87,58 @@ macro_rules! define_slh_dsa_variant {
         }
 
         /// Verification key (public key).
+        ///
+        /// Stores the key as a fixed-size byte array.
         #[derive(Clone, Debug, PartialEq, Eq)]
-        pub struct VerificationKey(PublicKey<N>);
+        pub struct VerificationKey {
+            bytes: [u8; PK_BYTES],
+        }
 
         impl VerificationKey {
             /// Create a verification key from bytes.
-            pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-                PublicKey::from_bytes(bytes).map(Self)
+            ///
+            /// Returns an error if the slice length doesn't match the expected key size.
+            pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+                if bytes.len() != PK_BYTES {
+                    return Err(Error::InvalidKeyLength {
+                        expected: PK_BYTES,
+                        actual: bytes.len(),
+                    });
+                }
+                let mut key = [0u8; PK_BYTES];
+                key.copy_from_slice(bytes);
+                Ok(Self { bytes: key })
             }
 
-            /// Serialize the verification key to bytes.
-            pub fn to_bytes(&self) -> Vec<u8> {
-                self.0.to_bytes()
+            /// Get the verification key bytes as a slice.
+            pub fn as_bytes(&self) -> &[u8] {
+                &self.bytes
             }
         }
 
         /// Signature.
-        #[derive(Clone, Debug, PartialEq, Eq)]
+        ///
+        /// Stores the signature as a heap-allocated byte vector.
+        /// SLH-DSA signatures can be up to 49KB, too large for stack allocation.
+        #[derive(Clone, PartialEq, Eq)]
         pub struct Signature(Vec<u8>);
 
         impl Signature {
             /// Create a signature from bytes.
-            pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+            ///
+            /// Returns an error if the slice length doesn't match the expected signature size.
+            pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
                 if bytes.len() != SIG_BYTES {
-                    return None;
+                    return Err(Error::InvalidSignatureLength {
+                        expected: SIG_BYTES,
+                        actual: bytes.len(),
+                    });
                 }
-                Some(Self(bytes.to_vec()))
+                Ok(Self(bytes.to_vec()))
             }
 
-            /// Get the signature bytes.
-            pub fn to_bytes(&self) -> &[u8] {
+            /// Get the signature bytes as a slice.
+            pub fn as_bytes(&self) -> &[u8] {
                 &self.0
             }
         }
@@ -109,6 +146,13 @@ macro_rules! define_slh_dsa_variant {
         impl AsRef<[u8]> for Signature {
             fn as_ref(&self) -> &[u8] {
                 &self.0
+            }
+        }
+
+        impl core::fmt::Debug for Signature {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                // Only show first 32 bytes to avoid huge output
+                write!(f, "Signature({:02x?}...)", &self.0[..32.min(SIG_BYTES)])
             }
         }
 
@@ -124,16 +168,43 @@ macro_rules! define_slh_dsa_variant {
             const VERIFICATION_KEY_SIZE: usize = PK_BYTES;
             const SIGNATURE_SIZE: usize = SIG_BYTES;
 
-            fn keygen(rng: &mut impl CryptoRng) -> Result<(Self::SigningKey, Self::VerificationKey)> {
+            fn keygen(
+                rng: &mut impl CryptoRng,
+            ) -> Result<(Self::SigningKey, Self::VerificationKey)> {
                 let (sk, pk) = slh_keygen::<$hash_type, N, WOTS_LEN, H_PRIME, D>(rng);
-                Ok((SigningKey(sk), VerificationKey(pk)))
+
+                // Convert SecretKey to bytes
+                let sk_bytes_vec = sk.to_bytes();
+                let mut sk_bytes = [0u8; SK_BYTES];
+                sk_bytes.copy_from_slice(&sk_bytes_vec);
+
+                // Convert PublicKey to bytes
+                let pk_bytes_vec = pk.to_bytes();
+                let mut pk_bytes = [0u8; PK_BYTES];
+                pk_bytes.copy_from_slice(&pk_bytes_vec);
+
+                Ok((
+                    SigningKey { bytes: sk_bytes },
+                    VerificationKey { bytes: pk_bytes },
+                ))
             }
 
             fn sign(sk: &Self::SigningKey, message: &[u8]) -> Result<Self::Signature> {
-                let sig = slh_sign::<$hash_type, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
-                    &sk.0, message, None,
-                );
-                Ok(Signature(sig))
+                // Convert bytes back to SecretKey for signing
+                let secret_key =
+                    SecretKey::<N>::from_bytes(&sk.bytes).ok_or(Error::InvalidKeyLength {
+                        expected: SK_BYTES,
+                        actual: sk.bytes.len(),
+                    })?;
+
+                let sig_vec =
+                    slh_sign::<$hash_type, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
+                        &secret_key,
+                        message,
+                        None,
+                    );
+
+                Ok(Signature(sig_vec))
             }
 
             fn verify(
@@ -141,8 +212,15 @@ macro_rules! define_slh_dsa_variant {
                 message: &[u8],
                 signature: &Self::Signature,
             ) -> Result<()> {
+                // Convert bytes back to PublicKey for verification
+                let public_key =
+                    PublicKey::<N>::from_bytes(&pk.bytes).ok_or(Error::InvalidKeyLength {
+                        expected: PK_BYTES,
+                        actual: pk.bytes.len(),
+                    })?;
+
                 if slh_verify::<$hash_type, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(
-                    &pk.0,
+                    &public_key,
                     message,
                     &signature.0,
                 ) {
@@ -182,12 +260,12 @@ macro_rules! define_slh_dsa_variant {
                 let mut rng = ChaCha20Rng::seed_from_u64(42);
                 let (sk, pk) = $variant_name::keygen(&mut rng).unwrap();
 
-                let sk_bytes = sk.to_bytes();
-                let sk_restored = SigningKey::from_bytes(&sk_bytes).unwrap();
+                let sk_bytes = sk.as_bytes();
+                let sk_restored = SigningKey::from_bytes(sk_bytes).unwrap();
                 assert_eq!(sk.verification_key(), sk_restored.verification_key());
 
-                let pk_bytes = pk.to_bytes();
-                let pk_restored = VerificationKey::from_bytes(&pk_bytes).unwrap();
+                let pk_bytes = pk.as_bytes();
+                let pk_restored = VerificationKey::from_bytes(pk_bytes).unwrap();
                 assert_eq!(pk, pk_restored);
             }
 
@@ -199,7 +277,7 @@ macro_rules! define_slh_dsa_variant {
                 let message = b"Test message";
                 let signature = $variant_name::sign(&sk, message).unwrap();
 
-                assert_eq!(signature.to_bytes().len(), SIG_BYTES);
+                assert_eq!(signature.as_bytes().len(), SIG_BYTES);
             }
 
             #[test]

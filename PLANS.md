@@ -42,14 +42,75 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | Poly API Consistency | MEDIUM | Ergonomics | ML-KEM uses module functions (`poly_add()`), ML-DSA uses methods (`.add()`). Standardize to methods |
 | ML-KEM/ML-DSA: Clippy Fixes | LOW | Quality | Fix outstanding clippy warnings instead of suppressing them |
 
-#### API Consistency Note
+#### SLH-DSA Internal Structure Refactoring Plan
 
-ML-KEM/ML-DSA use `as_bytes() -> &[u8]`, SLH-DSA uses `to_bytes()` with mixed semantics:
-- `SigningKey.to_bytes() -> Zeroizing<Vec<u8>>` (owned, OK)
-- `VerificationKey.to_bytes() -> Vec<u8>` (owned, OK)
-- `Signature.to_bytes() -> &[u8]` (borrowed, **should be `as_bytes()`** per Rust convention)
+**Goal:** Unify SLH-DSA with ML-KEM/ML-DSA by changing internal storage from struct-based to `[u8; SIZE]`.
 
-Recommended fix: Add `as_bytes()` methods returning `&[u8]` for all types, deprecate inconsistent `to_bytes()` on `Signature`.
+**Current Structure (SLH-DSA):**
+```rust
+// types.rs - wrappers around internal structs
+pub struct SigningKey(SecretKey<N>);      // Indirect: wraps struct with 4 arrays
+pub struct VerificationKey(PublicKey<N>); // Indirect: wraps struct with 2 arrays
+pub struct Signature(Vec<u8>);            // Heap-allocated
+
+// sign.rs - internal structs with named fields
+pub struct SecretKey<const N: usize> {
+    pub sk_seed: [u8; N], pub sk_prf: [u8; N],
+    pub pk_seed: [u8; N], pub pk_root: [u8; N],
+}
+pub struct PublicKey<const N: usize> {
+    pub pk_seed: [u8; N], pub pk_root: [u8; N],
+}
+```
+
+**Target Structure (like ML-KEM/ML-DSA):**
+```rust
+// types.rs - direct fixed-size array storage
+pub struct SigningKey { bytes: [u8; SK_BYTES] }
+pub struct VerificationKey { bytes: [u8; PK_BYTES] }
+pub struct Signature { bytes: [u8; SIG_BYTES] }
+```
+
+**Benefits:**
+- **Performance:** No heap allocation, better cache locality
+- **Security:** Simpler zeroization (single contiguous region)
+- **Maintainability:** Consistent API across all three crates
+- **Type Safety:** Fixed-size arrays prevent size mismatches
+
+**API Changes (Breaking):**
+| Type | Current | New |
+|------|---------|-----|
+| `SigningKey.to_bytes()` | `Zeroizing<Vec<u8>>` | Removed |
+| `SigningKey.as_bytes()` | N/A | `&[u8]` |
+| `VerificationKey.to_bytes()` | `Vec<u8>` | Removed |
+| `VerificationKey.as_bytes()` | N/A | `&[u8]` |
+| `Signature.to_bytes()` | `&[u8]` | Removed |
+| `Signature.as_bytes()` | N/A | `&[u8]` |
+| `*.from_bytes()` | `Option<Self>` | `Result<Self, Error>` |
+
+**Implementation Steps:**
+1. Update `define_slh_dsa_variant!` macro in `types.rs`:
+   - Change `SigningKey` to hold `[u8; SK_BYTES]`
+   - Change `VerificationKey` to hold `[u8; PK_BYTES]`
+   - Change `Signature` to hold `[u8; SIG_BYTES]`
+   - Implement `as_bytes() -> &[u8]` for all types
+   - Change `from_bytes()` to return `Result<Self, Error>`
+   - Derive `Zeroize + ZeroizeOnDrop` for `SigningKey`
+
+2. Update `sign.rs` internal functions:
+   - Keep `SecretKey<N>` / `PublicKey<N>` for internal use (keygen, sign, verify)
+   - Add conversion between `[u8; SIZE]` and internal structs
+   - Update `slh_keygen` to return `([u8; SK_BYTES], [u8; PK_BYTES])`
+   - Update `slh_sign` to accept `&[u8; SK_BYTES]` and return `[u8; SIG_BYTES]`
+   - Update `slh_verify` to accept `&[u8; PK_BYTES]` and `&[u8; SIG_BYTES]`
+
+3. Update all variant modules (shake_128f, shake_128s, etc.):
+   - Pass correct SIZE constants to macro
+   - Ensure SIZE constants match FIPS 205 requirements
+
+4. Update kylix-cli:
+   - Replace `to_bytes()` calls with `as_bytes()`
+   - Handle `Result` instead of `Option` for `from_bytes()`
 
 ---
 
