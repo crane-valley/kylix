@@ -7,9 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-01-28
+
 ### Changed
 
-- **Doc example validation**: Changed doc examples from `ignore` to `no_run` for compile-time validation
+- **SLH-DSA SigningKey::to_bytes()**: Now returns `Zeroizing<Vec<u8>>` instead of `Vec<u8>`
+  - Automatic memory zeroization on drop for improved security
+  - Performance improvement by eliminating unnecessary allocation and copy
+  - **BREAKING**: Callers can use the bytes via `Deref` (e.g., `&*sk_bytes`)
+
+### Refactored
+
+- **SLH-DSA variant consolidation**: Replaced 6 variant files (~1,050 LOC) with `define_slh_dsa_variant!` macro
+  - Each variant file reduced from ~170 lines to ~15 lines
+  - Single point of maintenance for all SLH-DSA implementations
+
+### CI
+
+- **cargo-audit**: Added RustSec security audit to CI pipeline
+- **Dudect CI**: Added ML-KEM constant-time regression detection (fails if |max t| > 4.5)
 
 ## [0.4.2-cli] - 2026-01-27
 
