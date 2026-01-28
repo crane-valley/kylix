@@ -192,26 +192,55 @@ pub unsafe fn poly_sub(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) {
 ///
 /// Reduces each coefficient to the range [0, q-1].
 ///
+/// # Algorithm
+///
+/// Uses the approximation t ≈ floor(a / Q) based on Q ≈ 2^23:
+/// 1. t = (a + 2^22) >> 23 (arithmetic shift for rounding)
+/// 2. r = a - t * Q
+/// 3. Conditional adjustments to ensure r ∈ [0, Q)
+///
+/// The rounding constant 2^22 ensures the approximation error is at most 1,
+/// so r is in the range [-Q, 2Q) before the conditional steps.
+///
+/// # Input Range
+///
+/// This function is designed for ML-DSA coefficient reduction where inputs
+/// are bounded by small multiples of Q (typically |a| < 256 * Q ≈ 2^31).
+/// For inputs in range |a| < 2^30, correct behavior is guaranteed.
+/// For very large inputs (|a| >= 2^31 - 2^22), the internal addition may
+/// overflow; however, such values do not occur in normal ML-DSA operations.
+///
 /// # Safety
 ///
 /// Requires AVX2 support.
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
 pub unsafe fn reduce_avx2(a: &mut [i32; N]) {
-    // TODO: Complete vectorized Barrett reduction.
-    // SIMD Barrett reduction requires careful handling of 64-bit arithmetic
-    // and packing results back to 32-bit. For now, use scalar fallback.
+    let rounding = _mm256_set1_epi32(1 << 22);
+    let q = _mm256_set1_epi32(Q);
+
     for i in (0..N).step_by(8) {
         let va = _mm256_loadu_si256(a.as_ptr().add(i).cast());
-        let mut temp = [0i32; 8];
-        _mm256_storeu_si256(temp.as_mut_ptr().cast(), va);
-        for j in 0..8 {
-            temp[j] = crate::reduce::reduce32(temp[j]);
-        }
-        _mm256_storeu_si256(
-            a.as_mut_ptr().add(i).cast(),
-            _mm256_loadu_si256(temp.as_ptr().cast()),
-        );
+
+        // Approximate quotient: t ≈ floor(a / Q)
+        // Uses Q ≈ 2^23, with rounding constant for better accuracy
+        let t = _mm256_srai_epi32(_mm256_add_epi32(va, rounding), 23);
+
+        // Compute remainder: r = a - t * Q
+        // Due to approximation error, r might be in [-Q, 2Q)
+        let tq = _mm256_mullo_epi32(t, q);
+        let r = _mm256_sub_epi32(va, tq);
+
+        // Conditional add Q if r < 0 (handles negative approximation error)
+        let neg_mask = _mm256_srai_epi32(r, 31);
+        let r = _mm256_add_epi32(r, _mm256_and_si256(q, neg_mask));
+
+        // Conditional subtract Q if r >= Q (handles positive approximation error)
+        let r_minus_q = _mm256_sub_epi32(r, q);
+        let pos_mask = _mm256_srai_epi32(r_minus_q, 31);
+        let result = _mm256_add_epi32(r_minus_q, _mm256_and_si256(q, pos_mask));
+
+        _mm256_storeu_si256(a.as_mut_ptr().add(i).cast(), result);
     }
 }
 
@@ -710,5 +739,108 @@ mod tests {
         }
 
         assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn test_reduce_avx2_equivalence() {
+        if !super::super::has_avx2() {
+            return;
+        }
+
+        // A simple, correct reference implementation for testing.
+        fn reduce_reference(a: i32) -> i32 {
+            let mut r = (a as i64) % (Q as i64);
+            if r < 0 {
+                r += Q as i64;
+            }
+            r as i32
+        }
+
+        // Test with various input ranges within the practical ML-DSA range
+        let test_cases: [i32; N] = core::array::from_fn(|i| {
+            // Mix of positive, negative, small, and large values
+            // Stay within |a| < 2^30 to avoid overflow edge cases
+            (i as i32 * 123457) % (4 * Q) - 2 * Q
+        });
+
+        // Correct reference implementation
+        let mut expected = test_cases;
+        for c in &mut expected {
+            *c = reduce_reference(*c);
+        }
+
+        // SIMD version
+        let mut result = test_cases;
+        unsafe {
+            reduce_avx2(&mut result);
+        }
+
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn test_reduce_avx2_edge_cases() {
+        if !super::super::has_avx2() {
+            return;
+        }
+
+        // Test specific edge cases with known-correct expected outputs.
+        // The SIMD implementation correctly returns values in [0, Q-1] for all inputs.
+        let edge_cases: [(i32, i32); 13] = [
+            (0, 0),
+            (1, 1),
+            (Q - 1, Q - 1),
+            (Q, 0),
+            (Q + 1, 1),
+            (2 * Q, 0),
+            (2 * Q - 1, Q - 1),
+            (-1, Q - 1),
+            (-Q, 0),
+            (-Q + 1, 1),
+            (-Q - 1, Q - 1), // SIMD handles this correctly
+            (Q * 100, 0),    // Q*100 is a multiple of Q
+            (-Q * 100, 0),
+        ];
+
+        for &(val, expected) in &edge_cases {
+            let mut input = [val; N];
+
+            unsafe {
+                reduce_avx2(&mut input);
+            }
+
+            for (i, &result) in input.iter().enumerate() {
+                assert_eq!(
+                    result, expected,
+                    "Mismatch for input {val} at index {i}: got {result}, expected {expected}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_reduce_avx2_output_range() {
+        if !super::super::has_avx2() {
+            return;
+        }
+
+        // Verify SIMD output is always in [0, Q-1] for various inputs
+        let test_vals: [i32; N] = core::array::from_fn(|i| {
+            let x = i as i32;
+            // Generate values spread across the valid input range
+            x.wrapping_mul(0x765431) % (1 << 28) - (1 << 27)
+        });
+
+        let mut result = test_vals;
+        unsafe {
+            reduce_avx2(&mut result);
+        }
+
+        for (i, &r) in result.iter().enumerate() {
+            assert!(
+                r >= 0 && r < Q,
+                "Output at index {i} is {r}, not in [0, Q-1)"
+            );
+        }
     }
 }

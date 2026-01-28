@@ -34,7 +34,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 |-----------|----------|--------|-------|
 | ~~Lib: Dead Code Audit~~ | ~~MEDIUM~~ | ~~Clarity~~ | ✓ Removed ~112 LOC from kylix-ml-dsa |
 | ~~Lib: SLH-DSA Variants~~ | ~~LOW~~ | ~~~600 LOC~~ | ✓ Consolidated with `define_slh_dsa_variant!` macro |
-| ML-DSA: AVX2 Barrett | LOW | Performance | Vectorized Barrett reduction TODO in `simd/avx2.rs` |
+| ~~ML-DSA: AVX2 Barrett~~ | ~~LOW~~ | ~~Performance~~ | ✓ Vectorized Barrett reduction and caddq in `simd/avx2.rs` |
 
 ---
 

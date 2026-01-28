@@ -267,3 +267,57 @@ pub fn ntt(_a: &mut [i32; N]) -> bool {
 pub fn inv_ntt(_a: &mut [i32; N]) -> bool {
     false
 }
+
+// ============================================================================
+// Barrett reduction SIMD API
+// ============================================================================
+
+/// Barrett reduction using SIMD (AVX2).
+///
+/// Reduces all coefficients to [0, q-1].
+/// Returns true if SIMD was used, false if caller should use scalar fallback.
+#[cfg(target_arch = "x86_64")]
+#[inline]
+pub fn reduce(a: &mut [i32; N]) -> bool {
+    if has_avx2() {
+        // SAFETY: AVX2 availability confirmed by has_avx2()
+        unsafe {
+            avx2::reduce_avx2(a);
+        }
+        true
+    } else {
+        false
+    }
+}
+
+/// Conditional add q using SIMD (AVX2).
+///
+/// For each coefficient: if a[i] < 0, add q.
+/// Returns true if SIMD was used, false if caller should use scalar fallback.
+#[cfg(target_arch = "x86_64")]
+#[inline]
+pub fn caddq(a: &mut [i32; N]) -> bool {
+    if has_avx2() {
+        // SAFETY: AVX2 availability confirmed by has_avx2()
+        unsafe {
+            avx2::caddq_avx2(a);
+        }
+        true
+    } else {
+        false
+    }
+}
+
+/// Barrett reduction fallback for unsupported architectures.
+#[cfg(not(target_arch = "x86_64"))]
+#[inline]
+pub fn reduce(_a: &mut [i32; N]) -> bool {
+    false
+}
+
+/// Conditional add q fallback for unsupported architectures.
+#[cfg(not(target_arch = "x86_64"))]
+#[inline]
+pub fn caddq(_a: &mut [i32; N]) -> bool {
+    false
+}
