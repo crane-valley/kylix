@@ -71,36 +71,24 @@ impl<const N: usize> SecretKey<N> {
 
     /// Deserialize a secret key from bytes.
     ///
-    /// Note: Temporary buffers for sensitive fields (sk_seed, sk_prf) are
-    /// zeroized after copying to the struct to prevent secret material
-    /// from lingering on the stack.
+    /// Writes directly into struct fields to avoid intermediate buffers
+    /// that would need manual zeroization.
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
         if bytes.len() != N * 4 {
             return None;
         }
-        // Create temporary buffers for secret fields
-        let mut sk_seed = [0u8; N];
-        let mut sk_prf = [0u8; N];
-        sk_seed.copy_from_slice(&bytes[..N]);
-        sk_prf.copy_from_slice(&bytes[N..2 * N]);
-
-        // Construct the key (moves secret data into struct)
-        let key = Self {
-            sk_seed,
-            sk_prf,
-            // Public fields can use try_into directly (no zeroization needed)
-            pk_seed: bytes[2 * N..3 * N]
-                .try_into()
-                .expect("slice has correct size"),
-            pk_root: bytes[3 * N..].try_into().expect("slice has correct size"),
+        // Initialize struct with zeroed arrays, then copy directly into fields
+        // This avoids intermediate stack buffers for sensitive data
+        let mut key = Self {
+            sk_seed: [0u8; N],
+            sk_prf: [0u8; N],
+            pk_seed: [0u8; N],
+            pk_root: [0u8; N],
         };
-
-        // Zeroize temporary buffers containing secret material
-        // Note: The original sk_seed/sk_prf arrays are copied (not moved) into the struct
-        // because [u8; N] implements Copy, so we must explicitly zeroize them
-        sk_seed.zeroize();
-        sk_prf.zeroize();
-
+        key.sk_seed.copy_from_slice(&bytes[..N]);
+        key.sk_prf.copy_from_slice(&bytes[N..2 * N]);
+        key.pk_seed.copy_from_slice(&bytes[2 * N..3 * N]);
+        key.pk_root.copy_from_slice(&bytes[3 * N..]);
         Some(key)
     }
 }
