@@ -47,19 +47,19 @@ fn adrs_compress(adrs: &Address) -> [u8; 22] {
     // Type (bytes 16-19 of original -> bytes 12-15 of compressed)
     compressed[12..16].copy_from_slice(&bytes[16..20]);
 
-    // Bytes 16-19: key pair address (WOTS types 0,1,5) or tree height (other types 2,3,4,6)
-    // WOTS types use keypair at offset 20, others use height/index at offset 24
+    // Bytes 16-19: key pair address (WOTS types 0,1,5 and FORS_PRF 6) or tree height (TREE 2, FORS_TREE 3, FORS_PK 4)
+    // FIPS 205 Table 3: FORS_PRF uses keypair, not tree height
     match adrs_type {
-        0 | 1 | 5 => compressed[16..20].copy_from_slice(&bytes[20..24]), // WOTS: keypair
-        _ => compressed[16..20].copy_from_slice(&bytes[24..28]),         // Others: height/index
+        0 | 1 | 5 | 6 => compressed[16..20].copy_from_slice(&bytes[20..24]), // WOTS and FORS_PRF: keypair
+        _ => compressed[16..20].copy_from_slice(&bytes[24..28]),             // TREE, FORS_TREE, FORS_PK: height
     }
 
     // Bytes 20-21: bits 16-31 of the relevant field
-    // WOTS_PRF (5) and FORS_PRF (6): chain/tree index at offset 24, use bytes 26-27
-    // Others: hash/tree index at offset 28, use bytes 30-31
+    // WOTS_PRF (5) only: chain address at offset 24, use bytes 26-27
+    // Others (including FORS_PRF 6): tree index at offset 28, use bytes 30-31
     match adrs_type {
-        5 | 6 => compressed[20..22].copy_from_slice(&bytes[26..28]),
-        _ => compressed[20..22].copy_from_slice(&bytes[30..32]),
+        5 => compressed[20..22].copy_from_slice(&bytes[26..28]), // WOTS_PRF: chain bits 16-31
+        _ => compressed[20..22].copy_from_slice(&bytes[30..32]), // Others: index bits 16-31
     }
 
     compressed
@@ -249,17 +249,32 @@ mod tests {
 
     #[test]
     fn test_adrs_compress_fors_prf() {
-        // FORS_PRF (type 6): uses height (bytes 24-27) for compressed bytes 16-19,
-        // and height bits 16-31 (bytes 26-27) for compressed bytes 20-21
-        let adrs = Address::fors_prf(0, 0, 99, 0xAAAA_BBBB, 0xCCCC_DDDD);
+        // FORS_PRF (type 6): uses keypair (bytes 20-23) for compressed bytes 16-19,
+        // and tree index bits 16-31 (bytes 30-31) for compressed bytes 20-21
+        // FIPS 205 Table 3: FORS_PRF has keypair at offset 20, tree index at offset 28
+        let adrs = Address::fors_prf(0, 0, 0x1234_5678, 0xAAAA_BBBB, 0xCCCC_DDDD);
         let compressed = adrs_compress(&adrs);
 
         // Type (bytes 12-15) = FORS_PRF = 6
         assert_eq!(&compressed[12..16], &[0, 0, 0, 6]);
-        // Tree height (bytes 16-19) for non-WOTS types
-        assert_eq!(&compressed[16..20], &[0xAA, 0xAA, 0xBB, 0xBB]);
-        // Height bits 16-31 (bytes 20-21) - height=0xAAAABBBB, bits 16-31 = 0xBBBB
-        assert_eq!(&compressed[20..22], &[0xBB, 0xBB]);
+        // Keypair (bytes 16-19) for FORS_PRF - keypair=0x12345678
+        assert_eq!(&compressed[16..20], &[0x12, 0x34, 0x56, 0x78]);
+        // Tree index bits 16-31 (bytes 20-21) - index=0xCCCCDDDD, bits 16-31 = 0xDDDD
+        assert_eq!(&compressed[20..22], &[0xDD, 0xDD]);
+    }
+
+    #[test]
+    fn test_fors_prf_keypair_separation() {
+        // Verify that different keypairs produce different ADRS^c for FORS_PRF
+        let adrs1 = Address::fors_prf(0, 0, 0, 0, 0); // keypair = 0
+        let adrs2 = Address::fors_prf(0, 0, 1, 0, 0); // keypair = 1
+
+        let compressed1 = adrs_compress(&adrs1);
+        let compressed2 = adrs_compress(&adrs2);
+
+        // The compressed addresses should differ in bytes 16-19
+        assert_ne!(compressed1, compressed2);
+        assert_ne!(&compressed1[16..20], &compressed2[16..20]);
     }
 
     #[test]
