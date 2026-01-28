@@ -42,15 +42,17 @@ macro_rules! define_slh_dsa_variant {
             ///
             /// Returns an error if the slice length doesn't match the expected key size.
             pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-                // Use try_into for conversion; zeroize the intermediate buffer
-                // to prevent secret material from lingering on the stack
-                let mut sk_bytes: [u8; SK_BYTES] =
-                    bytes.try_into().map_err(|_| Error::InvalidKeyLength {
+                // Write directly into the struct to avoid intermediate buffers
+                if bytes.len() != SK_BYTES {
+                    return Err(Error::InvalidKeyLength {
                         expected: SK_BYTES,
                         actual: bytes.len(),
-                    })?;
-                let key = Self { bytes: sk_bytes };
-                sk_bytes.zeroize();
+                    });
+                }
+                let mut key = Self {
+                    bytes: [0u8; SK_BYTES],
+                };
+                key.bytes.copy_from_slice(bytes);
                 Ok(key)
             }
 
@@ -173,17 +175,17 @@ macro_rules! define_slh_dsa_variant {
             ) -> Result<(Self::SigningKey, Self::VerificationKey)> {
                 let (sk, pk) = slh_keygen::<$hash_type, N, WOTS_LEN, H_PRIME, D>(rng);
 
-                // Write directly to fixed-size arrays (no heap allocation)
-                let mut sk_bytes = [0u8; SK_BYTES];
-                let mut pk_bytes = [0u8; PK_BYTES];
-                sk.write_to(&mut sk_bytes);
-                pk.write_to(&mut pk_bytes);
+                // Write directly into struct buffers to avoid intermediate copies
+                let mut signing_key = SigningKey {
+                    bytes: [0u8; SK_BYTES],
+                };
+                let mut verification_key = VerificationKey {
+                    bytes: [0u8; PK_BYTES],
+                };
+                sk.write_to(&mut signing_key.bytes);
+                pk.write_to(&mut verification_key.bytes);
 
-                let signing_key = SigningKey { bytes: sk_bytes };
-                // Zeroize temporary buffer to prevent secret material from lingering on stack
-                sk_bytes.zeroize();
-
-                Ok((signing_key, VerificationKey { bytes: pk_bytes }))
+                Ok((signing_key, verification_key))
             }
 
             fn sign(sk: &Self::SigningKey, message: &[u8]) -> Result<Self::Signature> {
