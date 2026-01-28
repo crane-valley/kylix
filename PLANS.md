@@ -12,7 +12,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 - ML-DSA-44/65/87 (FIPS 204) with SIMD (AVX2/NEON) and expanded verification
 - SLH-DSA-SHAKE all variants (FIPS 205) with parallel feature
 - NIST ACVP tests, fuzz testing, no_std, constant-time, zeroization
-- Key type wrapper macros (`define_kem_types!` / `define_dsa_types!`)
+- Key type wrapper macros (`define_kem_types!` / `define_dsa_types!` / `define_slh_dsa_variant!`)
 - Dudect timing tests for constant-time verification
 - Dudect CI integration (ML-KEM regression detection)
 - Benchmark stability with fixed seed (kylix-cli)
@@ -33,7 +33,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | Component | Priority | Impact | Notes |
 |-----------|----------|--------|-------|
 | Lib: Dead Code Audit | MEDIUM | Clarity | Audit `#[allow(dead_code)]` in kylix-ml-dsa (9 modules) |
-| Lib: SLH-DSA Variants | LOW | ~600 LOC | Consolidate 6 variant files with macro generation |
+| ~~Lib: SLH-DSA Variants~~ | ~~LOW~~ | ~~~600 LOC~~ | ✓ Consolidated with `define_slh_dsa_variant!` macro |
 | ML-DSA: AVX2 Barrett | LOW | Performance | Vectorized Barrett reduction TODO in `simd/avx2.rs` |
 
 ---
