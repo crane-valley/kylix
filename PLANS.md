@@ -44,6 +44,46 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | ML-KEM/ML-DSA: Clippy Fixes | LOW | Quality | Fix outstanding clippy warnings instead of suppressing them |
 | ML-KEM/ML-DSA: Eliminate intermediate buffers | MEDIUM | Security | See "Intermediate Buffer Cleanup" section below |
 
+#### Intermediate Buffer Cleanup
+
+**Issue:** Several `from_bytes()` implementations create intermediate stack buffers for sensitive key material. While the final structs implement `ZeroizeOnDrop`, the intermediate buffers are not zeroized, potentially leaving secret material on the stack.
+
+**Problematic Pattern:**
+```rust
+// Current (creates intermediate buffer)
+let mut key = [0u8; SK_SIZE];
+key.copy_from_slice(bytes);
+Ok(Self { bytes: key })
+```
+
+**Recommended Pattern:**
+```rust
+// Better (writes directly into struct)
+let mut result = Self { bytes: [0u8; SK_SIZE] };
+result.bytes.copy_from_slice(bytes);
+Ok(result)
+```
+
+**Affected Files:**
+
+| File | Function | Data Type | Priority |
+|------|----------|-----------|----------|
+| `kylix-ml-kem/src/types.rs:26-36` | `DecapsulationKey::from_bytes()` | SENSITIVE | HIGH |
+| `kylix-ml-dsa/src/types.rs:26-36` | `SigningKey::from_bytes()` | SENSITIVE | HIGH |
+| `kylix-ml-kem/src/types.rs:52-62` | `EncapsulationKey::from_bytes()` | Public | LOW |
+| `kylix-ml-dsa/src/types.rs:52-62` | `VerificationKey::from_bytes()` | Public | LOW |
+| `kylix-ml-kem/src/types.rs:78-88` | `Ciphertext::from_bytes()` | Public | LOW |
+| `kylix-ml-dsa/src/types.rs:120-130` | `Signature::from_bytes()` | Public | LOW |
+
+**keygen() Intermediate Buffers:**
+
+| File | Issue | Priority |
+|------|-------|----------|
+| `kylix-ml-dsa/src/ml_dsa_*.rs:32-44` | `sk_bytes` not zeroized after `SigningKey::from_bytes()` | MEDIUM |
+| `kylix-ml-kem/src/ml_kem_*.rs:36-54` | `dk_bytes` not zeroized after `DecapsulationKey::from_bytes()` | MEDIUM |
+
+**Note:** SLH-DSA `types.rs` was already fixed in PR #113 to use the direct-write pattern.
+
 #### SLH-DSA Internal Structure Refactoring Plan
 
 **Goal:** Unify SLH-DSA with ML-KEM/ML-DSA by changing internal storage from struct-based to `[u8; SIZE]`.
