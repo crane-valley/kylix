@@ -1,5 +1,14 @@
 # Security Policy
 
+## Important Notice
+
+- This project is experimental and has NOT been independently audited.
+- It is NOT intended for production use.
+- This is an AI-assisted implementation experiment.
+- Passing NIST test vectors does NOT guarantee security.
+
+---
+
 ## Supported Versions
 
 | Version | Supported |
@@ -7,6 +16,8 @@
 | 0.4.x   | Yes       |
 | 0.3.x   | Yes       |
 | < 0.3   | No        |
+
+---
 
 ## Reporting a Vulnerability
 
@@ -16,79 +27,97 @@ We take security vulnerabilities seriously. If you discover a security issue, pl
 
 **Please do NOT report security vulnerabilities through public GitHub issues.**
 
-Instead, please send an email to: **security@crane-valley.co.jp**
+Instead, please send an email to:
 
-Include the following information:
+**security@crane-valley.co.jp**
+
+Include the following information where possible:
 
 - Type of vulnerability (e.g., buffer overflow, timing attack, key leakage)
+- Affected algorithm and parameter set (ML-KEM / ML-DSA / SLH-DSA, variant)
+- Architecture / target (e.g., x86_64 AVX2, aarch64 NEON, no_std)
 - Full path to the affected source file(s)
 - Step-by-step instructions to reproduce the issue
 - Proof-of-concept or exploit code (if available)
-- Impact assessment of the vulnerability
+- Impact assessment (confidentiality, integrity, authenticity)
 
-### Response Timeline
+---
 
-- **Initial Response**: Within 48 hours
-- **Status Update**: Within 7 days
-- **Resolution Target**: Within 90 days (depending on complexity)
+## Response Timeline
+
+- **Initial Response**: Within 48 hours (best-effort)
+- **Status Update**: Within 7 days (best-effort)
+- **Resolution Target**: Within 90 days (depending on severity and complexity)
 
 ### What to Expect
 
-1. **Acknowledgment**: We will acknowledge receipt of your report within 48 hours.
-2. **Assessment**: Our team will assess the vulnerability and determine its severity.
-3. **Updates**: We will keep you informed of our progress.
-4. **Fix**: Once a fix is developed, we will coordinate the release with you.
-5. **Credit**: With your permission, we will acknowledge your contribution in the release notes.
+1. **Acknowledgment**: We will acknowledge receipt of your report.
+2. **Assessment**: We will assess the issue and determine its severity and scope.
+3. **Updates**: We will keep you informed of progress where possible.
+4. **Fix**: If a fix is developed, we will coordinate disclosure with the reporter.
+5. **Credit**: With your permission, we will acknowledge your contribution in release notes.
+
+---
 
 ## Security Considerations
 
 ### Cryptographic Implementation
 
-This library implements post-quantum cryptographic algorithms as specified in NIST FIPS standards. However:
+This library implements post-quantum cryptographic algorithms as specified in NIST FIPS standards.
+However, the following limitations apply:
 
 - **No Audit**: This library has NOT been independently audited.
 - **No Warranty**: The software is provided "as is" without warranty of any kind.
-- **Use at Your Own Risk**: Do not use in production systems without proper evaluation.
+- **Experimental**: This is an AI-assisted implementation experiment.
+- **Use at Your Own Risk**: Do not use in production systems without independent evaluation.
 
-### Side-Channel Protections
+### Side-Channel Considerations
 
-We implement the following protections against side-channel attacks:
+We aim to implement the following protections against side-channel attacks (best-effort):
 
-- **Constant-time operations**: Using the `subtle` crate for constant-time comparisons
-- **Memory zeroization**: Using the `zeroize` crate to clear sensitive data
-- **No secret-dependent branches**: Avoiding conditional code based on secret values
+- Constant-time operations where practical (not formally verified)
+- Memory zeroization using the `zeroize` crate
+- Avoiding obvious secret-dependent branches
 
-However, complete side-channel resistance depends on:
+However, complete side-channel resistance is NOT guaranteed and depends on:
 
-- The compiler not optimizing away protections
-- The hardware platform's characteristics
-- The operating system's memory management
+- Compiler behavior and optimization settings
+- Target architecture and microarchitectural effects
+- Operating system and runtime environment
 
 ### Known Limitations
 
-1. **Randomness**: Security depends on the quality of the provided RNG
-2. **Memory Safety**: While Rust provides memory safety, `unsafe` blocks may exist
-3. **Platform-Specific**: Some platforms may leak information through caches or power analysis
+1. **Randomness**: Security depends on the quality of the provided RNG.
+2. **Memory Safety**: While Rust provides memory safety, `unsafe` code may exist.
+3. **Platform-Specific Leakage**: Cache, timing, power, or other side channels may exist.
+4. **Test Vectors**: Passing NIST test vectors does NOT imply real-world security.
+
+---
 
 ## Security Best Practices
 
-When using this library:
+If you experiment with this library:
 
-1. Use a cryptographically secure random number generator (e.g., `OsRng`)
-2. Keep keys in memory for the minimum required time
-3. Use the zeroization features to clear sensitive data
-4. Keep the library updated to the latest version
-5. Consider additional hardware security measures for high-security applications
+1. Use a cryptographically secure random number generator (e.g., `OsRng`).
+2. Keep sensitive material in memory for the minimum required time.
+3. Ensure zeroization is triggered where applicable.
+4. Keep dependencies and the library itself up to date.
+5. For production systems, use audited and well-maintained alternatives such as RustCrypto.
+
+---
 
 ## Coordinated Disclosure
 
-We follow a coordinated disclosure policy:
+We follow a coordinated disclosure process:
 
-- We will work with reporters to understand and resolve vulnerabilities
-- We aim to release fixes before public disclosure
-- We will publicly acknowledge reporters (with permission) after fixes are released
-- We request a 90-day disclosure window for complex issues
+- We will work with reporters to understand and address issues.
+- We aim to release fixes before public disclosure where feasible.
+- Reporters will be credited with permission after fixes are released.
+- We request a disclosure window of up to 90 days for complex issues.
+
+---
 
 ## Bug Bounty
 
-Currently, we do not offer a bug bounty program. However, we deeply appreciate responsible disclosure and will acknowledge contributors in our release notes.
+We do not currently operate a bug bounty program.
+However, responsible disclosure is greatly appreciated, and contributors may be acknowledged in release notes.
