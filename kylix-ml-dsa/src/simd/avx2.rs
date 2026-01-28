@@ -742,8 +742,7 @@ mod tests {
         // Test with various input ranges
         let test_cases: [i32; N] = core::array::from_fn(|i| {
             // Mix of positive, negative, small, and large values
-            let base = (i as i32 * 123457) % (4 * Q) - 2 * Q;
-            base
+            (i as i32 * 123457) % (4 * Q) - 2 * Q
         });
 
         // Scalar reference
