@@ -21,6 +21,30 @@ Note: CLI-related tests are in the separate [kylix-cli repository](https://githu
 
 During development, run `cargo fmt --all` frequently (for example, after each edit) to keep formatting consistent and get fast feedback.
 
+## Security: Handling Sensitive Data
+
+When working with secret keys, seeds, or other sensitive cryptographic material:
+
+**Avoid intermediate buffers** - Write directly into the destination struct to prevent sensitive data from lingering on the stack.
+
+```rust
+// BAD: Creates intermediate buffer that may not be zeroized
+let mut temp = [0u8; SIZE];
+temp.copy_from_slice(bytes);
+let result = Struct { field: temp };  // temp copied, original stays on stack
+
+// GOOD: Write directly into struct
+let mut result = Struct { field: [0u8; SIZE] };
+result.field.copy_from_slice(bytes);  // No intermediate buffer
+```
+
+For types that implement `from_bytes()` for secret keys:
+- Initialize the struct with zeroed arrays first
+- Copy data directly into struct fields
+- Avoid `try_into()` for secret data (creates intermediate arrays due to Copy trait)
+
+All sensitive key types must implement `Zeroize` and `ZeroizeOnDrop` to ensure automatic cleanup.
+
 ## Release
 
 - Main crate is `kylix-pqc` (not `kylix` - that name was taken on crates.io)
