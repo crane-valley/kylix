@@ -23,6 +23,9 @@ macro_rules! define_kem_types {
 
         impl DecapsulationKey {
             /// Create a decapsulation key from bytes.
+            ///
+            /// Writes directly into the struct to avoid intermediate buffers
+            /// that could leave sensitive data on the stack.
             pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
                 if bytes.len() != $dk_size {
                     return Err(Error::InvalidKeyLength {
@@ -30,9 +33,11 @@ macro_rules! define_kem_types {
                         actual: bytes.len(),
                     });
                 }
-                let mut key = [0u8; $dk_size];
-                key.copy_from_slice(bytes);
-                Ok(Self { bytes: key })
+                let mut result = Self {
+                    bytes: [0u8; $dk_size],
+                };
+                result.bytes.copy_from_slice(bytes);
+                Ok(result)
             }
 
             /// Get the key as a byte slice.
@@ -56,9 +61,11 @@ macro_rules! define_kem_types {
                         actual: bytes.len(),
                     });
                 }
-                let mut key = [0u8; $ek_size];
-                key.copy_from_slice(bytes);
-                Ok(Self { bytes: key })
+                let mut result = Self {
+                    bytes: [0u8; $ek_size],
+                };
+                result.bytes.copy_from_slice(bytes);
+                Ok(result)
             }
 
             /// Get the key as a byte slice.
@@ -82,9 +89,11 @@ macro_rules! define_kem_types {
                         actual: bytes.len(),
                     });
                 }
-                let mut ct = [0u8; $ct_size];
-                ct.copy_from_slice(bytes);
-                Ok(Self { bytes: ct })
+                let mut result = Self {
+                    bytes: [0u8; $ct_size],
+                };
+                result.bytes.copy_from_slice(bytes);
+                Ok(result)
             }
 
             /// Get the ciphertext as a byte slice.
