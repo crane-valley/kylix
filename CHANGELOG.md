@@ -141,7 +141,8 @@ CLI-only release with security improvements and new features.
 - Constant-time operations using `subtle` crate
 - Zeroization of sensitive data using `zeroize` crate
 
-[Unreleased]: https://github.com/crane-valley/kylix/compare/v0.4.2-cli...HEAD
+[Unreleased]: https://github.com/crane-valley/kylix/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/crane-valley/kylix/compare/v0.4.2-cli...v0.4.3
 [0.4.2-cli]: https://github.com/crane-valley/kylix/compare/v0.4.2...v0.4.2-cli
 [0.4.2]: https://github.com/crane-valley/kylix/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/crane-valley/kylix/compare/v0.4.0...v0.4.1
