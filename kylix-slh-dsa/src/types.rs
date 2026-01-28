@@ -36,12 +36,9 @@ macro_rules! define_slh_dsa_variant {
 
             /// Serialize the signing key to bytes.
             ///
-            /// Note: The returned vector contains secret key material and should be
-            /// zeroized after use.
-            pub fn to_bytes(&self) -> Vec<u8> {
-                // Convert from Zeroizing<Vec<u8>> to Vec<u8>
-                // The internal to_bytes uses Zeroizing for automatic cleanup
-                self.0.to_bytes().as_slice().to_vec()
+            /// Returns a `Zeroizing` wrapper that automatically clears memory on drop.
+            pub fn to_bytes(&self) -> zeroize::Zeroizing<Vec<u8>> {
+                self.0.to_bytes()
             }
 
             /// Get the corresponding verification key.
