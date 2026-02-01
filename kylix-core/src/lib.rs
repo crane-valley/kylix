@@ -7,6 +7,7 @@
 //! - Cryptographic primitive traits (`Kem`, `Signer`)
 //! - Modular arithmetic macros for lattice-based cryptography
 //! - NTT (Number Theoretic Transform) macros for polynomial multiplication
+//! - SIMD dispatch macros for platform-specific optimizations
 //! - Secure memory handling with zeroize integration
 
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -17,6 +18,7 @@
 mod error;
 mod ntt;
 mod reduce;
+mod simd;
 mod traits;
 
 pub use error::{Error, Result};

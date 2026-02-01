@@ -29,45 +29,8 @@ mod neon;
 #[cfg(target_arch = "wasm32")]
 mod wasm;
 
-// ============================================================================
-// Safe wrapper functions
-// ============================================================================
-
-/// Check if AVX2 is available at runtime (x86_64 only).
-///
-/// On x86_64, this uses CPUID to detect AVX2 support.
-/// On other architectures, this always returns false.
-#[cfg(target_arch = "x86_64")]
-#[inline]
-pub fn has_avx2() -> bool {
-    // Compile-time detection: if AVX2 is enabled at compile time, always return true
-    #[cfg(target_feature = "avx2")]
-    {
-        true
-    }
-    #[cfg(not(target_feature = "avx2"))]
-    {
-        // Runtime detection (the macro caches internally)
-        #[cfg(feature = "std")]
-        {
-            std::arch::is_x86_feature_detected!("avx2")
-        }
-        #[cfg(not(feature = "std"))]
-        {
-            false
-        }
-    }
-}
-
-/// Check if NEON is available (aarch64).
-///
-/// NEON is always available on aarch64, so this returns true.
-#[cfg(target_arch = "aarch64")]
-#[inline]
-#[allow(dead_code)]
-pub const fn has_neon() -> bool {
-    true
-}
+// Generate has_avx2() / has_neon() detection functions
+kylix_core::define_has_avx2!();
 
 /// Check if SIMD128 is available (wasm32).
 ///
@@ -78,246 +41,41 @@ pub const fn has_simd128() -> bool {
     cfg!(target_feature = "simd128")
 }
 
-// ============================================================================
-// Safe public API - wraps unsafe SIMD intrinsics
-// ============================================================================
-
-/// Pointwise multiplication using SIMD (AVX2).
-///
-/// Returns true if SIMD was used, false if caller should use scalar fallback.
-#[cfg(target_arch = "x86_64")]
-#[inline]
-pub fn pointwise_mul(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) -> bool {
-    if has_avx2() {
-        // SAFETY: AVX2 availability confirmed by has_avx2()
-        unsafe {
-            avx2::pointwise_mul(r, a, b);
-        }
-        true
-    } else {
-        false
-    }
+// Pointwise multiplication dispatch (Pattern B: avx2 + neon + wasm)
+kylix_core::define_simd_dispatch! {
+    pub fn pointwise_mul(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) -> bool;
+    avx2: avx2::pointwise_mul(r, a, b),
+    neon: neon::pointwise_mul(r, a, b),
+    wasm: wasm::pointwise_mul(r, a, b)
 }
 
-/// Pointwise multiply-accumulate using SIMD (AVX2).
-///
-/// Returns true if SIMD was used, false if caller should use scalar fallback.
-#[cfg(target_arch = "x86_64")]
-#[inline]
-pub fn pointwise_mul_acc(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) -> bool {
-    if has_avx2() {
-        // SAFETY: AVX2 availability confirmed by has_avx2()
-        unsafe {
-            avx2::pointwise_mul_acc(r, a, b);
-        }
-        true
-    } else {
-        false
-    }
+kylix_core::define_simd_dispatch! {
+    pub fn pointwise_mul_acc(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) -> bool;
+    avx2: avx2::pointwise_mul_acc(r, a, b),
+    neon: neon::pointwise_mul_acc(r, a, b),
+    wasm: wasm::pointwise_mul_acc(r, a, b)
 }
 
-/// Pointwise multiplication using SIMD (NEON).
-///
-/// Returns true if SIMD was used.
-#[cfg(target_arch = "aarch64")]
-#[inline]
-pub fn pointwise_mul(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) -> bool {
-    // SAFETY: NEON is always available on aarch64
-    unsafe {
-        neon::pointwise_mul(r, a, b);
-    }
-    true
+// NTT dispatch (Pattern A: avx2 + neon)
+kylix_core::define_simd_dispatch! {
+    pub fn ntt(a: &mut [i32; N]) -> bool;
+    avx2: avx2::ntt_avx2(a),
+    neon: neon::ntt_neon(a)
 }
 
-/// Pointwise multiply-accumulate using SIMD (NEON).
-///
-/// Returns true if SIMD was used.
-#[cfg(target_arch = "aarch64")]
-#[inline]
-pub fn pointwise_mul_acc(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) -> bool {
-    // SAFETY: NEON is always available on aarch64
-    unsafe {
-        neon::pointwise_mul_acc(r, a, b);
-    }
-    true
+kylix_core::define_simd_dispatch! {
+    pub fn inv_ntt(a: &mut [i32; N]) -> bool;
+    avx2: avx2::inv_ntt_avx2(a),
+    neon: neon::inv_ntt_neon(a)
 }
 
-/// Pointwise multiplication using SIMD (WASM SIMD128).
-///
-/// Returns true if SIMD was used.
-#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-#[inline]
-pub fn pointwise_mul(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) -> bool {
-    // SAFETY: simd128 confirmed via target_feature
-    unsafe {
-        wasm::pointwise_mul(r, a, b);
-    }
-    true
+// Barrett reduction dispatch (Pattern C: avx2 only)
+kylix_core::define_simd_dispatch! {
+    pub fn reduce(a: &mut [i32; N]) -> bool;
+    avx2: avx2::reduce_avx2(a)
 }
 
-/// Pointwise multiply-accumulate using SIMD (WASM SIMD128).
-///
-/// Returns true if SIMD was used.
-#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-#[inline]
-pub fn pointwise_mul_acc(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) -> bool {
-    // SAFETY: simd128 confirmed via target_feature
-    unsafe {
-        wasm::pointwise_mul_acc(r, a, b);
-    }
-    true
-}
-
-/// Fallback for unsupported architectures.
-#[cfg(not(any(
-    target_arch = "x86_64",
-    target_arch = "aarch64",
-    all(target_arch = "wasm32", target_feature = "simd128")
-)))]
-#[inline]
-pub fn pointwise_mul(_r: &mut [i32; N], _a: &[i32; N], _b: &[i32; N]) -> bool {
-    false
-}
-
-/// Fallback for unsupported architectures.
-#[cfg(not(any(
-    target_arch = "x86_64",
-    target_arch = "aarch64",
-    all(target_arch = "wasm32", target_feature = "simd128")
-)))]
-#[inline]
-pub fn pointwise_mul_acc(_r: &mut [i32; N], _a: &[i32; N], _b: &[i32; N]) -> bool {
-    false
-}
-
-// ============================================================================
-// NTT SIMD API
-// ============================================================================
-
-/// Forward NTT using SIMD (AVX2).
-///
-/// Returns true if SIMD was used, false if caller should use scalar fallback.
-#[cfg(target_arch = "x86_64")]
-#[inline]
-pub fn ntt(a: &mut [i32; N]) -> bool {
-    if has_avx2() {
-        // SAFETY: AVX2 availability confirmed by has_avx2()
-        unsafe {
-            avx2::ntt_avx2(a);
-        }
-        true
-    } else {
-        false
-    }
-}
-
-/// Inverse NTT using SIMD (AVX2).
-///
-/// Returns true if SIMD was used, false if caller should use scalar fallback.
-#[cfg(target_arch = "x86_64")]
-#[inline]
-pub fn inv_ntt(a: &mut [i32; N]) -> bool {
-    if has_avx2() {
-        // SAFETY: AVX2 availability confirmed by has_avx2()
-        unsafe {
-            avx2::inv_ntt_avx2(a);
-        }
-        true
-    } else {
-        false
-    }
-}
-
-/// Forward NTT using SIMD (NEON).
-///
-/// Returns true if SIMD was used.
-#[cfg(target_arch = "aarch64")]
-#[inline]
-pub fn ntt(a: &mut [i32; N]) -> bool {
-    // SAFETY: NEON is always available on aarch64
-    unsafe {
-        neon::ntt_neon(a);
-    }
-    true
-}
-
-/// Inverse NTT using SIMD (NEON).
-///
-/// Returns true if SIMD was used.
-#[cfg(target_arch = "aarch64")]
-#[inline]
-pub fn inv_ntt(a: &mut [i32; N]) -> bool {
-    // SAFETY: NEON is always available on aarch64
-    unsafe {
-        neon::inv_ntt_neon(a);
-    }
-    true
-}
-
-/// Forward NTT fallback for unsupported architectures.
-#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-#[inline]
-pub fn ntt(_a: &mut [i32; N]) -> bool {
-    false
-}
-
-/// Inverse NTT fallback for unsupported architectures.
-#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-#[inline]
-pub fn inv_ntt(_a: &mut [i32; N]) -> bool {
-    false
-}
-
-// ============================================================================
-// Barrett reduction SIMD API
-// ============================================================================
-
-/// Barrett reduction using SIMD (AVX2).
-///
-/// Reduces all coefficients to [0, q-1].
-/// Returns true if SIMD was used, false if caller should use scalar fallback.
-#[cfg(target_arch = "x86_64")]
-#[inline]
-pub fn reduce(a: &mut [i32; N]) -> bool {
-    if has_avx2() {
-        // SAFETY: AVX2 availability confirmed by has_avx2()
-        unsafe {
-            avx2::reduce_avx2(a);
-        }
-        true
-    } else {
-        false
-    }
-}
-
-/// Conditional add q using SIMD (AVX2).
-///
-/// For each coefficient: if a[i] < 0, add q.
-/// Returns true if SIMD was used, false if caller should use scalar fallback.
-#[cfg(target_arch = "x86_64")]
-#[inline]
-pub fn caddq(a: &mut [i32; N]) -> bool {
-    if has_avx2() {
-        // SAFETY: AVX2 availability confirmed by has_avx2()
-        unsafe {
-            avx2::caddq_avx2(a);
-        }
-        true
-    } else {
-        false
-    }
-}
-
-/// Barrett reduction fallback for unsupported architectures.
-#[cfg(not(target_arch = "x86_64"))]
-#[inline]
-pub fn reduce(_a: &mut [i32; N]) -> bool {
-    false
-}
-
-/// Conditional add q fallback for unsupported architectures.
-#[cfg(not(target_arch = "x86_64"))]
-#[inline]
-pub fn caddq(_a: &mut [i32; N]) -> bool {
-    false
+kylix_core::define_simd_dispatch! {
+    pub fn caddq(a: &mut [i32; N]) -> bool;
+    avx2: avx2::caddq_avx2(a)
 }
