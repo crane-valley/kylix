@@ -36,7 +36,8 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | ~~ML-DSA: AVX2 Barrett~~ | ~~LOW~~ | ~~Performance~~ | ✓ Vectorized Barrett reduction and caddq in `simd/avx2.rs` |
 | API: Key/Sig Bytes Method | LOW | Consistency | Unify `as_bytes()` vs `to_bytes()` across crates (see note below) |
 | SLH-DSA: no_std test imports | LOW | Test | Add `use alloc::vec;` to test modules (utils.rs, sign.rs) for no_std builds |
-| SLH-DSA: slh_sign buffer API | MEDIUM | Performance | Refactor `slh_sign` to write to pre-allocated buffer instead of returning `Vec<u8>` (requires FORS/XMSS/Hypertree changes) |
+| ~~SLH-DSA: slh_sign buffer API~~ | ~~MEDIUM~~ | ~~Performance~~ | ✓ Added `_to` buffer-write variants for all signing functions; `slh_sign_impl` now pre-allocates a single buffer |
+| SLH-DSA: HashSuite buffer API | LOW | Performance | Extend `_to` pattern to `wots_chain`, `fors_tree_node`, `xmss_node` and HashSuite trait methods (`f`, `h`, `prf`) to eliminate remaining per-call `Vec<u8>` allocations inside signing loops |
 | ~~Core: Modular Arithmetic~~ | ~~HIGH~~ | ~~200 LOC~~ | ✓ Extracted Barrett/Montgomery reduction macros to kylix-core (ML-KEM i16, ML-DSA i32) |
 | Core: NTT Abstraction | HIGH | ~300 LOC | Extract generic NTT trait to kylix-core (forward/inverse NTT duplicated in ML-KEM/ML-DSA) |
 | Core: SIMD Wrapper Macro | MEDIUM | ~200 LOC | Unify SIMD dispatch pattern (AVX2/NEON/fallback) into shared macro |
@@ -93,7 +94,7 @@ ML-KEM/ML-DSA use `as_bytes() -> &[u8]`, SLH-DSA uses `to_bytes()` with mixed se
 
 Recommended fix: Add `as_bytes()` methods returning `&[u8]` for all types, deprecate inconsistent `to_bytes()` on `Signature`.
 
-#### SLH-DSA Internal Structure Refactoring Plan
+#### ~~SLH-DSA Internal Structure Refactoring Plan~~ ✓ Completed in PR #113
 
 **Goal:** Unify SLH-DSA with ML-KEM/ML-DSA by changing internal storage from struct-based to `[u8; SIZE]`.
 

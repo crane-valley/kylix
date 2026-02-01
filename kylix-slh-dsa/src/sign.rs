@@ -7,24 +7,24 @@
 
 use crate::address::{Address, AdrsType};
 use crate::hash::HashSuite;
-use crate::hypertree::{ht_root, ht_sign, ht_verify};
+use crate::hypertree::{ht_root, ht_sign_to, ht_verify};
 
 // Use parallel versions for signing (where parallelization helps)
 #[cfg(feature = "parallel")]
-use crate::parallel::fors_sign_parallel;
+use crate::parallel::fors_sign_parallel_to;
 
 // Always use sequential fors_pk_from_sig for verification
 // (parallel overhead exceeds benefits for small workloads)
 use crate::fors::fors_pk_from_sig;
 
 #[cfg(not(feature = "parallel"))]
-use crate::fors::fors_sign;
+use crate::fors::fors_sign_to;
 
 use rand_core::CryptoRng;
 use zeroize::Zeroize;
 
 #[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 
 /// Secret key components.
 ///
@@ -334,16 +334,41 @@ fn slh_sign_impl<
         a
     };
 
-    // Generate FORS signature (parallel - this is the expensive part)
-    let sig_fors = fors_sign_parallel::<H>(&md, &sk.sk_seed, &sk.pk_seed, &adrs, K, A);
+    // Pre-allocate single signature buffer: R || SIG_FORS || SIG_HT
+    let fors_sig_len = K * (A + 1) * N;
+    let ht_sig_len = D * (WOTS_LEN * N + H_PRIME * N);
+    let sig_len = N + fors_sig_len + ht_sig_len;
+    let mut signature = vec![0u8; sig_len];
+
+    // Write R
+    signature[..N].copy_from_slice(&r);
+
+    // Generate FORS signature (parallel) directly into buffer
+    fors_sign_parallel_to::<H>(
+        &mut signature[N..N + fors_sig_len],
+        &md,
+        &sk.sk_seed,
+        &sk.pk_seed,
+        &adrs,
+        K,
+        A,
+    );
 
     // Compute FORS public key for hypertree signing
     // Use sequential version - pk recovery is fast and parallel overhead hurts
     let mut adrs_pk = adrs;
-    let pk_fors = fors_pk_from_sig::<H>(&sig_fors, &md, &sk.pk_seed, &mut adrs_pk, K, A);
+    let pk_fors = fors_pk_from_sig::<H>(
+        &signature[N..N + fors_sig_len],
+        &md,
+        &sk.pk_seed,
+        &mut adrs_pk,
+        K,
+        A,
+    );
 
-    // Generate hypertree signature
-    let sig_ht = ht_sign::<H, WOTS_LEN, WOTS_LEN1>(
+    // Generate hypertree signature directly into buffer
+    ht_sign_to::<H, WOTS_LEN, WOTS_LEN1>(
+        &mut signature[N + fors_sig_len..],
         &pk_fors,
         &sk.sk_seed,
         &sk.pk_seed,
@@ -352,12 +377,6 @@ fn slh_sign_impl<
         H_PRIME,
         D,
     );
-
-    // Assemble signature: R || SIG_FORS || SIG_HT
-    let mut signature = Vec::with_capacity(N + sig_fors.len() + sig_ht.len());
-    signature.extend_from_slice(&r);
-    signature.extend_from_slice(&sig_fors);
-    signature.extend_from_slice(&sig_ht);
 
     signature
 }
@@ -405,18 +424,43 @@ fn slh_sign_impl<
     adrs.set_tree(idx_tree);
     adrs.set_keypair(idx_leaf);
 
-    // Generate FORS signature (sequential)
-    let sig_fors = fors_sign::<H>(&md, &sk.sk_seed, &sk.pk_seed, &mut adrs, K, A);
+    // Pre-allocate single signature buffer: R || SIG_FORS || SIG_HT
+    let fors_sig_len = K * (A + 1) * N;
+    let ht_sig_len = D * (WOTS_LEN * N + H_PRIME * N);
+    let sig_len = N + fors_sig_len + ht_sig_len;
+    let mut signature = vec![0u8; sig_len];
+
+    // Write R
+    signature[..N].copy_from_slice(&r);
+
+    // Generate FORS signature (sequential) directly into buffer
+    fors_sign_to::<H>(
+        &mut signature[N..N + fors_sig_len],
+        &md,
+        &sk.sk_seed,
+        &sk.pk_seed,
+        &mut adrs,
+        K,
+        A,
+    );
 
     // Compute FORS public key for hypertree signing (sequential)
     let mut adrs_pk = Address::new();
     adrs_pk.set_type(AdrsType::ForsTree);
     adrs_pk.set_tree(idx_tree);
     adrs_pk.set_keypair(idx_leaf);
-    let pk_fors = fors_pk_from_sig::<H>(&sig_fors, &md, &sk.pk_seed, &mut adrs_pk, K, A);
+    let pk_fors = fors_pk_from_sig::<H>(
+        &signature[N..N + fors_sig_len],
+        &md,
+        &sk.pk_seed,
+        &mut adrs_pk,
+        K,
+        A,
+    );
 
-    // Generate hypertree signature
-    let sig_ht = ht_sign::<H, WOTS_LEN, WOTS_LEN1>(
+    // Generate hypertree signature directly into buffer
+    ht_sign_to::<H, WOTS_LEN, WOTS_LEN1>(
+        &mut signature[N + fors_sig_len..],
         &pk_fors,
         &sk.sk_seed,
         &sk.pk_seed,
@@ -425,12 +469,6 @@ fn slh_sign_impl<
         H_PRIME,
         D,
     );
-
-    // Assemble signature: R || SIG_FORS || SIG_HT
-    let mut signature = Vec::with_capacity(N + sig_fors.len() + sig_ht.len());
-    signature.extend_from_slice(&r);
-    signature.extend_from_slice(&sig_fors);
-    signature.extend_from_slice(&sig_ht);
 
     signature
 }

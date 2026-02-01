@@ -61,6 +61,44 @@ pub fn wots_pk_gen_parallel<H: HashSuite + Send + Sync, const WOTS_LEN: usize>(
     H::t_l(pk_seed, &wots_pk_adrs, &tmp)
 }
 
+/// Generate a WOTS+ signature in parallel into a pre-allocated buffer.
+///
+/// Parallelizes the chain computations across WOTS_LEN chains.
+pub fn wots_sign_parallel_to<
+    H: HashSuite + Send + Sync,
+    const WOTS_LEN: usize,
+    const WOTS_LEN1: usize,
+>(
+    out: &mut [u8],
+    message: &[u8],
+    sk_seed: &[u8],
+    pk_seed: &[u8],
+    adrs: &mut Address,
+) {
+    let n = H::N;
+    debug_assert_eq!(out.len(), WOTS_LEN * n);
+
+    // Convert message to base-w representation and append checksum
+    let mut msg = base_2b(message, LG_W, WOTS_LEN1);
+    msg.extend(encode_checksum(&msg, WOTS_LEN, WOTS_LEN1));
+
+    // Compute base addresses
+    let sk_adrs_base = adrs.with_type(AdrsType::WotsPrf);
+    let hash_adrs_base = *adrs;
+
+    // Parallel signature generation directly into output buffer
+    out.par_chunks_mut(n).enumerate().for_each(|(i, chunk)| {
+        let mut sk_adrs = sk_adrs_base;
+        sk_adrs.set_chain(i as u32);
+        let sk_i = H::prf(pk_seed, sk_seed, &sk_adrs);
+
+        let mut hash_adrs = hash_adrs_base;
+        hash_adrs.set_chain(i as u32);
+        let sig_i = wots_chain::<H>(&sk_i, 0, msg[i], pk_seed, &mut hash_adrs);
+        chunk.copy_from_slice(&sig_i);
+    });
+}
+
 /// Generate a WOTS+ signature in parallel.
 ///
 /// Parallelizes the chain computations across WOTS_LEN chains.
@@ -74,30 +112,9 @@ pub fn wots_sign_parallel<
     pk_seed: &[u8],
     adrs: &mut Address,
 ) -> Vec<u8> {
-    // Convert message to base-w representation and append checksum
-    let mut msg = base_2b(message, LG_W, WOTS_LEN1);
-    msg.extend(encode_checksum(&msg, WOTS_LEN, WOTS_LEN1));
-
-    // Compute base addresses
-    let sk_adrs_base = adrs.with_type(AdrsType::WotsPrf);
-    let hash_adrs_base = *adrs;
-
-    // Parallel signature generation
-    let sig_parts: Vec<Vec<u8>> = (0..WOTS_LEN)
-        .into_par_iter()
-        .map(|i| {
-            let mut sk_adrs = sk_adrs_base;
-            sk_adrs.set_chain(i as u32);
-            let sk_i = H::prf(pk_seed, sk_seed, &sk_adrs);
-
-            let mut hash_adrs = hash_adrs_base;
-            hash_adrs.set_chain(i as u32);
-            wots_chain::<H>(&sk_i, 0, msg[i], pk_seed, &mut hash_adrs)
-        })
-        .collect();
-
-    // Flatten results
-    sig_parts.into_iter().flatten().collect()
+    let mut sig = vec![0u8; WOTS_LEN * H::N];
+    wots_sign_parallel_to::<H, WOTS_LEN, WOTS_LEN1>(&mut sig, message, sk_seed, pk_seed, adrs);
+    sig
 }
 
 /// Compute WOTS+ public key from signature in parallel.
@@ -142,39 +159,40 @@ pub fn wots_pk_from_sig_parallel<
 // FORS Parallel Implementation
 // ============================================================================
 
-/// Generate a FORS signature in parallel.
+/// Generate a FORS signature in parallel into a pre-allocated buffer.
 ///
-/// Parallelizes across K independent FORS trees.
-pub fn fors_sign_parallel<H: HashSuite + Send + Sync>(
+/// Parallelizes across K independent FORS trees using `par_chunks_mut`.
+pub fn fors_sign_parallel_to<H: HashSuite + Send + Sync>(
+    out: &mut [u8],
     md: &[u8],
     sk_seed: &[u8],
     pk_seed: &[u8],
     adrs: &Address,
     k: usize,
     a: usize,
-) -> Vec<u8> {
+) {
     let n = H::N;
     let t = 1u32 << a;
+    let chunk_size = n + a * n;
+    debug_assert_eq!(out.len(), k * chunk_size);
 
     // Extract k indices from message digest
     let indices = base_2b(md, a, k);
 
-    // Process K trees in parallel
-    let tree_sigs: Vec<Vec<u8>> = (0..k)
-        .into_par_iter()
-        .map(|i| {
+    // Process K trees in parallel, each writing directly into its chunk
+    out.par_chunks_mut(chunk_size)
+        .enumerate()
+        .for_each(|(i, chunk)| {
             let idx = indices[i];
             let tree_idx = i as u32;
             let global_leaf_idx = tree_idx * t + idx;
-
-            let mut tree_sig = Vec::with_capacity(n + a * n);
 
             // Generate secret key element
             let mut sk_adrs = adrs.with_type(AdrsType::ForsPrf);
             sk_adrs.set_tree_height(0);
             sk_adrs.set_tree_index(global_leaf_idx);
             let sk = H::prf(pk_seed, sk_seed, &sk_adrs);
-            tree_sig.extend_from_slice(&sk);
+            chunk[..n].copy_from_slice(&sk);
 
             // Compute authentication path
             let mut auth_adrs = *adrs;
@@ -189,15 +207,26 @@ pub fn fors_sign_parallel<H: HashSuite + Send + Sync>(
                     &mut auth_adrs,
                     t,
                 );
-                tree_sig.extend_from_slice(&auth_node);
+                chunk[n + j * n..n + (j + 1) * n].copy_from_slice(&auth_node);
             }
+        });
+}
 
-            tree_sig
-        })
-        .collect();
-
-    // Flatten results
-    tree_sigs.into_iter().flatten().collect()
+/// Generate a FORS signature in parallel.
+///
+/// Parallelizes across K independent FORS trees.
+pub fn fors_sign_parallel<H: HashSuite + Send + Sync>(
+    md: &[u8],
+    sk_seed: &[u8],
+    pk_seed: &[u8],
+    adrs: &Address,
+    k: usize,
+    a: usize,
+) -> Vec<u8> {
+    let n = H::N;
+    let mut sig = vec![0u8; k * (n + a * n)];
+    fors_sign_parallel_to::<H>(&mut sig, md, sk_seed, pk_seed, adrs, k, a);
+    sig
 }
 
 /// Compute FORS public key from signature in parallel.
@@ -302,6 +331,48 @@ pub fn xmss_node_parallel<H: HashSuite + Send + Sync, const WOTS_LEN: usize>(
     }
 }
 
+/// Generate an XMSS signature with parallel computation into a pre-allocated buffer.
+pub fn xmss_sign_parallel_to<
+    H: HashSuite + Send + Sync,
+    const WOTS_LEN: usize,
+    const WOTS_LEN1: usize,
+>(
+    out: &mut [u8],
+    message: &[u8],
+    sk_seed: &[u8],
+    idx: u32,
+    pk_seed: &[u8],
+    adrs: &Address,
+    h_prime: usize,
+) {
+    let n = H::N;
+    let wots_sig_len = WOTS_LEN * n;
+    debug_assert_eq!(out.len(), wots_sig_len + h_prime * n);
+
+    // Generate WOTS+ signature (parallelized) directly into output buffer
+    let mut wots_adrs = *adrs;
+    wots_adrs.set_type(AdrsType::WotsHash);
+    wots_adrs.set_keypair(idx);
+    wots_sign_parallel_to::<H, WOTS_LEN, WOTS_LEN1>(
+        &mut out[..wots_sig_len],
+        message,
+        sk_seed,
+        pk_seed,
+        &mut wots_adrs,
+    );
+
+    // Compute authentication path in parallel directly into output buffer
+    out[wots_sig_len..]
+        .par_chunks_mut(n)
+        .enumerate()
+        .for_each(|(j, chunk)| {
+            let sibling_idx = (idx >> j) ^ 1;
+            let node =
+                xmss_node_parallel::<H, WOTS_LEN>(sk_seed, sibling_idx, j as u32, pk_seed, adrs);
+            chunk.copy_from_slice(&node);
+        });
+}
+
 /// Generate an XMSS signature with parallel authentication path computation.
 pub fn xmss_sign_parallel<
     H: HashSuite + Send + Sync,
@@ -315,25 +386,11 @@ pub fn xmss_sign_parallel<
     adrs: &Address,
     h_prime: usize,
 ) -> Vec<u8> {
-    // Generate WOTS+ signature (parallelized)
-    let mut wots_adrs = *adrs;
-    wots_adrs.set_type(AdrsType::WotsHash);
-    wots_adrs.set_keypair(idx);
-    let sig_wots =
-        wots_sign_parallel::<H, WOTS_LEN, WOTS_LEN1>(message, sk_seed, pk_seed, &mut wots_adrs);
-
-    // Compute authentication path in parallel
-    let auth_nodes: Vec<Vec<u8>> = (0..h_prime)
-        .into_par_iter()
-        .map(|j| {
-            let sibling_idx = (idx >> j) ^ 1;
-            xmss_node_parallel::<H, WOTS_LEN>(sk_seed, sibling_idx, j as u32, pk_seed, adrs)
-        })
-        .collect();
-
-    // Build result: WOTS signature + authentication path
-    let mut sig = sig_wots;
-    sig.extend(auth_nodes.into_iter().flatten());
+    let n = H::N;
+    let mut sig = vec![0u8; WOTS_LEN * n + h_prime * n];
+    xmss_sign_parallel_to::<H, WOTS_LEN, WOTS_LEN1>(
+        &mut sig, message, sk_seed, idx, pk_seed, adrs, h_prime,
+    );
     sig
 }
 
