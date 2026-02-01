@@ -7,7 +7,7 @@
 
 use crate::address::{Address, AdrsType};
 use crate::hash::HashSuite;
-use crate::wots::{wots_pk_from_sig, wots_pk_gen, wots_sign};
+use crate::wots::{wots_pk_from_sig, wots_pk_gen, wots_sign_to};
 
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
@@ -54,6 +54,54 @@ pub fn xmss_node<H: HashSuite, const WOTS_LEN: usize>(
     }
 }
 
+/// Generate an XMSS signature into a pre-allocated buffer.
+///
+/// FIPS 205, Algorithm 10: xmss_sign(M, SK.seed, idx, PK.seed, ADRS)
+///
+/// Signs a message using the XMSS tree at the specified leaf index,
+/// writing the result directly into the provided output buffer.
+///
+/// # Arguments
+/// * `out` - Output buffer (must be exactly (WOTS_LEN + h_prime) * n bytes)
+/// * `message` - Message to sign (n bytes, typically a root from lower layer)
+/// * `sk_seed` - Secret seed
+/// * `idx` - Leaf index to use for signing
+/// * `pk_seed` - Public seed
+/// * `adrs` - Address (will be modified during computation)
+/// * `h_prime` - Height of this XMSS tree
+pub fn xmss_sign_to<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
+    out: &mut [u8],
+    message: &[u8],
+    sk_seed: &[u8],
+    idx: u32,
+    pk_seed: &[u8],
+    adrs: &Address,
+    h_prime: usize,
+) {
+    let n = H::N;
+    let wots_sig_len = WOTS_LEN * n;
+    debug_assert_eq!(out.len(), wots_sig_len + h_prime * n);
+
+    // Generate WOTS+ signature directly into output buffer
+    let mut wots_adrs = *adrs;
+    wots_adrs.set_type(AdrsType::WotsHash);
+    wots_adrs.set_keypair(idx);
+    wots_sign_to::<H, WOTS_LEN, WOTS_LEN1>(
+        &mut out[..wots_sig_len],
+        message,
+        sk_seed,
+        pk_seed,
+        &mut wots_adrs,
+    );
+
+    // Compute authentication path directly into output buffer
+    for j in 0..h_prime {
+        let sibling_idx = (idx >> j) ^ 1;
+        let node = xmss_node::<H, WOTS_LEN>(sk_seed, sibling_idx, j as u32, pk_seed, adrs);
+        out[wots_sig_len + j * n..wots_sig_len + (j + 1) * n].copy_from_slice(&node);
+    }
+}
+
 /// Generate an XMSS signature.
 ///
 /// FIPS 205, Algorithm 10: xmss_sign(M, SK.seed, idx, PK.seed, ADRS)
@@ -70,6 +118,7 @@ pub fn xmss_node<H: HashSuite, const WOTS_LEN: usize>(
 ///
 /// # Returns
 /// XMSS signature: (WOTS+ signature || authentication path)
+#[allow(dead_code)]
 pub fn xmss_sign<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
     message: &[u8],
     sk_seed: &[u8],
@@ -79,26 +128,8 @@ pub fn xmss_sign<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
     h_prime: usize,
 ) -> Vec<u8> {
     let n = H::N;
-
-    // Generate WOTS+ signature
-    let mut wots_adrs = *adrs;
-    wots_adrs.set_type(AdrsType::WotsHash);
-    wots_adrs.set_keypair(idx);
-    let sig_wots = wots_sign::<H, WOTS_LEN, WOTS_LEN1>(message, sk_seed, pk_seed, &mut wots_adrs);
-
-    // Compute authentication path
-    let mut auth = Vec::with_capacity(h_prime * n);
-
-    for j in 0..h_prime {
-        // Compute sibling index at height j
-        let sibling_idx = (idx >> j) ^ 1;
-        let node = xmss_node::<H, WOTS_LEN>(sk_seed, sibling_idx, j as u32, pk_seed, adrs);
-        auth.extend_from_slice(&node);
-    }
-
-    // Return sig_wots || auth
-    let mut sig = sig_wots;
-    sig.extend_from_slice(&auth);
+    let mut sig = vec![0u8; WOTS_LEN * n + h_prime * n];
+    xmss_sign_to::<H, WOTS_LEN, WOTS_LEN1>(&mut sig, message, sk_seed, idx, pk_seed, adrs, h_prime);
     sig
 }
 

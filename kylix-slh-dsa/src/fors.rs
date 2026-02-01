@@ -95,6 +95,68 @@ pub(crate) fn fors_tree_node<H: HashSuite>(
     }
 }
 
+/// Generate a FORS signature into a pre-allocated buffer.
+///
+/// FIPS 205, Algorithm 17: fors_sign(md, SK.seed, PK.seed, ADRS)
+///
+/// Signs a message digest using FORS, writing the result directly
+/// into the provided output buffer.
+///
+/// # Arguments
+/// * `out` - Output buffer (must be exactly k * (1 + a) * n bytes)
+/// * `md` - Message digest (determines which leaves to reveal)
+/// * `sk_seed` - Secret seed
+/// * `pk_seed` - Public seed
+/// * `adrs` - Address (will be modified during computation)
+/// * `k` - Number of FORS trees
+/// * `a` - Height of each FORS tree
+pub fn fors_sign_to<H: HashSuite>(
+    out: &mut [u8],
+    md: &[u8],
+    sk_seed: &[u8],
+    pk_seed: &[u8],
+    adrs: &mut Address,
+    k: usize,
+    a: usize,
+) {
+    let n = H::N;
+    let t = 1u32 << a;
+    let chunk_size = n + a * n; // Per-tree signature size
+    debug_assert_eq!(out.len(), k * chunk_size);
+
+    // Extract k indices from message digest, each a bits
+    let indices = base_2b(md, a, k);
+
+    for i in 0..k {
+        let idx = indices[i];
+        let tree_idx = i as u32;
+        let global_leaf_idx = tree_idx * t + idx;
+        let tree_out = &mut out[i * chunk_size..(i + 1) * chunk_size];
+
+        // Generate secret key element
+        let mut sk_adrs = adrs.with_type(AdrsType::ForsPrf);
+        sk_adrs.set_tree_height(0);
+        sk_adrs.set_tree_index(global_leaf_idx);
+        let sk = fors_sk_gen::<H>(sk_seed, pk_seed, &sk_adrs);
+        tree_out[..n].copy_from_slice(&sk);
+
+        // Compute authentication path
+        for j in 0..a {
+            let sibling_in_tree = (idx >> j) ^ 1;
+            let auth_node = fors_tree_node::<H>(
+                sk_seed,
+                tree_idx,
+                sibling_in_tree,
+                j as u32,
+                pk_seed,
+                adrs,
+                t,
+            );
+            tree_out[n + j * n..n + (j + 1) * n].copy_from_slice(&auth_node);
+        }
+    }
+}
+
 /// Generate a FORS signature.
 ///
 /// FIPS 205, Algorithm 17: fors_sign(md, SK.seed, PK.seed, ADRS)
@@ -111,6 +173,7 @@ pub(crate) fn fors_tree_node<H: HashSuite>(
 ///
 /// # Returns
 /// FORS signature: k * (secret key element || authentication path)
+#[allow(dead_code)]
 pub fn fors_sign<H: HashSuite>(
     md: &[u8],
     sk_seed: &[u8],
@@ -120,42 +183,8 @@ pub fn fors_sign<H: HashSuite>(
     a: usize,
 ) -> Vec<u8> {
     let n = H::N;
-    let t = 1u32 << a; // Number of leaves per tree
-
-    // Extract k indices from message digest, each a bits
-    let indices = base_2b(md, a, k);
-
-    let mut sig = Vec::with_capacity(k * (n + a * n));
-
-    for i in 0..k {
-        let idx = indices[i]; // Leaf index within tree i (0 to t-1)
-        let tree_idx = i as u32;
-        let global_leaf_idx = tree_idx * t + idx;
-
-        // Generate secret key element
-        let mut sk_adrs = adrs.with_type(AdrsType::ForsPrf);
-        sk_adrs.set_tree_height(0);
-        sk_adrs.set_tree_index(global_leaf_idx);
-        let sk = fors_sk_gen::<H>(sk_seed, pk_seed, &sk_adrs);
-        sig.extend_from_slice(&sk);
-
-        // Compute authentication path
-        for j in 0..a {
-            // Compute sibling node at height j
-            let sibling_in_tree = (idx >> j) ^ 1;
-            let auth_node = fors_tree_node::<H>(
-                sk_seed,
-                tree_idx,
-                sibling_in_tree,
-                j as u32,
-                pk_seed,
-                adrs,
-                t,
-            );
-            sig.extend_from_slice(&auth_node);
-        }
-    }
-
+    let mut sig = vec![0u8; k * (n + a * n)];
+    fors_sign_to::<H>(&mut sig, md, sk_seed, pk_seed, adrs, k, a);
     sig
 }
 

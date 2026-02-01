@@ -117,6 +117,47 @@ pub fn wots_pk_gen<H: HashSuite, const WOTS_LEN: usize>(
     H::t_l(pk_seed, &wots_pk_adrs, &tmp)
 }
 
+/// Generate a WOTS+ signature into a pre-allocated buffer.
+///
+/// FIPS 205, Algorithm 7: wots_sign(M, SK.seed, PK.seed, ADRS)
+///
+/// Signs an n-byte message using WOTS+, writing the result directly
+/// into the provided output buffer.
+///
+/// # Arguments
+/// * `out` - Output buffer (must be exactly WOTS_LEN * n bytes)
+/// * `message` - Message to sign (n bytes)
+/// * `sk_seed` - Secret seed
+/// * `pk_seed` - Public seed
+/// * `adrs` - Address (will be modified during computation)
+pub fn wots_sign_to<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
+    out: &mut [u8],
+    message: &[u8],
+    sk_seed: &[u8],
+    pk_seed: &[u8],
+    adrs: &mut Address,
+) {
+    let n = H::N;
+    debug_assert_eq!(out.len(), WOTS_LEN * n);
+
+    // Convert message to base-w representation and append checksum
+    let mut msg = base_2b(message, LG_W, WOTS_LEN1);
+    msg.extend(encode_checksum(&msg, WOTS_LEN, WOTS_LEN1));
+
+    // Compute sk_adrs for secret key generation
+    let mut sk_adrs = adrs.with_type(AdrsType::WotsPrf);
+
+    // Generate signature directly into output buffer
+    for i in 0..WOTS_LEN {
+        sk_adrs.set_chain(i as u32);
+        let sk_i = H::prf(pk_seed, sk_seed, &sk_adrs);
+
+        adrs.set_chain(i as u32);
+        let sig_i = wots_chain::<H>(&sk_i, 0, msg[i], pk_seed, adrs);
+        out[i * n..(i + 1) * n].copy_from_slice(&sig_i);
+    }
+}
+
 /// Generate a WOTS+ signature.
 ///
 /// FIPS 205, Algorithm 7: wots_sign(M, SK.seed, PK.seed, ADRS)
@@ -131,31 +172,15 @@ pub fn wots_pk_gen<H: HashSuite, const WOTS_LEN: usize>(
 ///
 /// # Returns
 /// WOTS+ signature (WOTS_LEN * n bytes)
+#[allow(dead_code)]
 pub fn wots_sign<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
     message: &[u8],
     sk_seed: &[u8],
     pk_seed: &[u8],
     adrs: &mut Address,
 ) -> Vec<u8> {
-    // Convert message to base-w representation and append checksum
-    let mut msg = base_2b(message, LG_W, WOTS_LEN1);
-    msg.extend(encode_checksum(&msg, WOTS_LEN, WOTS_LEN1));
-
-    // Compute sk_adrs for secret key generation
-    let mut sk_adrs = adrs.with_type(AdrsType::WotsPrf);
-
-    // Generate signature
-    let mut sig = Vec::with_capacity(WOTS_LEN * H::N);
-
-    for i in 0..WOTS_LEN {
-        sk_adrs.set_chain(i as u32);
-        let sk_i = H::prf(pk_seed, sk_seed, &sk_adrs);
-
-        adrs.set_chain(i as u32);
-        let sig_i = wots_chain::<H>(&sk_i, 0, msg[i], pk_seed, adrs);
-        sig.extend_from_slice(&sig_i);
-    }
-
+    let mut sig = vec![0u8; WOTS_LEN * H::N];
+    wots_sign_to::<H, WOTS_LEN, WOTS_LEN1>(&mut sig, message, sk_seed, pk_seed, adrs);
     sig
 }
 
