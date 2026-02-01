@@ -59,9 +59,9 @@ macro_rules! define_has_avx2 {
 /// Three dispatch patterns are supported, selected by which platform
 /// keywords are provided:
 ///
-/// - **Pattern A** (`avx2` + `neon`): Standard 3-arch dispatch
-/// - **Pattern B** (`avx2` + `neon` + `wasm`): 4-arch dispatch with WASM SIMD128
-/// - **Pattern C** (`avx2` only): AVX2-only dispatch (no NEON/WASM impl)
+/// - **Pattern A** (`avx2` + `neon`): 2-arch dispatch with scalar fallback
+/// - **Pattern B** (`avx2` + `neon` + `wasm`): 3-arch dispatch with scalar fallback
+/// - **Pattern C** (`avx2` only): AVX2-only dispatch with scalar fallback
 ///
 /// # Example
 ///
