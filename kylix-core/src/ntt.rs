@@ -167,9 +167,8 @@ mod tests {
         // INV_N_MONT = 256^(-1) * 2^16 mod q = 1441
         const INV_N_MONT: i16 = 1441;
 
-        // Minimal zeta table for testing (only need first few for small-N test)
-        // Using ML-KEM zetas for a simple 8-element NTT test
-        // zetas[0] = MONT (unused by forward), zetas[1..4] used for 3 layers of 8-element NTT
+        // Full ML-KEM zeta table for 256-element NTT roundtrip testing.
+        // zetas[0] is unused by the forward NTT (which starts at k=1).
         const ZETAS: [i16; 128] = [
             2285, 2571, 2970, 1812, 1493, 1422, 287, 202, 3158, 622, 1577, 182, 962, 2127, 1855,
             1468, 573, 2004, 264, 383, 2500, 1458, 1727, 3199, 2648, 1017, 732, 608, 1787, 411,
