@@ -43,7 +43,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | ~~Core: NTT Abstraction~~ | ~~HIGH~~ | ~~100 LOC~~ | ✓ Extracted `define_ntt_forward!` / `define_ntt_inverse!` macros to kylix-core (ML-KEM i16, ML-DSA i32) |
 | ~~Core: SIMD Wrapper Macro~~ | ~~MEDIUM~~ | ~~200 LOC~~ | ✓ Extracted `define_simd_dispatch!` / `define_has_avx2!` macros to kylix-core (~400 LOC net reduction) |
 | Poly API Consistency | MEDIUM | Ergonomics | ML-KEM uses module functions (`poly_add()`), ML-DSA uses methods (`.add()`). Standardize to methods |
-| ML-KEM/ML-DSA: Clippy Fixes | LOW | Quality | Fix outstanding clippy warnings instead of suppressing them |
+| ~~ML-KEM/ML-DSA: Clippy Fixes~~ | ~~LOW~~ | ~~Quality~~ | ✓ Replaced `#[allow(dead_code)]` with `#[cfg(test)]` for test-only functions, replaced `manual_div_ceil` with `.div_ceil()`, removed unnecessary lint suppression |
 | ~~ML-KEM/ML-DSA: Eliminate intermediate buffers~~ | ~~MEDIUM~~ | ~~Security~~ | ✓ Fixed in PRs #117, #118 (see "Intermediate Buffer Cleanup" section) |
 
 #### Intermediate Buffer Cleanup
