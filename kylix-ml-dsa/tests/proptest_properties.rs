@@ -1,11 +1,9 @@
 //! Property-based tests for ML-DSA using proptest.
 //!
 //! These tests verify fundamental cryptographic properties:
-//! - Roundtrip: sign followed by verify succeeds
-//! - Key sizes: Generated keys have correct sizes
-//! - Signature size: Signatures have correct sizes
-//! - Wrong key: Verification with wrong public key fails
-//! - Tampered message: Verification with tampered message fails
+//! - Basic properties: roundtrip (sign/verify), key sizes, signature size
+//! - Wrong key: verification with wrong public key fails
+//! - Tampered message: verification with tampered message fails
 
 use proptest::prelude::*;
 
@@ -19,236 +17,70 @@ fn arb_message() -> impl Strategy<Value = Vec<u8>> {
     prop::collection::vec(any::<u8>(), 0..256)
 }
 
-#[cfg(feature = "ml-dsa-44")]
-mod ml_dsa_44_props {
-    use super::*;
-    use kylix_ml_dsa::MlDsa44;
-    use kylix_ml_dsa::Signer;
-    use rand::rngs::StdRng;
-    use rand::SeedableRng;
+macro_rules! ml_dsa_proptest {
+    ($mod_name:ident, $variant:ident, $feature:literal, $cases:expr) => {
+        #[cfg(feature = $feature)]
+        mod $mod_name {
+            use super::*;
+            use kylix_ml_dsa::$variant;
+            use kylix_ml_dsa::Signer;
+            use rand::rngs::StdRng;
+            use rand::SeedableRng;
 
-    proptest! {
-        #![proptest_config(ProptestConfig::with_cases(16))]
+            proptest! {
+                #![proptest_config(ProptestConfig::with_cases($cases))]
 
-        /// Roundtrip property: sign then verify succeeds.
-        #[test]
-        fn roundtrip(seed in arb_seed(), message in arb_message()) {
-            let mut rng = StdRng::from_seed(seed);
-            let (sk, pk) = MlDsa44::keygen(&mut rng).unwrap();
+                /// Basic properties: roundtrip sign/verify, key sizes, signature size.
+                #[test]
+                fn basic_properties(seed in arb_seed(), message in arb_message()) {
+                    let mut rng = StdRng::from_seed(seed);
+                    let (sk, pk) = $variant::keygen(&mut rng).unwrap();
 
-            let sig = MlDsa44::sign(&sk, &message).unwrap();
-            prop_assert!(MlDsa44::verify(&pk, &message, &sig).is_ok());
+                    prop_assert_eq!(sk.as_bytes().len(), $variant::SIGNING_KEY_SIZE);
+                    prop_assert_eq!(pk.as_bytes().len(), $variant::VERIFICATION_KEY_SIZE);
+
+                    let sig = $variant::sign(&sk, &message).unwrap();
+                    prop_assert_eq!(sig.as_bytes().len(), $variant::SIGNATURE_SIZE);
+
+                    prop_assert!($variant::verify(&pk, &message, &sig).is_ok());
+                }
+
+                /// Verification with wrong public key fails.
+                #[test]
+                fn wrong_key_fails(seed1 in arb_seed(), seed2 in arb_seed(), message in arb_message()) {
+                    prop_assume!(seed1 != seed2);
+
+                    let mut rng1 = StdRng::from_seed(seed1);
+                    let mut rng2 = StdRng::from_seed(seed2);
+
+                    let (sk1, _pk1) = $variant::keygen(&mut rng1).unwrap();
+                    let (_sk2, pk2) = $variant::keygen(&mut rng2).unwrap();
+
+                    let sig = $variant::sign(&sk1, &message).unwrap();
+                    prop_assert!($variant::verify(&pk2, &message, &sig).is_err());
+                }
+
+                /// Verification with tampered message fails.
+                #[test]
+                fn tampered_message_fails(seed in arb_seed(), message in arb_message(), flip_pos in 0usize..256) {
+                    prop_assume!(!message.is_empty());
+
+                    let mut rng = StdRng::from_seed(seed);
+                    let (sk, pk) = $variant::keygen(&mut rng).unwrap();
+
+                    let sig = $variant::sign(&sk, &message).unwrap();
+
+                    let mut tampered = message.clone();
+                    let pos = flip_pos % tampered.len();
+                    tampered[pos] ^= 0xFF;
+
+                    prop_assert!($variant::verify(&pk, &tampered, &sig).is_err());
+                }
+            }
         }
-
-        /// Key sizes are correct.
-        #[test]
-        fn key_sizes(seed in arb_seed()) {
-            let mut rng = StdRng::from_seed(seed);
-            let (sk, pk) = MlDsa44::keygen(&mut rng).unwrap();
-
-            prop_assert_eq!(sk.as_bytes().len(), MlDsa44::SIGNING_KEY_SIZE);
-            prop_assert_eq!(pk.as_bytes().len(), MlDsa44::VERIFICATION_KEY_SIZE);
-        }
-
-        /// Signature size is correct.
-        #[test]
-        fn signature_size(seed in arb_seed(), message in arb_message()) {
-            let mut rng = StdRng::from_seed(seed);
-            let (sk, _) = MlDsa44::keygen(&mut rng).unwrap();
-
-            let sig = MlDsa44::sign(&sk, &message).unwrap();
-            prop_assert_eq!(sig.as_bytes().len(), MlDsa44::SIGNATURE_SIZE);
-        }
-
-        /// Verification with wrong public key fails.
-        #[test]
-        fn wrong_key_fails(seed1 in arb_seed(), seed2 in arb_seed(), message in arb_message()) {
-            // Skip if seeds are identical
-            prop_assume!(seed1 != seed2);
-
-            let mut rng1 = StdRng::from_seed(seed1);
-            let mut rng2 = StdRng::from_seed(seed2);
-
-            let (sk1, _pk1) = MlDsa44::keygen(&mut rng1).unwrap();
-            let (_sk2, pk2) = MlDsa44::keygen(&mut rng2).unwrap();
-
-            let sig = MlDsa44::sign(&sk1, &message).unwrap();
-            prop_assert!(MlDsa44::verify(&pk2, &message, &sig).is_err());
-        }
-
-        /// Verification with tampered message fails.
-        #[test]
-        fn tampered_message_fails(seed in arb_seed(), message in arb_message(), flip_pos in 0usize..256) {
-            // Need non-empty message to tamper
-            prop_assume!(!message.is_empty());
-
-            let mut rng = StdRng::from_seed(seed);
-            let (sk, pk) = MlDsa44::keygen(&mut rng).unwrap();
-
-            let sig = MlDsa44::sign(&sk, &message).unwrap();
-
-            // Tamper with the message
-            let mut tampered = message.clone();
-            let pos = flip_pos % tampered.len();
-            tampered[pos] ^= 0xFF;
-
-            prop_assert!(MlDsa44::verify(&pk, &tampered, &sig).is_err());
-        }
-    }
+    };
 }
 
-#[cfg(feature = "ml-dsa-65")]
-mod ml_dsa_65_props {
-    use super::*;
-    use kylix_ml_dsa::MlDsa65;
-    use kylix_ml_dsa::Signer;
-    use rand::rngs::StdRng;
-    use rand::SeedableRng;
-
-    proptest! {
-        #![proptest_config(ProptestConfig::with_cases(16))]
-
-        /// Roundtrip property: sign then verify succeeds.
-        #[test]
-        fn roundtrip(seed in arb_seed(), message in arb_message()) {
-            let mut rng = StdRng::from_seed(seed);
-            let (sk, pk) = MlDsa65::keygen(&mut rng).unwrap();
-
-            let sig = MlDsa65::sign(&sk, &message).unwrap();
-            prop_assert!(MlDsa65::verify(&pk, &message, &sig).is_ok());
-        }
-
-        /// Key sizes are correct.
-        #[test]
-        fn key_sizes(seed in arb_seed()) {
-            let mut rng = StdRng::from_seed(seed);
-            let (sk, pk) = MlDsa65::keygen(&mut rng).unwrap();
-
-            prop_assert_eq!(sk.as_bytes().len(), MlDsa65::SIGNING_KEY_SIZE);
-            prop_assert_eq!(pk.as_bytes().len(), MlDsa65::VERIFICATION_KEY_SIZE);
-        }
-
-        /// Signature size is correct.
-        #[test]
-        fn signature_size(seed in arb_seed(), message in arb_message()) {
-            let mut rng = StdRng::from_seed(seed);
-            let (sk, _) = MlDsa65::keygen(&mut rng).unwrap();
-
-            let sig = MlDsa65::sign(&sk, &message).unwrap();
-            prop_assert_eq!(sig.as_bytes().len(), MlDsa65::SIGNATURE_SIZE);
-        }
-
-        /// Verification with wrong public key fails.
-        #[test]
-        fn wrong_key_fails(seed1 in arb_seed(), seed2 in arb_seed(), message in arb_message()) {
-            // Skip if seeds are identical
-            prop_assume!(seed1 != seed2);
-
-            let mut rng1 = StdRng::from_seed(seed1);
-            let mut rng2 = StdRng::from_seed(seed2);
-
-            let (sk1, _pk1) = MlDsa65::keygen(&mut rng1).unwrap();
-            let (_sk2, pk2) = MlDsa65::keygen(&mut rng2).unwrap();
-
-            let sig = MlDsa65::sign(&sk1, &message).unwrap();
-            prop_assert!(MlDsa65::verify(&pk2, &message, &sig).is_err());
-        }
-
-        /// Verification with tampered message fails.
-        #[test]
-        fn tampered_message_fails(seed in arb_seed(), message in arb_message(), flip_pos in 0usize..256) {
-            // Need non-empty message to tamper
-            prop_assume!(!message.is_empty());
-
-            let mut rng = StdRng::from_seed(seed);
-            let (sk, pk) = MlDsa65::keygen(&mut rng).unwrap();
-
-            let sig = MlDsa65::sign(&sk, &message).unwrap();
-
-            // Tamper with the message
-            let mut tampered = message.clone();
-            let pos = flip_pos % tampered.len();
-            tampered[pos] ^= 0xFF;
-
-            prop_assert!(MlDsa65::verify(&pk, &tampered, &sig).is_err());
-        }
-    }
-}
-
-#[cfg(feature = "ml-dsa-87")]
-mod ml_dsa_87_props {
-    use super::*;
-    use kylix_ml_dsa::MlDsa87;
-    use kylix_ml_dsa::Signer;
-    use rand::rngs::StdRng;
-    use rand::SeedableRng;
-
-    proptest! {
-        #![proptest_config(ProptestConfig::with_cases(16))]
-
-        /// Roundtrip property: sign then verify succeeds.
-        #[test]
-        fn roundtrip(seed in arb_seed(), message in arb_message()) {
-            let mut rng = StdRng::from_seed(seed);
-            let (sk, pk) = MlDsa87::keygen(&mut rng).unwrap();
-
-            let sig = MlDsa87::sign(&sk, &message).unwrap();
-            prop_assert!(MlDsa87::verify(&pk, &message, &sig).is_ok());
-        }
-
-        /// Key sizes are correct.
-        #[test]
-        fn key_sizes(seed in arb_seed()) {
-            let mut rng = StdRng::from_seed(seed);
-            let (sk, pk) = MlDsa87::keygen(&mut rng).unwrap();
-
-            prop_assert_eq!(sk.as_bytes().len(), MlDsa87::SIGNING_KEY_SIZE);
-            prop_assert_eq!(pk.as_bytes().len(), MlDsa87::VERIFICATION_KEY_SIZE);
-        }
-
-        /// Signature size is correct.
-        #[test]
-        fn signature_size(seed in arb_seed(), message in arb_message()) {
-            let mut rng = StdRng::from_seed(seed);
-            let (sk, _) = MlDsa87::keygen(&mut rng).unwrap();
-
-            let sig = MlDsa87::sign(&sk, &message).unwrap();
-            prop_assert_eq!(sig.as_bytes().len(), MlDsa87::SIGNATURE_SIZE);
-        }
-
-        /// Verification with wrong public key fails.
-        #[test]
-        fn wrong_key_fails(seed1 in arb_seed(), seed2 in arb_seed(), message in arb_message()) {
-            // Skip if seeds are identical
-            prop_assume!(seed1 != seed2);
-
-            let mut rng1 = StdRng::from_seed(seed1);
-            let mut rng2 = StdRng::from_seed(seed2);
-
-            let (sk1, _pk1) = MlDsa87::keygen(&mut rng1).unwrap();
-            let (_sk2, pk2) = MlDsa87::keygen(&mut rng2).unwrap();
-
-            let sig = MlDsa87::sign(&sk1, &message).unwrap();
-            prop_assert!(MlDsa87::verify(&pk2, &message, &sig).is_err());
-        }
-
-        /// Verification with tampered message fails.
-        #[test]
-        fn tampered_message_fails(seed in arb_seed(), message in arb_message(), flip_pos in 0usize..256) {
-            // Need non-empty message to tamper
-            prop_assume!(!message.is_empty());
-
-            let mut rng = StdRng::from_seed(seed);
-            let (sk, pk) = MlDsa87::keygen(&mut rng).unwrap();
-
-            let sig = MlDsa87::sign(&sk, &message).unwrap();
-
-            // Tamper with the message
-            let mut tampered = message.clone();
-            let pos = flip_pos % tampered.len();
-            tampered[pos] ^= 0xFF;
-
-            prop_assert!(MlDsa87::verify(&pk, &tampered, &sig).is_err());
-        }
-    }
-}
+ml_dsa_proptest!(ml_dsa_44_props, MlDsa44, "ml-dsa-44", 16);
+ml_dsa_proptest!(ml_dsa_65_props, MlDsa65, "ml-dsa-65", 16);
+ml_dsa_proptest!(ml_dsa_87_props, MlDsa87, "ml-dsa-87", 16);
