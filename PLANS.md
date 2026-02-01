@@ -37,7 +37,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | API: Key/Sig Bytes Method | LOW | Consistency | Unify `as_bytes()` vs `to_bytes()` across crates (see note below) |
 | SLH-DSA: no_std test imports | LOW | Test | Add `use alloc::vec;` to test modules (utils.rs, sign.rs) for no_std builds |
 | ~~SLH-DSA: slh_sign buffer API~~ | ~~MEDIUM~~ | ~~Performance~~ | ✓ Added `_to` buffer-write variants for all signing functions; `slh_sign_impl` now pre-allocates a single buffer |
-| SLH-DSA: HashSuite buffer API | LOW | Performance | Extend `_to` pattern to `wots_chain`, `fors_tree_node`, `xmss_node` and HashSuite trait methods (`f`, `h`, `prf`) to eliminate remaining per-call `Vec<u8>` allocations inside signing loops |
+| ~~SLH-DSA: HashSuite buffer API~~ | ~~LOW~~ | ~~Performance~~ | ✓ Added `_to` buffer-write variants to HashSuite trait + SHAKE/SHA2 backends; propagated to `wots_chain_to`, `fors_tree_node_to`, `xmss_node_to` and all callers including parallel variants (PR #124) |
 | ~~Core: Modular Arithmetic~~ | ~~HIGH~~ | ~~200 LOC~~ | ✓ Extracted Barrett/Montgomery reduction macros to kylix-core (ML-KEM i16, ML-DSA i32) |
 | ~~Core: NTT Abstraction~~ | ~~HIGH~~ | ~~100 LOC~~ | ✓ Extracted `define_ntt_forward!` / `define_ntt_inverse!` macros to kylix-core (ML-KEM i16, ML-DSA i32) |
 | ~~Core: SIMD Wrapper Macro~~ | ~~MEDIUM~~ | ~~200 LOC~~ | ✓ Extracted `define_simd_dispatch!` / `define_has_avx2!` macros to kylix-core (~400 LOC net reduction) |
