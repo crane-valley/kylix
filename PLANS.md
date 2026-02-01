@@ -40,7 +40,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | SLH-DSA: HashSuite buffer API | LOW | Performance | Extend `_to` pattern to `wots_chain`, `fors_tree_node`, `xmss_node` and HashSuite trait methods (`f`, `h`, `prf`) to eliminate remaining per-call `Vec<u8>` allocations inside signing loops |
 | ~~Core: Modular Arithmetic~~ | ~~HIGH~~ | ~~200 LOC~~ | ✓ Extracted Barrett/Montgomery reduction macros to kylix-core (ML-KEM i16, ML-DSA i32) |
 | ~~Core: NTT Abstraction~~ | ~~HIGH~~ | ~~100 LOC~~ | ✓ Extracted `define_ntt_forward!` / `define_ntt_inverse!` macros to kylix-core (ML-KEM i16, ML-DSA i32) |
-| Core: SIMD Wrapper Macro | MEDIUM | ~200 LOC | Unify SIMD dispatch pattern (AVX2/NEON/fallback) into shared macro |
+| ~~Core: SIMD Wrapper Macro~~ | ~~MEDIUM~~ | ~~200 LOC~~ | ✓ Extracted `define_simd_dispatch!` / `define_has_avx2!` macros to kylix-core (~400 LOC net reduction) |
 | Poly API Consistency | MEDIUM | Ergonomics | ML-KEM uses module functions (`poly_add()`), ML-DSA uses methods (`.add()`). Standardize to methods |
 | ML-KEM/ML-DSA: Clippy Fixes | LOW | Quality | Fix outstanding clippy warnings instead of suppressing them |
 | ~~ML-KEM/ML-DSA: Eliminate intermediate buffers~~ | ~~MEDIUM~~ | ~~Security~~ | ✓ Fixed in PRs #117, #118 (see "Intermediate Buffer Cleanup" section) |
