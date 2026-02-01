@@ -37,6 +37,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | API: Key/Sig Bytes Method | LOW | Consistency | Unify `as_bytes()` vs `to_bytes()` across crates (see note below) |
 | SLH-DSA: no_std test imports | LOW | Test | Add `use alloc::vec;` to test modules (utils.rs, sign.rs) for no_std builds |
 | ~~SLH-DSA: slh_sign buffer API~~ | ~~MEDIUM~~ | ~~Performance~~ | ✓ Added `_to` buffer-write variants for all signing functions; `slh_sign_impl` now pre-allocates a single buffer |
+| SLH-DSA: HashSuite buffer API | LOW | Performance | Extend `_to` pattern to `wots_chain`, `fors_tree_node`, `xmss_node` and HashSuite trait methods (`f`, `h`, `prf`) to eliminate remaining per-call `Vec<u8>` allocations inside signing loops |
 | Core: Modular Arithmetic | HIGH | ~200 LOC | Extract Barrett/Montgomery reduction to kylix-core as generic trait (ML-KEM i16, ML-DSA i32) |
 | Core: NTT Abstraction | HIGH | ~300 LOC | Extract generic NTT trait to kylix-core (forward/inverse NTT duplicated in ML-KEM/ML-DSA) |
 | Core: SIMD Wrapper Macro | MEDIUM | ~200 LOC | Unify SIMD dispatch pattern (AVX2/NEON/fallback) into shared macro |
