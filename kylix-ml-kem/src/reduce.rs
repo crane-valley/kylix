@@ -60,10 +60,10 @@ define_montgomery_mul! {
 /// This ensures the result is in canonical form [0, q-1].
 #[inline]
 pub const fn cond_reduce(r: i16) -> i16 {
-    let diff = r - Q as i16;
-    // If diff >= 0, use diff; otherwise use r
-    if diff >= 0 {
-        diff
+    let r_minus_q = r - Q as i16;
+    // If r >= q, use r - q; otherwise keep r
+    if r_minus_q >= 0 {
+        r_minus_q
     } else {
         r
     }

@@ -12,7 +12,9 @@ use kylix_core::{
 /// The prime modulus q = 8380417
 pub const Q: i32 = 8_380_417;
 
-/// q^(-1) mod 2^32 for Montgomery reduction
+/// q^(-1) mod 2^32 used in the Montgomery reduction step
+///     (a - t * q) >> 32
+/// where t = (a mod 2^32) * QINV mod 2^32.
 pub const QINV: i32 = 58_728_449;
 
 /// Floor(2^48 / q) for Barrett reduction
@@ -61,12 +63,10 @@ define_freeze! {
     reduce_approx: reduce32_approx
 }
 
-// Generate freeze: canonical reduction to [0, q-1]
-define_freeze! {
-    name: freeze,
-    coeff: i32,
-    q: Q,
-    reduce_approx: reduce32_approx
+/// Freeze: reduce to canonical [0, q-1] range.
+#[inline]
+pub const fn freeze(a: i32) -> i32 {
+    reduce32(a)
 }
 
 #[cfg(test)]
