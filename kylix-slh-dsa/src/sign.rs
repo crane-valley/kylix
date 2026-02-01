@@ -24,7 +24,7 @@ use rand_core::CryptoRng;
 use zeroize::Zeroize;
 
 #[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 
 /// Secret key components.
 ///

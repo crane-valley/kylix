@@ -12,7 +12,7 @@ use crate::params::common::{LG_W, W};
 use crate::utils::{base_2b, wots_checksum};
 
 #[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 
 /// Encode checksum digits for WOTS+ message.
 ///

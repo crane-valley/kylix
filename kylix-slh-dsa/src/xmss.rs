@@ -10,7 +10,7 @@ use crate::hash::HashSuite;
 use crate::wots::{wots_pk_from_sig, wots_pk_gen, wots_sign_to};
 
 #[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 
 /// Compute a node in the XMSS Merkle tree.
 ///

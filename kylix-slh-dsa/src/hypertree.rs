@@ -11,7 +11,7 @@ use crate::hash::HashSuite;
 use crate::xmss::{xmss_node, xmss_pk_from_sig, xmss_sign_to};
 
 #[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 
 /// Generate a hypertree signature into a pre-allocated buffer.
 ///

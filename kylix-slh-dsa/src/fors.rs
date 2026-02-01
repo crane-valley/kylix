@@ -16,7 +16,7 @@ use crate::utils::base_2b;
 use zeroize::Zeroizing;
 
 #[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 
 /// Generate a FORS secret key element.
 ///
