@@ -75,7 +75,7 @@ pub fn ntt(a: &mut [i32; N]) {
 define_ntt_forward! {
     name: ntt_scalar,
     coeff: i32,
-    n: 256,
+    n: N,
     len_min: 1,
     zetas: ZETAS,
     montgomery_mul: montgomery_mul
@@ -117,8 +117,8 @@ fn inv_ntt_diff(t: i32, x: i32) -> i32 {
 define_ntt_inverse! {
     name: inv_ntt_scalar,
     coeff: i32,
-    n: 256,
-    k_start: 256,
+    n: N,
+    k_start: N,
     len_start: 1,
     zetas: ZETAS,
     montgomery_mul: montgomery_mul,

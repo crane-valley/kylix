@@ -296,6 +296,16 @@ mod tests {
             q: Q
         }
 
+        /// Reduce from Montgomery form to canonical [0, q-1] (constant-time).
+        fn full_reduce(a: i32) -> i32 {
+            let r = caddq(a);
+            // Constant-time conditional subtract: if r >= q then r - q, else r
+            let r_minus_q = r - Q;
+            const SIGN_BIT: u32 = (core::mem::size_of::<i32>() * 8 - 1) as u32;
+            let mask = r_minus_q >> SIGN_BIT;
+            (r & mask) | (r_minus_q & !mask)
+        }
+
         // First 256 ML-DSA zetas (from FIPS 204 reference)
         #[rustfmt::skip]
         const ZETAS: [i32; 256] = [
@@ -388,9 +398,7 @@ mod tests {
             inv_ntt_scalar(&mut coeffs);
 
             for (i, (&c, &expected)) in coeffs.iter().zip(original.iter()).enumerate() {
-                let val = montgomery_reduce(c as i64);
-                let got = caddq(val);
-                let got = if got >= Q { got - Q } else { got };
+                let got = full_reduce(montgomery_reduce(c as i64));
                 assert_eq!(got, expected, "roundtrip failed at index {}", i);
             }
         }
