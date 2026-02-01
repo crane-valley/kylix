@@ -7,7 +7,7 @@ use crate::sign::{
 use crate::types::define_dsa_types;
 use kylix_core::{Error, Result, Signer};
 use rand_core::CryptoRng;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 /// ML-DSA-65 algorithm marker.
 pub struct MlDsa65;
@@ -34,10 +34,12 @@ impl Signer for MlDsa65 {
         rng.fill_bytes(&mut xi);
 
         let (sk_bytes, pk_bytes) = ml_dsa_keygen::<K, L, ETA>(&xi);
+        let sk_bytes = Zeroizing::new(sk_bytes);
 
         xi.zeroize();
 
         let sk = SigningKey::from_bytes(&sk_bytes)?;
+
         let pk = VerificationKey::from_bytes(&pk_bytes)?;
 
         Ok((sk, pk))

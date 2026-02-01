@@ -8,7 +8,7 @@ use crate::params::ml_kem_1024::*;
 use crate::types::define_kem_types;
 use kylix_core::{Error, Kem, Result};
 use rand_core::CryptoRng;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 define_kem_types! {
     dk_size: DECAPSULATION_KEY_SIZE,
@@ -42,6 +42,7 @@ impl Kem for MlKem1024 {
         rng.fill_bytes(&mut z);
 
         let (dk_bytes, ek_bytes) = ml_kem_keygen::<K, ETA1>(&d, &z);
+        let dk_bytes = Zeroizing::new(dk_bytes);
 
         // Zeroize seeds
         d.zeroize();
