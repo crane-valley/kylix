@@ -35,7 +35,6 @@ macro_rules! define_ntt_forward {
         montgomery_mul: $mont_mul:ident
     ) => {
         /// Forward NTT: Cooley-Tukey butterfly (decimation-in-time).
-        #[allow(clippy::assign_op_pattern)]
         pub(crate) fn $name(coeffs: &mut [$coeff; $n]) {
             let mut k: usize = 1;
             let mut len: usize = $n / 2;
@@ -48,8 +47,9 @@ macro_rules! define_ntt_forward {
 
                     for j in start..(start + len) {
                         let t = $mont_mul(zeta, coeffs[j + len]);
-                        coeffs[j + len] = coeffs[j] - t;
-                        coeffs[j] = coeffs[j] + t;
+                        let u = coeffs[j];
+                        coeffs[j] = u + t;
+                        coeffs[j + len] = u - t;
                     }
                     start += 2 * len;
                 }
