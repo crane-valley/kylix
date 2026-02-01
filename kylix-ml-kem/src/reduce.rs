@@ -55,10 +55,10 @@ define_montgomery_mul! {
     montgomery_reduce: montgomery_reduce
 }
 
-/// Conditional reduce: subtract q if r >= q (constant-time).
+/// Conditional reduce: map r from [0, 2q-1] to [0, q-1] (constant-time).
 ///
-/// This ensures the result is in canonical form [0, q-1].
-/// Uses bitwise operations to avoid data-dependent branches.
+/// If r >= q, returns r - q; otherwise returns r unchanged.
+/// Uses bitwise selection to avoid data-dependent branches.
 #[inline]
 pub const fn cond_reduce(r: i16) -> i16 {
     let r_minus_q = r - Q as i16;
