@@ -8,7 +8,7 @@
 
 use crate::address::Address;
 use crate::hash::HashSuite;
-use crate::xmss::{xmss_node, xmss_pk_from_sig, xmss_sign_to};
+use crate::xmss::{xmss_node_to, xmss_pk_from_sig, xmss_sign_to};
 
 #[cfg(not(feature = "std"))]
 use alloc::{vec, vec::Vec};
@@ -227,12 +227,15 @@ pub fn ht_root<H: HashSuite, const WOTS_LEN: usize>(
     h_prime: usize,
     d: usize,
 ) -> Vec<u8> {
+    let n = H::N;
     // The root is the root of the top-layer XMSS tree (layer d-1, tree 0)
     let mut adrs = Address::new();
     adrs.set_layer((d - 1) as u32);
     adrs.set_tree(0);
 
-    xmss_node::<H, WOTS_LEN>(sk_seed, 0, h_prime as u32, pk_seed, &adrs)
+    let mut root = vec![0u8; n];
+    xmss_node_to::<H, WOTS_LEN>(&mut root, sk_seed, 0, h_prime as u32, pk_seed, &adrs);
+    root
 }
 
 #[cfg(test)]

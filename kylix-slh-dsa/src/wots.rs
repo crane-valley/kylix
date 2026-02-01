@@ -10,6 +10,7 @@ use crate::address::{Address, AdrsType};
 use crate::hash::HashSuite;
 use crate::params::common::{LG_W, W};
 use crate::utils::{base_2b, wots_checksum};
+use zeroize::Zeroize;
 
 #[cfg(not(feature = "std"))]
 use alloc::{vec, vec::Vec};
@@ -51,6 +52,7 @@ pub(crate) fn encode_checksum(msg: &[u32], wots_len: usize, wots_len1: usize) ->
 ///
 /// # Returns
 /// Result after s chain applications
+#[allow(dead_code)]
 pub fn wots_chain<H: HashSuite>(
     x: &[u8],
     i: u32,
@@ -72,6 +74,49 @@ pub fn wots_chain<H: HashSuite>(
     result
 }
 
+/// Compute WOTS+ chain directly into a caller-provided buffer.
+///
+/// FIPS 205, Algorithm 5: chain(X, i, s, PK.seed, ADRS)
+///
+/// Writes the chain result into `out` without heap allocation.
+///
+/// # Arguments
+/// * `out` - Output buffer (must be exactly n bytes)
+/// * `x` - Starting value (n bytes)
+/// * `i` - Starting index in the chain
+/// * `s` - Number of steps to take
+/// * `pk_seed` - Public seed
+/// * `adrs` - Address (must have type WotsHash)
+///
+/// # Panics
+/// Panics in debug builds if `out.len() != N`.
+pub fn wots_chain_to<H: HashSuite>(
+    out: &mut [u8],
+    x: &[u8],
+    i: u32,
+    s: u32,
+    pk_seed: &[u8],
+    adrs: &mut Address,
+) {
+    let n = H::N;
+    debug_assert_eq!(out.len(), n);
+
+    out.copy_from_slice(x);
+
+    if s == 0 {
+        return;
+    }
+
+    // Stack temp for alternating read/write (N <= 32 for all parameter sets)
+    let mut tmp = [0u8; 32];
+
+    for j in i..(i + s) {
+        adrs.set_hash(j);
+        H::f_to(&mut tmp[..n], pk_seed, adrs, out);
+        out.copy_from_slice(&tmp[..n]);
+    }
+}
+
 /// Generate a WOTS+ public key.
 ///
 /// FIPS 205, Algorithm 6: wots_PKgen(SK.seed, PK.seed, ADRS)
@@ -91,6 +136,7 @@ pub fn wots_pk_gen<H: HashSuite, const WOTS_LEN: usize>(
     pk_seed: &[u8],
     adrs: &mut Address,
 ) -> Vec<u8> {
+    let n = H::N;
     let w = W as u32;
 
     // Compute sk_adrs for secret key generation
@@ -100,18 +146,27 @@ pub fn wots_pk_gen<H: HashSuite, const WOTS_LEN: usize>(
     let wots_pk_adrs = adrs.with_type(AdrsType::WotsPk);
 
     // tmp will hold all chain endpoints
-    let mut tmp = Vec::with_capacity(WOTS_LEN * H::N);
+    let mut tmp = vec![0u8; WOTS_LEN * n];
+    let mut sk_buf = [0u8; 32];
 
     for i in 0..WOTS_LEN {
-        // Generate secret key element
+        // Generate secret key element into stack buffer
         sk_adrs.set_chain(i as u32);
-        let sk_i = H::prf(pk_seed, sk_seed, &sk_adrs);
+        H::prf_to(&mut sk_buf[..n], pk_seed, sk_seed, &sk_adrs);
 
-        // Compute chain endpoint
+        // Compute chain endpoint directly into tmp
         adrs.set_chain(i as u32);
-        let chain_end = wots_chain::<H>(&sk_i, 0, w - 1, pk_seed, adrs);
-        tmp.extend_from_slice(&chain_end);
+        wots_chain_to::<H>(
+            &mut tmp[i * n..(i + 1) * n],
+            &sk_buf[..n],
+            0,
+            w - 1,
+            pk_seed,
+            adrs,
+        );
     }
+
+    sk_buf.zeroize();
 
     // Compress to get public key
     H::t_l(pk_seed, &wots_pk_adrs, &tmp)
@@ -149,16 +204,25 @@ pub fn wots_sign_to<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>
 
     // Compute sk_adrs for secret key generation
     let mut sk_adrs = adrs.with_type(AdrsType::WotsPrf);
+    let mut sk_buf = [0u8; 32];
 
     // Generate signature directly into output buffer
     for i in 0..WOTS_LEN {
         sk_adrs.set_chain(i as u32);
-        let sk_i = H::prf(pk_seed, sk_seed, &sk_adrs);
+        H::prf_to(&mut sk_buf[..n], pk_seed, sk_seed, &sk_adrs);
 
         adrs.set_chain(i as u32);
-        let sig_i = wots_chain::<H>(&sk_i, 0, msg[i], pk_seed, adrs);
-        out[i * n..(i + 1) * n].copy_from_slice(&sig_i);
+        wots_chain_to::<H>(
+            &mut out[i * n..(i + 1) * n],
+            &sk_buf[..n],
+            0,
+            msg[i],
+            pk_seed,
+            adrs,
+        );
     }
+
+    sk_buf.zeroize();
 }
 
 /// Generate a WOTS+ signature.
@@ -219,13 +283,19 @@ pub fn wots_pk_from_sig<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: us
     let wots_pk_adrs = adrs.with_type(AdrsType::WotsPk);
 
     // Compute chain endpoints from signature
-    let mut tmp = Vec::with_capacity(WOTS_LEN * n);
+    let mut tmp = vec![0u8; WOTS_LEN * n];
 
     for i in 0..WOTS_LEN {
         adrs.set_chain(i as u32);
         let sig_i = &sig[i * n..(i + 1) * n];
-        let chain_end = wots_chain::<H>(sig_i, msg[i], w - 1 - msg[i], pk_seed, adrs);
-        tmp.extend_from_slice(&chain_end);
+        wots_chain_to::<H>(
+            &mut tmp[i * n..(i + 1) * n],
+            sig_i,
+            msg[i],
+            w - 1 - msg[i],
+            pk_seed,
+            adrs,
+        );
     }
 
     // Compress to get public key

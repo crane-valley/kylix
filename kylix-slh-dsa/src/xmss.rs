@@ -27,6 +27,7 @@ use alloc::{vec, vec::Vec};
 ///
 /// # Returns
 /// Node value (n bytes)
+#[allow(dead_code)]
 pub fn xmss_node<H: HashSuite, const WOTS_LEN: usize>(
     sk_seed: &[u8],
     i: u32,
@@ -51,6 +52,51 @@ pub fn xmss_node<H: HashSuite, const WOTS_LEN: usize>(
         node_adrs.set_tree_height(z);
         node_adrs.set_tree_index(i);
         H::h(pk_seed, &node_adrs, &left, &right)
+    }
+}
+
+/// Compute a node in the XMSS Merkle tree, writing result into a buffer.
+///
+/// Buffer-write variant of [`xmss_node`] that avoids per-node heap allocations
+/// by using stack buffers for intermediate child nodes.
+///
+/// # Arguments
+/// * `out` - Output buffer (must be exactly n bytes)
+/// * `sk_seed` - Secret seed
+/// * `i` - Node index at height z
+/// * `z` - Height in the tree (0 = leaf level)
+/// * `pk_seed` - Public seed
+/// * `adrs` - Address (will be modified during computation)
+pub fn xmss_node_to<H: HashSuite, const WOTS_LEN: usize>(
+    out: &mut [u8],
+    sk_seed: &[u8],
+    i: u32,
+    z: u32,
+    pk_seed: &[u8],
+    adrs: &Address,
+) {
+    let n = H::N;
+    debug_assert_eq!(out.len(), n);
+
+    if z == 0 {
+        // Leaf node: compute WOTS+ public key
+        let mut leaf_adrs = *adrs;
+        leaf_adrs.set_type(AdrsType::WotsHash);
+        leaf_adrs.set_keypair(i);
+        let pk = wots_pk_gen::<H, WOTS_LEN>(sk_seed, pk_seed, &mut leaf_adrs);
+        out.copy_from_slice(&pk);
+    } else {
+        // Internal node: hash of children using stack buffers
+        let mut left = [0u8; 32];
+        let mut right = [0u8; 32];
+        xmss_node_to::<H, WOTS_LEN>(&mut left[..n], sk_seed, 2 * i, z - 1, pk_seed, adrs);
+        xmss_node_to::<H, WOTS_LEN>(&mut right[..n], sk_seed, 2 * i + 1, z - 1, pk_seed, adrs);
+
+        let mut node_adrs = *adrs;
+        node_adrs.set_type(AdrsType::Tree);
+        node_adrs.set_tree_height(z);
+        node_adrs.set_tree_index(i);
+        H::h_to(out, pk_seed, &node_adrs, &left[..n], &right[..n]);
     }
 }
 
@@ -100,8 +146,14 @@ pub fn xmss_sign_to<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>
     // Compute authentication path directly into output buffer
     for j in 0..h_prime {
         let sibling_idx = (idx >> j) ^ 1;
-        let node = xmss_node::<H, WOTS_LEN>(sk_seed, sibling_idx, j as u32, pk_seed, adrs);
-        out[wots_sig_len + j * n..wots_sig_len + (j + 1) * n].copy_from_slice(&node);
+        xmss_node_to::<H, WOTS_LEN>(
+            &mut out[wots_sig_len + j * n..wots_sig_len + (j + 1) * n],
+            sk_seed,
+            sibling_idx,
+            j as u32,
+            pk_seed,
+            adrs,
+        );
     }
 }
 
@@ -165,34 +217,36 @@ pub fn xmss_pk_from_sig<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: us
     let sig_wots = &sig_xmss[..wots_sig_len];
     let auth = &sig_xmss[wots_sig_len..];
 
-    // Recover WOTS+ public key
+    // Recover WOTS+ public key into stack buffer
     let mut wots_adrs = *adrs;
     wots_adrs.set_type(AdrsType::WotsHash);
     wots_adrs.set_keypair(idx);
-    let mut node =
-        wots_pk_from_sig::<H, WOTS_LEN, WOTS_LEN1>(sig_wots, message, pk_seed, &mut wots_adrs);
+    let pk = wots_pk_from_sig::<H, WOTS_LEN, WOTS_LEN1>(sig_wots, message, pk_seed, &mut wots_adrs);
+    let mut node = [0u8; 32];
+    node[..n].copy_from_slice(&pk);
 
-    // Climb the tree using authentication path
+    // Climb the tree using authentication path with stack buffers
     let mut tree_adrs = *adrs;
     tree_adrs.set_type(AdrsType::Tree);
+    let mut tmp = [0u8; 32];
 
     for j in 0..h_prime {
         tree_adrs.set_tree_height((j + 1) as u32);
+        tree_adrs.set_tree_index(idx >> (j + 1));
 
         let auth_j = &auth[j * n..(j + 1) * n];
 
         if (idx >> j) & 1 == 0 {
             // Current node is left child
-            tree_adrs.set_tree_index(idx >> (j + 1));
-            node = H::h(pk_seed, &tree_adrs, &node, auth_j);
+            H::h_to(&mut tmp[..n], pk_seed, &tree_adrs, &node[..n], auth_j);
         } else {
             // Current node is right child
-            tree_adrs.set_tree_index(idx >> (j + 1));
-            node = H::h(pk_seed, &tree_adrs, auth_j, &node);
+            H::h_to(&mut tmp[..n], pk_seed, &tree_adrs, auth_j, &node[..n]);
         }
+        node[..n].copy_from_slice(&tmp[..n]);
     }
 
-    node
+    node[..n].to_vec()
 }
 
 #[cfg(test)]

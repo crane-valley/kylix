@@ -131,6 +131,47 @@ macro_rules! impl_shake_hash_suite {
                 reader.read(&mut output);
                 output
             }
+
+            fn f_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m1: &[u8]) {
+                debug_assert_eq!(out.len(), $n);
+                let mut hasher = Shake256::default();
+                hasher.update(pk_seed);
+                hasher.update(adrs.as_bytes());
+                hasher.update(m1);
+                let mut reader = hasher.finalize_xof();
+                reader.read(out);
+            }
+
+            fn h_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m1: &[u8], m2: &[u8]) {
+                debug_assert_eq!(out.len(), $n);
+                let mut hasher = Shake256::default();
+                hasher.update(pk_seed);
+                hasher.update(adrs.as_bytes());
+                hasher.update(m1);
+                hasher.update(m2);
+                let mut reader = hasher.finalize_xof();
+                reader.read(out);
+            }
+
+            fn t_l_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m: &[u8]) {
+                debug_assert_eq!(out.len(), $n);
+                let mut hasher = Shake256::default();
+                hasher.update(pk_seed);
+                hasher.update(adrs.as_bytes());
+                hasher.update(m);
+                let mut reader = hasher.finalize_xof();
+                reader.read(out);
+            }
+
+            fn prf_to(out: &mut [u8], pk_seed: &[u8], sk_seed: &[u8], adrs: &Address) {
+                debug_assert_eq!(out.len(), $n);
+                let mut hasher = Shake256::default();
+                hasher.update(pk_seed);
+                hasher.update(adrs.as_bytes());
+                hasher.update(sk_seed);
+                let mut reader = hasher.finalize_xof();
+                reader.read(out);
+            }
         }
     };
 }

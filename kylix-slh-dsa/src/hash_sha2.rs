@@ -122,6 +122,21 @@ macro_rules! impl_sha2_hash_suite {
                 let hash = hasher.finalize();
                 hash[..$n].to_vec()
             }
+
+            /// Buffer-write variant of sha2_hash_trunc_n.
+            fn sha2_hash_trunc_n_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, ms: &[&[u8]]) {
+                debug_assert_eq!(out.len(), $n);
+                let adrs_c = adrs_compress(adrs);
+                let mut hasher = Sha256::new();
+                hasher.update(pk_seed);
+                hasher.update(&$padding);
+                hasher.update(&adrs_c);
+                for m in ms {
+                    hasher.update(m);
+                }
+                let hash = hasher.finalize();
+                out.copy_from_slice(&hash[..$n]);
+            }
         }
 
         impl HashSuite for $name {
@@ -177,6 +192,22 @@ macro_rules! impl_sha2_hash_suite {
             fn t_l(pk_seed: &[u8], adrs: &Address, m: &[u8]) -> Vec<u8> {
                 // Tl(PK.seed, ADRS, M) = Trunc_n(SHA-256(PK.seed || toByte(0, 64-n) || ADRSc || M))
                 Self::sha2_hash_trunc_n(pk_seed, adrs, &[m])
+            }
+
+            fn f_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m1: &[u8]) {
+                Self::sha2_hash_trunc_n_to(out, pk_seed, adrs, &[m1]);
+            }
+
+            fn h_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m1: &[u8], m2: &[u8]) {
+                Self::sha2_hash_trunc_n_to(out, pk_seed, adrs, &[m1, m2]);
+            }
+
+            fn t_l_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m: &[u8]) {
+                Self::sha2_hash_trunc_n_to(out, pk_seed, adrs, &[m]);
+            }
+
+            fn prf_to(out: &mut [u8], pk_seed: &[u8], sk_seed: &[u8], adrs: &Address) {
+                Self::sha2_hash_trunc_n_to(out, pk_seed, adrs, &[sk_seed]);
             }
         }
     };
