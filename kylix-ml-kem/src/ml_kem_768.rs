@@ -48,11 +48,10 @@ impl Kem for MlKem768 {
         d.zeroize();
         z.zeroize();
 
-        let dk = DecapsulationKey::from_bytes(&dk_bytes)?;
-
-        let ek = EncapsulationKey::from_bytes(&ek_bytes)?;
-
-        Ok((dk, ek))
+        Ok((
+            DecapsulationKey::from_bytes(&dk_bytes)?,
+            EncapsulationKey::from_bytes(&ek_bytes)?,
+        ))
     }
 
     fn encaps(
