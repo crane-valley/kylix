@@ -17,6 +17,10 @@ use zeroize::Zeroizing;
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 
+/// Maximum value of N across all SLH-DSA parameter sets (256-bit security = 32 bytes).
+/// Used for stack buffer sizing in `_to` buffer-write variants.
+pub const MAX_N: usize = 32;
+
 /// Hash function suite trait for SLH-DSA.
 ///
 /// Implementations of this trait provide the complete set of hash functions

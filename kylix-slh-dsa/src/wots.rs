@@ -7,7 +7,7 @@
 //! FIPS 205, Algorithms 5-8.
 
 use crate::address::{Address, AdrsType};
-use crate::hash::HashSuite;
+use crate::hash::{HashSuite, MAX_N};
 use crate::params::common::{LG_W, W};
 use crate::utils::{base_2b, wots_checksum};
 use zeroize::Zeroize;
@@ -34,44 +34,6 @@ pub(crate) fn encode_checksum(msg: &[u32], wots_len: usize, wots_len1: usize) ->
     csum_buf[4 - csum_bytes_needed..]
         .copy_from_slice(&csum_bytes.to_be_bytes()[4 - csum_bytes_needed..]);
     base_2b(&csum_buf[4 - csum_bytes_needed..], LG_W, len2)
-}
-
-/// Compute a single step of the WOTS+ chain.
-///
-/// FIPS 205, Algorithm 5: chain(X, i, s, PK.seed, ADRS)
-///
-/// Applies the chaining function F repeatedly s times, starting from input X
-/// at chain position i.
-///
-/// # Arguments
-/// * `x` - Starting value (n bytes)
-/// * `i` - Starting index in the chain
-/// * `s` - Number of steps to take
-/// * `pk_seed` - Public seed
-/// * `adrs` - Address (must have type WotsHash)
-///
-/// # Returns
-/// Result after s chain applications
-#[allow(dead_code)]
-pub fn wots_chain<H: HashSuite>(
-    x: &[u8],
-    i: u32,
-    s: u32,
-    pk_seed: &[u8],
-    adrs: &mut Address,
-) -> Vec<u8> {
-    if s == 0 {
-        return x.to_vec();
-    }
-
-    let mut result = x.to_vec();
-
-    for j in i..(i + s) {
-        adrs.set_hash(j);
-        result = H::f(pk_seed, adrs, &result);
-    }
-
-    result
 }
 
 /// Compute WOTS+ chain directly into a caller-provided buffer.
@@ -107,8 +69,8 @@ pub fn wots_chain_to<H: HashSuite>(
         return;
     }
 
-    // Stack temp for alternating read/write (N <= 32 for all parameter sets)
-    let mut tmp = [0u8; 32];
+    // Stack temp for alternating read/write (N <= MAX_N for all parameter sets)
+    let mut tmp = [0u8; MAX_N];
 
     for j in i..(i + s) {
         adrs.set_hash(j);
@@ -149,7 +111,7 @@ pub fn wots_pk_gen<H: HashSuite, const WOTS_LEN: usize>(
 
     // tmp will hold all chain endpoints
     let mut tmp = vec![0u8; WOTS_LEN * n];
-    let mut sk_buf = [0u8; 32];
+    let mut sk_buf = [0u8; MAX_N];
 
     for i in 0..WOTS_LEN {
         // Generate secret key element into stack buffer
@@ -205,7 +167,7 @@ pub fn wots_sign_to<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>
 
     // Compute sk_adrs for secret key generation
     let mut sk_adrs = adrs.with_type(AdrsType::WotsPrf);
-    let mut sk_buf = [0u8; 32];
+    let mut sk_buf = [0u8; MAX_N];
 
     // Generate signature directly into output buffer
     for i in 0..WOTS_LEN {
@@ -239,7 +201,7 @@ pub fn wots_sign_to<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>
 ///
 /// # Returns
 /// WOTS+ signature (WOTS_LEN * n bytes)
-#[allow(dead_code)]
+#[cfg(test)]
 pub fn wots_sign<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
     message: &[u8],
     sk_seed: &[u8],
@@ -310,6 +272,20 @@ mod tests {
     const N: usize = 16;
     const WOTS_LEN: usize = 35;
     const WOTS_LEN1: usize = 32;
+
+    /// Test helper: Vec-returning wrapper around wots_chain_to.
+    fn wots_chain<H: HashSuite>(
+        x: &[u8],
+        i: u32,
+        s: u32,
+        pk_seed: &[u8],
+        adrs: &mut Address,
+    ) -> Vec<u8> {
+        let n = H::N;
+        let mut out = vec![0u8; n];
+        wots_chain_to::<H>(&mut out, x, i, s, pk_seed, adrs);
+        out
+    }
 
     #[test]
     fn test_wots_chain_zero_steps() {

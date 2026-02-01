@@ -6,12 +6,12 @@
 //! FIPS 205, Algorithms 9-10.
 
 use crate::address::{Address, AdrsType};
-use crate::hash::HashSuite;
+use crate::hash::{HashSuite, MAX_N};
 use crate::wots::{wots_pk_from_sig, wots_pk_gen, wots_sign_to};
 use zeroize::Zeroize;
 
 #[cfg(not(feature = "std"))]
-use alloc::{vec, vec::Vec};
+use alloc::vec::Vec;
 
 /// Compute a node in the XMSS Merkle tree.
 ///
@@ -28,7 +28,7 @@ use alloc::{vec, vec::Vec};
 ///
 /// # Returns
 /// Node value (n bytes)
-#[allow(dead_code)]
+#[cfg(test)]
 pub fn xmss_node<H: HashSuite, const WOTS_LEN: usize>(
     sk_seed: &[u8],
     i: u32,
@@ -88,8 +88,8 @@ pub fn xmss_node_to<H: HashSuite, const WOTS_LEN: usize>(
         out.copy_from_slice(&pk);
     } else {
         // Internal node: hash of children using stack buffers
-        let mut left = [0u8; 32];
-        let mut right = [0u8; 32];
+        let mut left = [0u8; MAX_N];
+        let mut right = [0u8; MAX_N];
         xmss_node_to::<H, WOTS_LEN>(&mut left[..n], sk_seed, 2 * i, z - 1, pk_seed, adrs);
         xmss_node_to::<H, WOTS_LEN>(&mut right[..n], sk_seed, 2 * i + 1, z - 1, pk_seed, adrs);
 
@@ -176,7 +176,7 @@ pub fn xmss_sign_to<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>
 ///
 /// # Returns
 /// XMSS signature: (WOTS+ signature || authentication path)
-#[allow(dead_code)]
+#[cfg(test)]
 pub fn xmss_sign<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
     message: &[u8],
     sk_seed: &[u8],
@@ -225,13 +225,13 @@ pub fn xmss_pk_from_sig<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: us
     wots_adrs.set_type(AdrsType::WotsHash);
     wots_adrs.set_keypair(idx);
     let pk = wots_pk_from_sig::<H, WOTS_LEN, WOTS_LEN1>(sig_wots, message, pk_seed, &mut wots_adrs);
-    let mut node = [0u8; 32];
+    let mut node = [0u8; MAX_N];
     node[..n].copy_from_slice(&pk);
 
     // Climb the tree using authentication path with stack buffers
     let mut tree_adrs = *adrs;
     tree_adrs.set_type(AdrsType::Tree);
-    let mut tmp = [0u8; 32];
+    let mut tmp = [0u8; MAX_N];
 
     for j in 0..h_prime {
         tree_adrs.set_tree_height((j + 1) as u32);

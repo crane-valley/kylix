@@ -14,7 +14,7 @@
 
 use crate::address::{Address, AdrsType};
 use crate::fors::fors_tree_node_to;
-use crate::hash::HashSuite;
+use crate::hash::{HashSuite, MAX_N};
 use crate::params::common::{LG_W, W};
 use crate::utils::base_2b;
 use crate::wots::{encode_checksum, wots_chain_to};
@@ -49,7 +49,7 @@ pub fn wots_pk_gen_parallel<H: HashSuite + Send + Sync, const WOTS_LEN: usize>(
     tmp.par_chunks_mut(n).enumerate().for_each(|(i, chunk)| {
         let mut sk_adrs = sk_adrs_base;
         sk_adrs.set_chain(i as u32);
-        let mut sk_buf = [0u8; 32];
+        let mut sk_buf = [0u8; MAX_N];
         H::prf_to(&mut sk_buf[..n], pk_seed, sk_seed, &sk_adrs);
 
         let mut hash_adrs = hash_adrs_base;
@@ -90,7 +90,7 @@ pub fn wots_sign_parallel_to<
     out.par_chunks_mut(n).enumerate().for_each(|(i, chunk)| {
         let mut sk_adrs = sk_adrs_base;
         sk_adrs.set_chain(i as u32);
-        let mut sk_buf = [0u8; 32];
+        let mut sk_buf = [0u8; MAX_N];
         H::prf_to(&mut sk_buf[..n], pk_seed, sk_seed, &sk_adrs);
 
         let mut hash_adrs = hash_adrs_base;
@@ -268,8 +268,8 @@ pub fn fors_pk_from_sig_parallel<H: HashSuite + Send + Sync>(
             tree_adrs.set_type(AdrsType::ForsTree);
             tree_adrs.set_tree_height(0);
             tree_adrs.set_tree_index(global_leaf_idx);
-            let mut node = [0u8; 32];
-            let mut tmp = [0u8; 32];
+            let mut node = [0u8; MAX_N];
+            let mut tmp = [0u8; MAX_N];
             H::f_to(&mut node[..n], pk_seed, &tree_adrs, sk);
 
             // Climb the tree using authentication path
@@ -322,7 +322,7 @@ pub fn xmss_node_parallel<H: HashSuite + Send + Sync, const WOTS_LEN: usize>(
         wots_pk_gen_parallel::<H, WOTS_LEN>(sk_seed, pk_seed, &mut leaf_adrs)
     } else if z <= 2 {
         // Small subtrees: compute sequentially using buffer variant
-        let mut node = [0u8; 32];
+        let mut node = [0u8; MAX_N];
         xmss_node_to::<H, WOTS_LEN>(&mut node[..n], sk_seed, i, z, pk_seed, adrs);
         let result = node[..n].to_vec();
         node.zeroize();
