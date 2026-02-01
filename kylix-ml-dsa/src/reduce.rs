@@ -135,10 +135,10 @@ mod tests {
         // Verify round-trip: montgomery_mul(a, R^2) = a * R (mod q),
         // so freeze(montgomery_reduce(montgomery_mul(a, R^2_mod_q_in_mont))) recovers a.
         // Simpler: verify that montgomery_mul(R mod q, R mod q) = R^2 * R^(-1) = R (mod q)
-        let r_mod_q = ((1i64 << 32) % Q as i64) as i32; // R mod q
-        let result = montgomery_mul(r_mod_q, r_mod_q);
+        let mont_r_mod_q = ((1i64 << 32) % Q as i64) as i32; // R mod q
+        let result = montgomery_mul(mont_r_mod_q, mont_r_mod_q);
         // result = R * R * R^(-1) mod q = R mod q
-        assert_eq!(freeze(result), r_mod_q);
+        assert_eq!(freeze(result), mont_r_mod_q);
 
         // montgomery_mul(0, x) should give 0
         assert_eq!(freeze(montgomery_mul(0, 1000)), 0);
@@ -146,6 +146,6 @@ mod tests {
         // montgomery_mul(a, 1) = a * R^(-1) mod q
         // So freeze(montgomery_mul(R mod q, 1)) = R^(-1) * R mod q = 1
         // Actually: montgomery_mul(R mod q, 1) = (R mod q) * 1 * R^(-1) = 1
-        assert_eq!(freeze(montgomery_mul(r_mod_q, 1)), 1);
+        assert_eq!(freeze(montgomery_mul(mont_r_mod_q, 1)), 1);
     }
 }

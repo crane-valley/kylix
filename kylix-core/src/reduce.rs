@@ -161,47 +161,116 @@ macro_rules! define_freeze {
 
 #[cfg(test)]
 mod tests {
-    // Basic tests for the macros
+    const Q: i32 = 8380417;
+
+    // Barrett reduction (approximate)
     define_barrett_reduce! {
         name: test_barrett,
         coeff: i32,
         wide: i64,
-        q: 8380417,
+        q: Q,
         barrett_mul: 33_556_102i64,
         shift: 48
     }
 
+    // Barrett reduction with rounding
+    define_barrett_reduce_rounded! {
+        name: test_barrett_rounded,
+        coeff: i16,
+        wide: i32,
+        q: 3329i16,
+        barrett_mul: 20159,
+        shift: 26
+    }
+
+    // Montgomery reduction
+    define_montgomery_reduce! {
+        name: test_mont_reduce,
+        coeff: i32,
+        wide: i64,
+        q: Q,
+        qinv: 58_728_449,
+        shift: 32
+    }
+
+    // Montgomery multiplication
+    define_montgomery_mul! {
+        name: test_mont_mul,
+        coeff: i32,
+        wide: i64,
+        montgomery_reduce: test_mont_reduce
+    }
+
+    // Conditional add q
     define_caddq! {
         name: test_caddq,
         coeff: i32,
-        q: 8380417
+        q: Q
+    }
+
+    // Freeze (canonical reduction)
+    define_freeze! {
+        name: test_freeze,
+        coeff: i32,
+        q: Q,
+        reduce_approx: test_barrett
     }
 
     #[test]
     fn test_barrett_basic() {
         // Note: Barrett reduction is approximate, result may be in [0, 2q-1]
         assert_eq!(test_barrett(0), 0);
-        // For a = q, result may be 0 or q depending on constants
-        let r = test_barrett(8380417);
+        let r = test_barrett(Q);
+        assert!(r == 0 || r == Q, "Barrett(q) should be 0 or q, got {}", r);
+        let r = test_barrett(Q + 1);
         assert!(
-            r == 0 || r == 8380417,
-            "Barrett(q) should be 0 or q, got {}",
-            r
-        );
-        // For a = q + 1, result should be 1 or q + 1
-        let r = test_barrett(8380418);
-        assert!(
-            r == 1 || r == 8380418,
+            r == 1 || r == Q + 1,
             "Barrett(q+1) should be 1 or q+1, got {}",
             r
         );
     }
 
     #[test]
+    fn test_barrett_rounded_basic() {
+        const KEM_Q: i16 = 3329;
+        assert_eq!(test_barrett_rounded(0), 0);
+        // Small values should be unchanged
+        assert_eq!(test_barrett_rounded(100), 100);
+        // Values at q should reduce
+        let r = test_barrett_rounded(KEM_Q);
+        assert!(r == 0 || r == KEM_Q, "got {}", r);
+    }
+
+    #[test]
+    fn test_montgomery_reduce_basic() {
+        // montgomery_reduce(R) = R * R^(-1) mod q = 1
+        assert_eq!(test_freeze(test_mont_reduce(1i64 << 32)), 1);
+        // montgomery_reduce(0) = 0
+        assert_eq!(test_freeze(test_mont_reduce(0i64)), 0);
+    }
+
+    #[test]
+    fn test_montgomery_mul_basic() {
+        let mont_r_mod_q = ((1i64 << 32) % Q as i64) as i32;
+        // montgomery_mul(R mod q, 1) = (R mod q) * 1 * R^(-1) = 1
+        assert_eq!(test_freeze(test_mont_mul(mont_r_mod_q, 1)), 1);
+        // montgomery_mul(0, x) = 0
+        assert_eq!(test_freeze(test_mont_mul(0, 1000)), 0);
+    }
+
+    #[test]
     fn test_caddq_basic() {
         assert_eq!(test_caddq(0), 0);
         assert_eq!(test_caddq(100), 100);
-        assert_eq!(test_caddq(-1), 8380416);
-        assert_eq!(test_caddq(-100), 8380317);
+        assert_eq!(test_caddq(-1), Q - 1);
+        assert_eq!(test_caddq(-100), Q - 100);
+    }
+
+    #[test]
+    fn test_freeze_basic() {
+        assert_eq!(test_freeze(0), 0);
+        assert_eq!(test_freeze(Q), 0);
+        assert_eq!(test_freeze(Q + 1), 1);
+        assert_eq!(test_freeze(-1), Q - 1);
     }
 }
