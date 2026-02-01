@@ -15,7 +15,7 @@
 Before committing or creating a PR, always run:
 1. `cargo fmt --all` - Format all code
 2. `cargo clippy --all-targets --all-features -- -D warnings` - Check for lints
-3. `cargo test --workspace --exclude kylix-slh-dsa` - Run tests (excluding slow SLH-DSA tests)
+3. `cargo test --workspace --all-features` - Run all tests
 
 Note: CLI-related tests are in the separate [kylix-cli repository](https://github.com/crane-valley/kylix-cli).
 
