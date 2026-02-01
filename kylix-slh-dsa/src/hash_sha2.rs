@@ -189,6 +189,7 @@ impl_sha2_hash_suite!(Sha2_256Hash, 32, PADDING_256);
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
 
     #[test]
     fn test_adrs_compress_wots_hash() {

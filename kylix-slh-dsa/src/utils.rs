@@ -133,6 +133,7 @@ pub fn concat(slices: &[&[u8]]) -> Vec<u8> {
 #[allow(clippy::unreadable_literal)]
 mod tests {
     use super::*;
+    use alloc::vec;
 
     #[test]
     fn test_to_int() {

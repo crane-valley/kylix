@@ -76,7 +76,7 @@
     clippy::needless_range_loop
 )]
 
-#[cfg(not(feature = "std"))]
+// alloc is available in both std and no_std environments
 extern crate alloc;
 
 // Core modules
