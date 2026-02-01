@@ -39,6 +39,29 @@ zeroize = { version = "1.8", default-features = false, features = ["derive", "al
 rand_core = { version = "0.9", default-features = false }
 subtle = { version = "2.5", default-features = false }
 
+# Optimize crypto-heavy packages in dev/test builds.
+# SLH-DSA is hash-intensive and 10-15x slower at opt-level=0.
+[profile.dev.package.sha3]
+opt-level = 2
+[profile.dev.package.keccak]
+opt-level = 2
+[profile.dev.package.digest]
+opt-level = 2
+[profile.dev.package.sha2]
+opt-level = 2
+[profile.dev.package.hmac]
+opt-level = 2
+[profile.dev.package.subtle]
+opt-level = 2
+[profile.dev.package.kylix-core]
+opt-level = 2
+[profile.dev.package.kylix-ml-kem]
+opt-level = 2
+[profile.dev.package.kylix-ml-dsa]
+opt-level = 2
+[profile.dev.package.kylix-slh-dsa]
+opt-level = 2
+
 [profile.release]
 lto = true
 codegen-units = 1
