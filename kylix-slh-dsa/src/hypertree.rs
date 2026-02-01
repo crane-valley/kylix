@@ -31,7 +31,7 @@ use alloc::{vec, vec::Vec};
 /// * `d` - Number of hypertree layers
 ///
 /// # Panics
-/// Panics in debug builds if `out.len() != d * (WOTS_LEN + h_prime) * n`.
+/// Panics if `out` is not exactly `d * (WOTS_LEN + h_prime) * n` bytes.
 pub fn ht_sign_to<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
     out: &mut [u8],
     message: &[u8],

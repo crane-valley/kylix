@@ -35,7 +35,7 @@ use alloc::{vec, vec::Vec};
 /// * `t` - Number of leaves per tree (2^a)
 ///
 /// # Panics
-/// Panics in debug builds if `out.len() != N`.
+/// Panics if `out` is not exactly `N` bytes.
 pub(crate) fn fors_tree_node_to<H: HashSuite>(
     out: &mut [u8],
     sk_seed: &[u8],
@@ -123,7 +123,7 @@ pub(crate) fn fors_tree_node_to<H: HashSuite>(
 /// * `a` - Height of each FORS tree
 ///
 /// # Panics
-/// Panics in debug builds if `out.len() != k * (1 + a) * n`.
+/// Panics if `out` is not exactly `k * (1 + a) * n` bytes.
 pub fn fors_sign_to<H: HashSuite>(
     out: &mut [u8],
     md: &[u8],
@@ -273,6 +273,9 @@ pub fn fors_pk_from_sig<H: HashSuite>(
 
         roots[i * n..(i + 1) * n].copy_from_slice(&node[..n]);
     }
+
+    node.zeroize();
+    tmp.zeroize();
 
     // Compress all roots to get public key
     let fors_pk_adrs = adrs.with_type(AdrsType::ForsPk);

@@ -292,6 +292,8 @@ pub fn fors_pk_from_sig_parallel<H: HashSuite + Send + Sync>(
             }
 
             root_chunk.copy_from_slice(&node[..n]);
+            node.zeroize();
+            tmp.zeroize();
         });
 
     let fors_pk_adrs = adrs.with_type(AdrsType::ForsPk);

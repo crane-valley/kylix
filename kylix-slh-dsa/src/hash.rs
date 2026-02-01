@@ -132,7 +132,7 @@ pub trait HashSuite {
     /// F into a caller-provided buffer (n bytes).
     ///
     /// # Panics
-    /// Panics in debug builds if `out.len() != N`.
+    /// Panics if `out` is not exactly `N` bytes.
     fn f_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m1: &[u8]) {
         let result = Self::f(pk_seed, adrs, m1);
         out.copy_from_slice(&result);
@@ -141,7 +141,7 @@ pub trait HashSuite {
     /// H into a caller-provided buffer (n bytes).
     ///
     /// # Panics
-    /// Panics in debug builds if `out.len() != N`.
+    /// Panics if `out` is not exactly `N` bytes.
     fn h_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m1: &[u8], m2: &[u8]) {
         let result = Self::h(pk_seed, adrs, m1, m2);
         out.copy_from_slice(&result);
@@ -150,7 +150,7 @@ pub trait HashSuite {
     /// Tl into a caller-provided buffer (n bytes).
     ///
     /// # Panics
-    /// Panics in debug builds if `out.len() != N`.
+    /// Panics if `out` is not exactly `N` bytes.
     fn t_l_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m: &[u8]) {
         let result = Self::t_l(pk_seed, adrs, m);
         out.copy_from_slice(&result);
@@ -162,7 +162,7 @@ pub trait HashSuite {
     /// The caller is responsible for zeroizing `out` when it contains secret material.
     ///
     /// # Panics
-    /// Panics in debug builds if `out.len() != N`.
+    /// Panics if `out` is not exactly `N` bytes.
     fn prf_to(out: &mut [u8], pk_seed: &[u8], sk_seed: &[u8], adrs: &Address) {
         let result = Self::prf(pk_seed, sk_seed, adrs);
         out.copy_from_slice(&result);

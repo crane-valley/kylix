@@ -51,7 +51,7 @@ pub(crate) fn encode_checksum(msg: &[u32], wots_len: usize, wots_len1: usize) ->
 /// * `adrs` - Address (must have type WotsHash)
 ///
 /// # Panics
-/// Panics in debug builds if `out.len() != N`.
+/// Panics if `out` is not exactly `N` bytes.
 pub fn wots_chain_to<H: HashSuite>(
     out: &mut [u8],
     x: &[u8],
@@ -150,7 +150,7 @@ pub fn wots_pk_gen<H: HashSuite, const WOTS_LEN: usize>(
 /// * `adrs` - Address (will be modified during computation)
 ///
 /// # Panics
-/// Panics in debug builds if `out.len() != WOTS_LEN * n`.
+/// Panics if `out` is not exactly `WOTS_LEN * n` bytes.
 pub fn wots_sign_to<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
     out: &mut [u8],
     message: &[u8],

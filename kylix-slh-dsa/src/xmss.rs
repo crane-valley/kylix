@@ -120,7 +120,7 @@ pub fn xmss_node_to<H: HashSuite, const WOTS_LEN: usize>(
 /// * `h_prime` - Height of this XMSS tree
 ///
 /// # Panics
-/// Panics in debug builds if `out.len() != (WOTS_LEN + h_prime) * n`.
+/// Panics if `out` is not exactly `(WOTS_LEN + h_prime) * n` bytes.
 pub fn xmss_sign_to<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
     out: &mut [u8],
     message: &[u8],
@@ -249,7 +249,10 @@ pub fn xmss_pk_from_sig<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: us
         node[..n].copy_from_slice(&tmp[..n]);
     }
 
-    node[..n].to_vec()
+    let result = node[..n].to_vec();
+    node.zeroize();
+    tmp.zeroize();
+    result
 }
 
 #[cfg(test)]
