@@ -55,7 +55,7 @@ pub fn wots_pk_gen_parallel<H: HashSuite + Send + Sync, const WOTS_LEN: usize>(
         let mut hash_adrs = hash_adrs_base;
         hash_adrs.set_chain(i as u32);
         wots_chain_to::<H>(chunk, &sk_buf[..n], 0, w - 1, pk_seed, &mut hash_adrs);
-        sk_buf[..n].zeroize();
+        sk_buf.zeroize();
     });
 
     H::t_l(pk_seed, &wots_pk_adrs, &tmp)
@@ -96,7 +96,7 @@ pub fn wots_sign_parallel_to<
         let mut hash_adrs = hash_adrs_base;
         hash_adrs.set_chain(i as u32);
         wots_chain_to::<H>(chunk, &sk_buf[..n], 0, msg[i], pk_seed, &mut hash_adrs);
-        sk_buf[..n].zeroize();
+        sk_buf.zeroize();
     });
 }
 
@@ -324,7 +324,9 @@ pub fn xmss_node_parallel<H: HashSuite + Send + Sync, const WOTS_LEN: usize>(
         // Small subtrees: compute sequentially using buffer variant
         let mut node = [0u8; 32];
         xmss_node_to::<H, WOTS_LEN>(&mut node[..n], sk_seed, i, z, pk_seed, adrs);
-        node[..n].to_vec()
+        let result = node[..n].to_vec();
+        node.zeroize();
+        result
     } else {
         // Large subtrees: parallelize left and right (rayon::join requires owned values)
         let (left, right) = rayon::join(

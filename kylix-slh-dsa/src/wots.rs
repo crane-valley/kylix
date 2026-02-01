@@ -164,9 +164,8 @@ pub fn wots_pk_gen<H: HashSuite, const WOTS_LEN: usize>(
             pk_seed,
             adrs,
         );
+        sk_buf.zeroize();
     }
-
-    sk_buf.zeroize();
 
     // Compress to get public key
     H::t_l(pk_seed, &wots_pk_adrs, &tmp)
@@ -220,9 +219,8 @@ pub fn wots_sign_to<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>
             pk_seed,
             adrs,
         );
+        sk_buf.zeroize();
     }
-
-    sk_buf.zeroize();
 }
 
 /// Generate a WOTS+ signature.

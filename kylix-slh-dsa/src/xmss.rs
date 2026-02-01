@@ -8,6 +8,7 @@
 use crate::address::{Address, AdrsType};
 use crate::hash::HashSuite;
 use crate::wots::{wots_pk_from_sig, wots_pk_gen, wots_sign_to};
+use zeroize::Zeroize;
 
 #[cfg(not(feature = "std"))]
 use alloc::{vec, vec::Vec};
@@ -97,6 +98,8 @@ pub fn xmss_node_to<H: HashSuite, const WOTS_LEN: usize>(
         node_adrs.set_tree_height(z);
         node_adrs.set_tree_index(i);
         H::h_to(out, pk_seed, &node_adrs, &left[..n], &right[..n]);
+        left.zeroize();
+        right.zeroize();
     }
 }
 

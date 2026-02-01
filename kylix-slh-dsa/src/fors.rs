@@ -145,7 +145,7 @@ pub(crate) fn fors_tree_node_to<H: HashSuite>(
         adrs.set_tree_index(global_idx);
         H::f_to(out, pk_seed, adrs, &sk_buf[..n]);
 
-        sk_buf[..n].zeroize();
+        sk_buf.zeroize();
     } else {
         // Internal node: hash of children using stack buffers
         let mut left = [0u8; 32];
@@ -180,6 +180,8 @@ pub(crate) fn fors_tree_node_to<H: HashSuite>(
         adrs.set_tree_height(z);
         adrs.set_tree_index(global_idx);
         H::h_to(out, pk_seed, adrs, &left[..n], &right[..n]);
+        left.zeroize();
+        right.zeroize();
     }
 }
 
