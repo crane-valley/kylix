@@ -9,9 +9,7 @@
 #![allow(dead_code)]
 
 use crate::params::common::Q;
-use kylix_core::{
-    define_barrett_reduce_rounded, define_caddq, define_montgomery_mul, define_montgomery_reduce,
-};
+use kylix_core::{define_barrett_reduce_rounded, define_montgomery_mul, define_montgomery_reduce};
 
 /// Q inverse mod 2^16: q^(-1) mod 2^16 = -3327
 pub const QINV: i32 = -3327;
@@ -55,13 +53,6 @@ define_montgomery_mul! {
     coeff: i16,
     wide: i32,
     montgomery_reduce: montgomery_reduce
-}
-
-// Generate conditional reduce (subtract q if >= q)
-define_caddq! {
-    name: cond_reduce_internal,
-    coeff: i16,
-    q: Q as i16
 }
 
 /// Conditional reduce: subtract q if r >= q

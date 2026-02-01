@@ -127,7 +127,8 @@ macro_rules! define_caddq {
         /// Conditional add q: add q if a is negative.
         #[inline]
         pub const fn $name(a: $coeff) -> $coeff {
-            // mask is -1 (all 1s) if a < 0, else 0
+            // Arithmetic right shift by (bit_width - 1) extracts the sign bit:
+            // yields -1 (all 1s) if a < 0, or 0 if a >= 0.
             let mask = a >> (core::mem::size_of::<$coeff>() * 8 - 1);
             a + ($q & mask)
         }
@@ -148,6 +149,8 @@ macro_rules! define_freeze {
         pub const fn $name(a: $coeff) -> $coeff {
             let r = $reduce_approx(a);
             let r = r - $q;
+            // Arithmetic right shift by (bit_width - 1) extracts the sign bit:
+            // yields -1 (all 1s) if r < 0, or 0 if r >= 0.
             let mask = r >> (core::mem::size_of::<$coeff>() * 8 - 1);
             r + ($q & mask)
         }

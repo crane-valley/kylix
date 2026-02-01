@@ -5,7 +5,8 @@
 //! This module uses macros from kylix-core to generate the reduction functions.
 
 use kylix_core::{
-    define_barrett_reduce, define_caddq, define_montgomery_mul, define_montgomery_reduce,
+    define_barrett_reduce, define_caddq, define_freeze, define_montgomery_mul,
+    define_montgomery_reduce,
 };
 
 /// The prime modulus q = 8380417
@@ -52,25 +53,20 @@ define_caddq! {
     q: Q
 }
 
-/// Reduce a to canonical form [0, q-1] using Barrett reduction.
-///
-/// Input: |a| < 2^31
-/// Output: r in [0, q-1] with r ≡ a (mod q)
-#[inline]
-pub const fn reduce32(a: i32) -> i32 {
-    let r = reduce32_approx(a);
-    // r might be in [0, 2q-1], reduce if needed
-    let r = r - Q;
-    let mask = r >> 31; // -1 if r < 0, 0 otherwise
-    r + (Q & mask)
+// Generate reduce32: canonical reduction to [0, q-1]
+define_freeze! {
+    name: reduce32,
+    coeff: i32,
+    q: Q,
+    reduce_approx: reduce32_approx
 }
 
-/// Freeze: reduce to canonical [0, q-1] range.
-#[inline]
-pub const fn freeze(a: i32) -> i32 {
-    let r = reduce32_approx(a);
-    let r = r - Q;
-    r + (Q & (r >> 31))
+// Generate freeze: canonical reduction to [0, q-1]
+define_freeze! {
+    name: freeze,
+    coeff: i32,
+    q: Q,
+    reduce_approx: reduce32_approx
 }
 
 #[cfg(test)]
@@ -117,16 +113,36 @@ mod tests {
         // montgomery_reduce(R) should give 1 (mod q)
         let r = montgomery_reduce(1i64 << 32);
         assert_eq!(freeze(r), 1);
+
+        // montgomery_reduce(0) should give 0
+        assert_eq!(freeze(montgomery_reduce(0i64)), 0);
+
+        // montgomery_reduce(q * R) should give 0 (mod q)
+        assert_eq!(freeze(montgomery_reduce((Q as i64) << 32)), 0);
+
+        // montgomery_reduce(-R) should give q - 1 (mod q)
+        assert_eq!(freeze(montgomery_reduce(-(1i64 << 32))), Q - 1);
+
+        // montgomery_reduce(2R) should give 2 (mod q)
+        assert_eq!(freeze(montgomery_reduce(2i64 << 32)), 2);
     }
 
     #[test]
     fn test_montgomery_mul() {
-        // Test that montgomery_mul is consistent
-        let a = 1000i32;
-        let b = 2000i32;
-        let result = montgomery_mul(a, b);
-        // Result is (a * b * R^(-1)) mod q
-        // This is hard to verify directly, but we can check it's in range
-        assert!(result.abs() < Q);
+        // Verify round-trip: montgomery_mul(a, R^2) = a * R (mod q),
+        // so freeze(montgomery_reduce(montgomery_mul(a, R^2_mod_q_in_mont))) recovers a.
+        // Simpler: verify that montgomery_mul(R mod q, R mod q) = R^2 * R^(-1) = R (mod q)
+        let r_mod_q = ((1i64 << 32) % Q as i64) as i32; // R mod q
+        let result = montgomery_mul(r_mod_q, r_mod_q);
+        // result = R * R * R^(-1) mod q = R mod q
+        assert_eq!(freeze(result), r_mod_q);
+
+        // montgomery_mul(0, x) should give 0
+        assert_eq!(freeze(montgomery_mul(0, 1000)), 0);
+
+        // montgomery_mul(a, 1) = a * R^(-1) mod q
+        // So freeze(montgomery_mul(R mod q, 1)) = R^(-1) * R mod q = 1
+        // Actually: montgomery_mul(R mod q, 1) = (R mod q) * 1 * R^(-1) = 1
+        assert_eq!(freeze(montgomery_mul(r_mod_q, 1)), 1);
     }
 }
