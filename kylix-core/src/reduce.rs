@@ -56,7 +56,7 @@ macro_rules! define_barrett_reduce_rounded {
         #[inline]
         pub const fn $name(a: $coeff) -> $coeff {
             let a = a as $wide;
-            let half = 1 as $wide << ($shift - 1);
+            let half = 1 << ($shift - 1);
             let t = ((a * $barrett_mul + half) >> $shift) as $coeff;
             (a - (t as $wide) * ($q as $wide)) as $coeff
         }
@@ -127,9 +127,10 @@ macro_rules! define_caddq {
         /// Conditional add q: add q if a is negative.
         #[inline]
         pub const fn $name(a: $coeff) -> $coeff {
-            // Arithmetic right shift by (bit_width - 1) extracts the sign bit:
-            // yields -1 (all 1s) if a < 0, or 0 if a >= 0.
-            let mask = a >> (core::mem::size_of::<$coeff>() * 8 - 1);
+            // Arithmetic right shift by the sign bit position to create a mask:
+            // -1 (all 1s) if a < 0, or 0 if a >= 0.
+            const SIGN_BIT: u32 = (core::mem::size_of::<$coeff>() * 8 - 1) as u32;
+            let mask = a >> SIGN_BIT;
             a + ($q & mask)
         }
     };
@@ -149,9 +150,10 @@ macro_rules! define_freeze {
         pub const fn $name(a: $coeff) -> $coeff {
             let r = $reduce_approx(a);
             let r = r - $q;
-            // Arithmetic right shift by (bit_width - 1) extracts the sign bit:
-            // yields -1 (all 1s) if r < 0, or 0 if r >= 0.
-            let mask = r >> (core::mem::size_of::<$coeff>() * 8 - 1);
+            // Arithmetic right shift by the sign bit position to create a mask:
+            // -1 (all 1s) if r < 0, or 0 if r >= 0.
+            const SIGN_BIT: u32 = (core::mem::size_of::<$coeff>() * 8 - 1) as u32;
+            let mask = r >> SIGN_BIT;
             r + ($q & mask)
         }
     };

@@ -55,18 +55,18 @@ define_montgomery_mul! {
     montgomery_reduce: montgomery_reduce
 }
 
-/// Conditional reduce: subtract q if r >= q
+/// Conditional reduce: subtract q if r >= q (constant-time).
 ///
 /// This ensures the result is in canonical form [0, q-1].
+/// Uses bitwise operations to avoid data-dependent branches.
 #[inline]
 pub const fn cond_reduce(r: i16) -> i16 {
     let r_minus_q = r - Q as i16;
-    // If r >= q, use r - q; otherwise keep r
-    if r_minus_q >= 0 {
-        r_minus_q
-    } else {
-        r
-    }
+    // Arithmetic right shift extracts sign bit as mask:
+    // -1 (all 1s) if r_minus_q < 0 (i.e. r < q), or 0 if r >= q.
+    let mask = r_minus_q >> 15;
+    // If r < q: select r (mask=-1), otherwise select r_minus_q (mask=0)
+    (r & mask) | (r_minus_q & !mask)
 }
 
 /// Full Barrett reduction to canonical form [0, q-1]

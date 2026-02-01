@@ -64,6 +64,9 @@ define_freeze! {
 }
 
 /// Freeze: reduce to canonical [0, q-1] range.
+///
+/// This is a thin wrapper around [`reduce32`] kept for API compatibility
+/// and to match the terminology used in the ML-DSA specification.
 #[inline]
 pub const fn freeze(a: i32) -> i32 {
     reduce32(a)
