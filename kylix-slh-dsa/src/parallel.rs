@@ -328,8 +328,10 @@ pub fn xmss_node_parallel<H: HashSuite + Send + Sync, const WOTS_LEN: usize>(
         node.zeroize();
         result
     } else {
-        // Large subtrees: parallelize left/right via rayon::join (returns Vec since
-        // join closures must return owned values that can be sent across threads)
+        // Large subtrees: parallelize left/right via rayon::join.
+        // Returns Vec<u8> because join closures must return owned Send values.
+        // Small subtrees (z <= 2) use stack buffers; deeper parallel recursion
+        // keeps Vec<u8> for simplicity since these allocations are infrequent.
         let (left, right) = rayon::join(
             || xmss_node_parallel::<H, WOTS_LEN>(sk_seed, 2 * i, z - 1, pk_seed, adrs),
             || xmss_node_parallel::<H, WOTS_LEN>(sk_seed, 2 * i + 1, z - 1, pk_seed, adrs),

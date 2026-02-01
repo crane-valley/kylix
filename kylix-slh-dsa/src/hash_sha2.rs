@@ -9,7 +9,7 @@ use crate::address::{Address, AdrsType};
 use crate::hash::HashSuite;
 use hmac::{Hmac, Mac};
 use sha2::{Digest, Sha256};
-use zeroize::Zeroizing;
+use zeroize::{Zeroize, Zeroizing};
 
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
@@ -134,8 +134,9 @@ macro_rules! impl_sha2_hash_suite {
                 for m in ms {
                     hasher.update(m);
                 }
-                let hash = hasher.finalize();
+                let mut hash = hasher.finalize();
                 out.copy_from_slice(&hash[..$n]);
+                hash.zeroize();
             }
         }
 
