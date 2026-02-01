@@ -115,6 +115,8 @@ pub fn wots_chain_to<H: HashSuite>(
         H::f_to(&mut tmp[..n], pk_seed, adrs, out);
         out.copy_from_slice(&tmp[..n]);
     }
+
+    tmp.zeroize();
 }
 
 /// Generate a WOTS+ public key.
