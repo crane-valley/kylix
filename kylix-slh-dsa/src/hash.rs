@@ -17,6 +17,10 @@ use zeroize::Zeroizing;
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 
+/// Maximum value of N across all SLH-DSA parameter sets (256-bit security = 32 bytes).
+/// Used for stack buffer sizing in `_to` buffer-write variants.
+pub const MAX_N: usize = 32;
+
 /// Hash function suite trait for SLH-DSA.
 ///
 /// Implementations of this trait provide the complete set of hash functions
@@ -120,4 +124,47 @@ pub trait HashSuite {
     /// # Returns
     /// n-byte hash output
     fn t_l(pk_seed: &[u8], adrs: &Address, m: &[u8]) -> Vec<u8>;
+
+    // --- Buffer-write variants ---
+    // These write directly into a caller-provided buffer instead of allocating.
+    // Default implementations delegate to the Vec-returning methods.
+
+    /// F into a caller-provided buffer (n bytes).
+    ///
+    /// # Panics
+    /// Panics if `out` is not exactly `N` bytes.
+    fn f_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m1: &[u8]) {
+        let result = Self::f(pk_seed, adrs, m1);
+        out.copy_from_slice(&result);
+    }
+
+    /// H into a caller-provided buffer (n bytes).
+    ///
+    /// # Panics
+    /// Panics if `out` is not exactly `N` bytes.
+    fn h_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m1: &[u8], m2: &[u8]) {
+        let result = Self::h(pk_seed, adrs, m1, m2);
+        out.copy_from_slice(&result);
+    }
+
+    /// Tl into a caller-provided buffer (n bytes).
+    ///
+    /// # Panics
+    /// Panics if `out` is not exactly `N` bytes.
+    fn t_l_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m: &[u8]) {
+        let result = Self::t_l(pk_seed, adrs, m);
+        out.copy_from_slice(&result);
+    }
+
+    /// PRF into a caller-provided buffer (n bytes).
+    ///
+    /// Unlike [`prf`](Self::prf), this does NOT return `Zeroizing`.
+    /// The caller is responsible for zeroizing `out` when it contains secret material.
+    ///
+    /// # Panics
+    /// Panics if `out` is not exactly `N` bytes.
+    fn prf_to(out: &mut [u8], pk_seed: &[u8], sk_seed: &[u8], adrs: &Address) {
+        let result = Self::prf(pk_seed, sk_seed, adrs);
+        out.copy_from_slice(&result);
+    }
 }

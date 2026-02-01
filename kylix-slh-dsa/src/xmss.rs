@@ -6,11 +6,12 @@
 //! FIPS 205, Algorithms 9-10.
 
 use crate::address::{Address, AdrsType};
-use crate::hash::HashSuite;
+use crate::hash::{HashSuite, MAX_N};
 use crate::wots::{wots_pk_from_sig, wots_pk_gen, wots_sign_to};
+use zeroize::Zeroize;
 
 #[cfg(not(feature = "std"))]
-use alloc::{vec, vec::Vec};
+use alloc::vec::Vec;
 
 /// Compute a node in the XMSS Merkle tree.
 ///
@@ -27,6 +28,7 @@ use alloc::{vec, vec::Vec};
 ///
 /// # Returns
 /// Node value (n bytes)
+#[cfg(test)]
 pub fn xmss_node<H: HashSuite, const WOTS_LEN: usize>(
     sk_seed: &[u8],
     i: u32,
@@ -54,6 +56,53 @@ pub fn xmss_node<H: HashSuite, const WOTS_LEN: usize>(
     }
 }
 
+/// Compute a node in the XMSS Merkle tree, writing result into a buffer.
+///
+/// Buffer-write variant of [`xmss_node`] that avoids per-node heap allocations
+/// by using stack buffers for intermediate child nodes.
+///
+/// # Arguments
+/// * `out` - Output buffer (must be exactly n bytes)
+/// * `sk_seed` - Secret seed
+/// * `i` - Node index at height z
+/// * `z` - Height in the tree (0 = leaf level)
+/// * `pk_seed` - Public seed
+/// * `adrs` - Address (will be modified during computation)
+pub fn xmss_node_to<H: HashSuite, const WOTS_LEN: usize>(
+    out: &mut [u8],
+    sk_seed: &[u8],
+    i: u32,
+    z: u32,
+    pk_seed: &[u8],
+    adrs: &Address,
+) {
+    let n = H::N;
+    debug_assert_eq!(out.len(), n);
+
+    if z == 0 {
+        // Leaf node: compute WOTS+ public key
+        let mut leaf_adrs = *adrs;
+        leaf_adrs.set_type(AdrsType::WotsHash);
+        leaf_adrs.set_keypair(i);
+        let pk = wots_pk_gen::<H, WOTS_LEN>(sk_seed, pk_seed, &mut leaf_adrs);
+        out.copy_from_slice(&pk);
+    } else {
+        // Internal node: hash of children using stack buffers
+        let mut left = [0u8; MAX_N];
+        let mut right = [0u8; MAX_N];
+        xmss_node_to::<H, WOTS_LEN>(&mut left[..n], sk_seed, 2 * i, z - 1, pk_seed, adrs);
+        xmss_node_to::<H, WOTS_LEN>(&mut right[..n], sk_seed, 2 * i + 1, z - 1, pk_seed, adrs);
+
+        let mut node_adrs = *adrs;
+        node_adrs.set_type(AdrsType::Tree);
+        node_adrs.set_tree_height(z);
+        node_adrs.set_tree_index(i);
+        H::h_to(out, pk_seed, &node_adrs, &left[..n], &right[..n]);
+        left.zeroize();
+        right.zeroize();
+    }
+}
+
 /// Generate an XMSS signature into a pre-allocated buffer.
 ///
 /// FIPS 205, Algorithm 10: xmss_sign(M, SK.seed, idx, PK.seed, ADRS)
@@ -71,7 +120,7 @@ pub fn xmss_node<H: HashSuite, const WOTS_LEN: usize>(
 /// * `h_prime` - Height of this XMSS tree
 ///
 /// # Panics
-/// Panics in debug builds if `out.len() != (WOTS_LEN + h_prime) * n`.
+/// Panics if `out` is not exactly `(WOTS_LEN + h_prime) * n` bytes.
 pub fn xmss_sign_to<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
     out: &mut [u8],
     message: &[u8],
@@ -100,8 +149,14 @@ pub fn xmss_sign_to<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>
     // Compute authentication path directly into output buffer
     for j in 0..h_prime {
         let sibling_idx = (idx >> j) ^ 1;
-        let node = xmss_node::<H, WOTS_LEN>(sk_seed, sibling_idx, j as u32, pk_seed, adrs);
-        out[wots_sig_len + j * n..wots_sig_len + (j + 1) * n].copy_from_slice(&node);
+        xmss_node_to::<H, WOTS_LEN>(
+            &mut out[wots_sig_len + j * n..wots_sig_len + (j + 1) * n],
+            sk_seed,
+            sibling_idx,
+            j as u32,
+            pk_seed,
+            adrs,
+        );
     }
 }
 
@@ -121,7 +176,7 @@ pub fn xmss_sign_to<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>
 ///
 /// # Returns
 /// XMSS signature: (WOTS+ signature || authentication path)
-#[allow(dead_code)]
+#[cfg(test)]
 pub fn xmss_sign<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
     message: &[u8],
     sk_seed: &[u8],
@@ -165,34 +220,39 @@ pub fn xmss_pk_from_sig<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: us
     let sig_wots = &sig_xmss[..wots_sig_len];
     let auth = &sig_xmss[wots_sig_len..];
 
-    // Recover WOTS+ public key
+    // Recover WOTS+ public key into stack buffer
     let mut wots_adrs = *adrs;
     wots_adrs.set_type(AdrsType::WotsHash);
     wots_adrs.set_keypair(idx);
-    let mut node =
-        wots_pk_from_sig::<H, WOTS_LEN, WOTS_LEN1>(sig_wots, message, pk_seed, &mut wots_adrs);
+    let pk = wots_pk_from_sig::<H, WOTS_LEN, WOTS_LEN1>(sig_wots, message, pk_seed, &mut wots_adrs);
+    let mut node = [0u8; MAX_N];
+    node[..n].copy_from_slice(&pk);
 
-    // Climb the tree using authentication path
+    // Climb the tree using authentication path with stack buffers
     let mut tree_adrs = *adrs;
     tree_adrs.set_type(AdrsType::Tree);
+    let mut tmp = [0u8; MAX_N];
 
     for j in 0..h_prime {
         tree_adrs.set_tree_height((j + 1) as u32);
+        tree_adrs.set_tree_index(idx >> (j + 1));
 
         let auth_j = &auth[j * n..(j + 1) * n];
 
         if (idx >> j) & 1 == 0 {
             // Current node is left child
-            tree_adrs.set_tree_index(idx >> (j + 1));
-            node = H::h(pk_seed, &tree_adrs, &node, auth_j);
+            H::h_to(&mut tmp[..n], pk_seed, &tree_adrs, &node[..n], auth_j);
         } else {
             // Current node is right child
-            tree_adrs.set_tree_index(idx >> (j + 1));
-            node = H::h(pk_seed, &tree_adrs, auth_j, &node);
+            H::h_to(&mut tmp[..n], pk_seed, &tree_adrs, auth_j, &node[..n]);
         }
+        node[..n].copy_from_slice(&tmp[..n]);
     }
 
-    node
+    let result = node[..n].to_vec();
+    node.zeroize();
+    tmp.zeroize();
+    result
 }
 
 #[cfg(test)]

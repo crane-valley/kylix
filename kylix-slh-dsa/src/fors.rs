@@ -11,41 +11,21 @@
 #![cfg_attr(feature = "parallel", allow(dead_code))]
 
 use crate::address::{Address, AdrsType};
-use crate::hash::HashSuite;
+use crate::hash::{HashSuite, MAX_N};
 use crate::utils::base_2b;
-use zeroize::Zeroizing;
+use zeroize::Zeroize;
 
 #[cfg(not(feature = "std"))]
 use alloc::{vec, vec::Vec};
 
-/// Generate a FORS secret key element.
-///
-/// FIPS 205, Algorithm 15: fors_SKgen(SK.seed, PK.seed, ADRS, idx)
-///
-/// Generates a single secret key element for FORS.
-///
-/// # Arguments
-/// * `sk_seed` - Secret seed
-/// * `pk_seed` - Public seed
-/// * `adrs` - Address (type ForsPrf)
-///
-/// # Returns
-/// Secret key element (n bytes) wrapped in `Zeroizing` for automatic memory cleanup
-pub fn fors_sk_gen<H: HashSuite>(
-    sk_seed: &[u8],
-    pk_seed: &[u8],
-    adrs: &Address,
-) -> Zeroizing<Vec<u8>> {
-    H::prf(pk_seed, sk_seed, adrs)
-}
-
-/// Compute a node in a single FORS tree.
+/// Compute a FORS tree node directly into a caller-provided buffer.
 ///
 /// FIPS 205, Algorithm 16: fors_node(SK.seed, i, z, PK.seed, ADRS)
 ///
-/// Computes the node at height z and index i within the tree specified by ADRS.
+/// Writes the node value into `out` using stack buffers for recursive children.
 ///
 /// # Arguments
+/// * `out` - Output buffer (must be exactly n bytes)
 /// * `sk_seed` - Secret seed
 /// * `tree_idx` - Which FORS tree (0 to k-1)
 /// * `i` - Node index at height z within this tree
@@ -54,9 +34,10 @@ pub fn fors_sk_gen<H: HashSuite>(
 /// * `adrs` - Address (will be modified during computation)
 /// * `t` - Number of leaves per tree (2^a)
 ///
-/// # Returns
-/// Node value (n bytes)
-pub(crate) fn fors_tree_node<H: HashSuite>(
+/// # Panics
+/// Panics if `out` is not exactly `N` bytes.
+pub(crate) fn fors_tree_node_to<H: HashSuite>(
+    out: &mut [u8],
     sk_seed: &[u8],
     tree_idx: u32,
     i: u32,
@@ -64,25 +45,53 @@ pub(crate) fn fors_tree_node<H: HashSuite>(
     pk_seed: &[u8],
     adrs: &mut Address,
     t: u32,
-) -> Vec<u8> {
+) {
+    let n = H::N;
+    debug_assert_eq!(out.len(), n);
+
     if z == 0 {
         // Leaf node: hash of secret key element
-        // Global leaf index = tree_idx * t + i
         let global_idx = tree_idx * t + i;
 
         let mut sk_adrs = adrs.with_type(AdrsType::ForsPrf);
         sk_adrs.set_tree_height(0);
         sk_adrs.set_tree_index(global_idx);
-        let sk = fors_sk_gen::<H>(sk_seed, pk_seed, &sk_adrs);
+
+        // PRF into stack buffer, then F into out
+        let mut sk_buf = [0u8; MAX_N];
+        H::prf_to(&mut sk_buf[..n], pk_seed, sk_seed, &sk_adrs);
 
         adrs.set_type(AdrsType::ForsTree);
         adrs.set_tree_height(0);
         adrs.set_tree_index(global_idx);
-        H::f(pk_seed, adrs, &sk)
+        H::f_to(out, pk_seed, adrs, &sk_buf[..n]);
+
+        sk_buf.zeroize();
     } else {
-        // Internal node: hash of children
-        let left = fors_tree_node::<H>(sk_seed, tree_idx, 2 * i, z - 1, pk_seed, adrs, t);
-        let right = fors_tree_node::<H>(sk_seed, tree_idx, 2 * i + 1, z - 1, pk_seed, adrs, t);
+        // Internal node: hash of children using stack buffers
+        let mut left = [0u8; MAX_N];
+        let mut right = [0u8; MAX_N];
+
+        fors_tree_node_to::<H>(
+            &mut left[..n],
+            sk_seed,
+            tree_idx,
+            2 * i,
+            z - 1,
+            pk_seed,
+            adrs,
+            t,
+        );
+        fors_tree_node_to::<H>(
+            &mut right[..n],
+            sk_seed,
+            tree_idx,
+            2 * i + 1,
+            z - 1,
+            pk_seed,
+            adrs,
+            t,
+        );
 
         // Global index for this internal node
         let nodes_at_level = t >> z;
@@ -91,7 +100,9 @@ pub(crate) fn fors_tree_node<H: HashSuite>(
         adrs.set_type(AdrsType::ForsTree);
         adrs.set_tree_height(z);
         adrs.set_tree_index(global_idx);
-        H::h(pk_seed, adrs, &left, &right)
+        H::h_to(out, pk_seed, adrs, &left[..n], &right[..n]);
+        left.zeroize();
+        right.zeroize();
     }
 }
 
@@ -112,7 +123,7 @@ pub(crate) fn fors_tree_node<H: HashSuite>(
 /// * `a` - Height of each FORS tree
 ///
 /// # Panics
-/// Panics in debug builds if `out.len() != k * (1 + a) * n`.
+/// Panics if `out` is not exactly `k * (1 + a) * n` bytes.
 pub fn fors_sign_to<H: HashSuite>(
     out: &mut [u8],
     md: &[u8],
@@ -136,17 +147,17 @@ pub fn fors_sign_to<H: HashSuite>(
         let global_leaf_idx = tree_idx * t + idx;
         let tree_out = &mut out[i * chunk_size..(i + 1) * chunk_size];
 
-        // Generate secret key element
+        // Generate secret key element directly into output
         let mut sk_adrs = adrs.with_type(AdrsType::ForsPrf);
         sk_adrs.set_tree_height(0);
         sk_adrs.set_tree_index(global_leaf_idx);
-        let sk = fors_sk_gen::<H>(sk_seed, pk_seed, &sk_adrs);
-        tree_out[..n].copy_from_slice(&sk);
+        H::prf_to(&mut tree_out[..n], pk_seed, sk_seed, &sk_adrs);
 
         // Compute authentication path
         for j in 0..a {
             let sibling_in_tree = (idx >> j) ^ 1;
-            let auth_node = fors_tree_node::<H>(
+            fors_tree_node_to::<H>(
+                &mut tree_out[n + j * n..n + (j + 1) * n],
                 sk_seed,
                 tree_idx,
                 sibling_in_tree,
@@ -155,7 +166,6 @@ pub fn fors_sign_to<H: HashSuite>(
                 adrs,
                 t,
             );
-            tree_out[n + j * n..n + (j + 1) * n].copy_from_slice(&auth_node);
         }
     }
 }
@@ -176,7 +186,7 @@ pub fn fors_sign_to<H: HashSuite>(
 ///
 /// # Returns
 /// FORS signature: k * (secret key element || authentication path)
-#[allow(dead_code)]
+#[cfg(test)]
 pub fn fors_sign<H: HashSuite>(
     md: &[u8],
     sk_seed: &[u8],
@@ -220,9 +230,11 @@ pub fn fors_pk_from_sig<H: HashSuite>(
     let indices = base_2b(md, a, k);
 
     // Collect all tree roots
-    let mut roots = Vec::with_capacity(k * n);
+    let mut roots = vec![0u8; k * n];
 
     let sig_elem_size = n + a * n; // sk element + auth path
+    let mut node = [0u8; MAX_N];
+    let mut tmp = [0u8; MAX_N];
 
     for i in 0..k {
         let sig_i = &sig_fors[i * sig_elem_size..(i + 1) * sig_elem_size];
@@ -237,7 +249,7 @@ pub fn fors_pk_from_sig<H: HashSuite>(
         adrs.set_type(AdrsType::ForsTree);
         adrs.set_tree_height(0);
         adrs.set_tree_index(global_leaf_idx);
-        let mut node = H::f(pk_seed, adrs, sk);
+        H::f_to(&mut node[..n], pk_seed, adrs, sk);
 
         // Climb the tree using authentication path
         for j in 0..a {
@@ -252,51 +264,20 @@ pub fn fors_pk_from_sig<H: HashSuite>(
             adrs.set_tree_index(global_parent_idx);
 
             if (idx >> j) & 1 == 0 {
-                // Current node is left child
-                node = H::h(pk_seed, adrs, &node, auth_j);
+                H::h_to(&mut tmp[..n], pk_seed, adrs, &node[..n], auth_j);
             } else {
-                // Current node is right child
-                node = H::h(pk_seed, adrs, auth_j, &node);
+                H::h_to(&mut tmp[..n], pk_seed, adrs, auth_j, &node[..n]);
             }
+            node[..n].copy_from_slice(&tmp[..n]);
         }
 
-        roots.extend_from_slice(&node);
+        roots[i * n..(i + 1) * n].copy_from_slice(&node[..n]);
     }
+
+    node.zeroize();
+    tmp.zeroize();
 
     // Compress all roots to get public key
-    let fors_pk_adrs = adrs.with_type(AdrsType::ForsPk);
-    H::t_l(pk_seed, &fors_pk_adrs, &roots)
-}
-
-/// Compute FORS public key directly (for testing/keygen).
-///
-/// # Arguments
-/// * `sk_seed` - Secret seed
-/// * `pk_seed` - Public seed
-/// * `adrs` - Address
-/// * `k` - Number of FORS trees
-/// * `a` - Height of each FORS tree
-///
-/// # Returns
-/// FORS public key (n bytes)
-#[allow(dead_code)]
-pub fn fors_pk_gen<H: HashSuite>(
-    sk_seed: &[u8],
-    pk_seed: &[u8],
-    adrs: &mut Address,
-    k: usize,
-    a: usize,
-) -> Vec<u8> {
-    let n = H::N;
-    let t = 1u32 << a;
-
-    let mut roots = Vec::with_capacity(k * n);
-
-    for i in 0..k {
-        let root = fors_tree_node::<H>(sk_seed, i as u32, 0, a as u32, pk_seed, adrs, t);
-        roots.extend_from_slice(&root);
-    }
-
     let fors_pk_adrs = adrs.with_type(AdrsType::ForsPk);
     H::t_l(pk_seed, &fors_pk_adrs, &roots)
 }
@@ -305,10 +286,63 @@ pub fn fors_pk_gen<H: HashSuite>(
 mod tests {
     use super::*;
     use crate::hash_shake::Shake128Hash;
+    use zeroize::Zeroizing;
 
     const N: usize = 16;
     const K: usize = 4; // Small for testing
     const A: usize = 3; // Small tree height
+
+    /// Test helper: generate a FORS secret key element.
+    fn fors_sk_gen<H: HashSuite>(
+        sk_seed: &[u8],
+        pk_seed: &[u8],
+        adrs: &Address,
+    ) -> Zeroizing<Vec<u8>> {
+        H::prf(pk_seed, sk_seed, adrs)
+    }
+
+    /// Test helper: Vec-returning wrapper around fors_tree_node_to.
+    fn fors_tree_node<H: HashSuite>(
+        sk_seed: &[u8],
+        tree_idx: u32,
+        i: u32,
+        z: u32,
+        pk_seed: &[u8],
+        adrs: &mut Address,
+        t: u32,
+    ) -> Vec<u8> {
+        let n = H::N;
+        let mut out = vec![0u8; n];
+        fors_tree_node_to::<H>(&mut out, sk_seed, tree_idx, i, z, pk_seed, adrs, t);
+        out
+    }
+
+    /// Test helper: compute FORS public key from secret seed.
+    fn fors_pk_gen<H: HashSuite>(
+        sk_seed: &[u8],
+        pk_seed: &[u8],
+        adrs: &mut Address,
+        k: usize,
+        a: usize,
+    ) -> Vec<u8> {
+        let n = H::N;
+        let t = 1u32 << a;
+        let mut roots = vec![0u8; k * n];
+        for i in 0..k {
+            fors_tree_node_to::<H>(
+                &mut roots[i * n..(i + 1) * n],
+                sk_seed,
+                i as u32,
+                0,
+                a as u32,
+                pk_seed,
+                adrs,
+                t,
+            );
+        }
+        let fors_pk_adrs = adrs.with_type(AdrsType::ForsPk);
+        H::t_l(pk_seed, &fors_pk_adrs, &roots)
+    }
 
     #[test]
     fn test_fors_sk_gen_determinism() {

@@ -13,15 +13,16 @@
 #![allow(dead_code)]
 
 use crate::address::{Address, AdrsType};
-use crate::fors::fors_tree_node;
-use crate::hash::HashSuite;
+use crate::fors::fors_tree_node_to;
+use crate::hash::{HashSuite, MAX_N};
 use crate::params::common::{LG_W, W};
 use crate::utils::base_2b;
-use crate::wots::{encode_checksum, wots_chain};
-use crate::xmss::xmss_node;
+use crate::wots::{encode_checksum, wots_chain_to};
+use crate::xmss::xmss_node_to;
 
 use rayon::prelude::*;
 use std::vec::Vec;
+use zeroize::Zeroize;
 
 // ============================================================================
 // WOTS+ Parallel Implementation
@@ -35,6 +36,7 @@ pub fn wots_pk_gen_parallel<H: HashSuite + Send + Sync, const WOTS_LEN: usize>(
     pk_seed: &[u8],
     adrs: &mut Address,
 ) -> Vec<u8> {
+    let n = H::N;
     let w = W as u32;
 
     // Compute base addresses
@@ -42,22 +44,20 @@ pub fn wots_pk_gen_parallel<H: HashSuite + Send + Sync, const WOTS_LEN: usize>(
     let wots_pk_adrs = adrs.with_type(AdrsType::WotsPk);
     let hash_adrs_base = *adrs;
 
-    // Parallel chain computation
-    let chain_results: Vec<Vec<u8>> = (0..WOTS_LEN)
-        .into_par_iter()
-        .map(|i| {
-            let mut sk_adrs = sk_adrs_base;
-            sk_adrs.set_chain(i as u32);
-            let sk_i = H::prf(pk_seed, sk_seed, &sk_adrs);
+    // Pre-allocate buffer and compute chains directly into it
+    let mut tmp = vec![0u8; WOTS_LEN * n];
+    tmp.par_chunks_mut(n).enumerate().for_each(|(i, chunk)| {
+        let mut sk_adrs = sk_adrs_base;
+        sk_adrs.set_chain(i as u32);
+        let mut sk_buf = [0u8; MAX_N];
+        H::prf_to(&mut sk_buf[..n], pk_seed, sk_seed, &sk_adrs);
 
-            let mut hash_adrs = hash_adrs_base;
-            hash_adrs.set_chain(i as u32);
-            wots_chain::<H>(&sk_i, 0, w - 1, pk_seed, &mut hash_adrs)
-        })
-        .collect();
+        let mut hash_adrs = hash_adrs_base;
+        hash_adrs.set_chain(i as u32);
+        wots_chain_to::<H>(chunk, &sk_buf[..n], 0, w - 1, pk_seed, &mut hash_adrs);
+        sk_buf.zeroize();
+    });
 
-    // Flatten results and compress to get public key
-    let tmp: Vec<u8> = chain_results.into_iter().flatten().collect();
     H::t_l(pk_seed, &wots_pk_adrs, &tmp)
 }
 
@@ -90,12 +90,13 @@ pub fn wots_sign_parallel_to<
     out.par_chunks_mut(n).enumerate().for_each(|(i, chunk)| {
         let mut sk_adrs = sk_adrs_base;
         sk_adrs.set_chain(i as u32);
-        let sk_i = H::prf(pk_seed, sk_seed, &sk_adrs);
+        let mut sk_buf = [0u8; MAX_N];
+        H::prf_to(&mut sk_buf[..n], pk_seed, sk_seed, &sk_adrs);
 
         let mut hash_adrs = hash_adrs_base;
         hash_adrs.set_chain(i as u32);
-        let sig_i = wots_chain::<H>(&sk_i, 0, msg[i], pk_seed, &mut hash_adrs);
-        chunk.copy_from_slice(&sig_i);
+        wots_chain_to::<H>(chunk, &sk_buf[..n], 0, msg[i], pk_seed, &mut hash_adrs);
+        sk_buf.zeroize();
     });
 }
 
@@ -139,19 +140,22 @@ pub fn wots_pk_from_sig_parallel<
     let wots_pk_adrs = adrs.with_type(AdrsType::WotsPk);
     let hash_adrs_base = *adrs;
 
-    // Parallel chain computation from signature
-    let chain_results: Vec<Vec<u8>> = (0..WOTS_LEN)
-        .into_par_iter()
-        .map(|i| {
-            let mut hash_adrs = hash_adrs_base;
-            hash_adrs.set_chain(i as u32);
-            let sig_i = &sig[i * n..(i + 1) * n];
-            wots_chain::<H>(sig_i, msg[i], w - 1 - msg[i], pk_seed, &mut hash_adrs)
-        })
-        .collect();
+    // Pre-allocate buffer and compute chains directly into it
+    let mut tmp = vec![0u8; WOTS_LEN * n];
+    tmp.par_chunks_mut(n).enumerate().for_each(|(i, chunk)| {
+        let mut hash_adrs = hash_adrs_base;
+        hash_adrs.set_chain(i as u32);
+        let sig_i = &sig[i * n..(i + 1) * n];
+        wots_chain_to::<H>(
+            chunk,
+            sig_i,
+            msg[i],
+            w - 1 - msg[i],
+            pk_seed,
+            &mut hash_adrs,
+        );
+    });
 
-    // Flatten results and compress to get public key
-    let tmp: Vec<u8> = chain_results.into_iter().flatten().collect();
     H::t_l(pk_seed, &wots_pk_adrs, &tmp)
 }
 
@@ -187,18 +191,18 @@ pub fn fors_sign_parallel_to<H: HashSuite + Send + Sync>(
             let tree_idx = i as u32;
             let global_leaf_idx = tree_idx * t + idx;
 
-            // Generate secret key element
+            // Generate secret key element using prf_to
             let mut sk_adrs = adrs.with_type(AdrsType::ForsPrf);
             sk_adrs.set_tree_height(0);
             sk_adrs.set_tree_index(global_leaf_idx);
-            let sk = H::prf(pk_seed, sk_seed, &sk_adrs);
-            chunk[..n].copy_from_slice(&sk);
+            H::prf_to(&mut chunk[..n], pk_seed, sk_seed, &sk_adrs);
 
-            // Compute authentication path
+            // Compute authentication path using fors_tree_node_to
             let mut auth_adrs = *adrs;
             for j in 0..a {
                 let sibling_in_tree = (idx >> j) ^ 1;
-                let auth_node = fors_tree_node::<H>(
+                fors_tree_node_to::<H>(
+                    &mut chunk[n + j * n..n + (j + 1) * n],
                     sk_seed,
                     tree_idx,
                     sibling_in_tree,
@@ -207,7 +211,6 @@ pub fn fors_sign_parallel_to<H: HashSuite + Send + Sync>(
                     &mut auth_adrs,
                     t,
                 );
-                chunk[n + j * n..n + (j + 1) * n].copy_from_slice(&auth_node);
             }
         });
 }
@@ -246,10 +249,12 @@ pub fn fors_pk_from_sig_parallel<H: HashSuite + Send + Sync>(
 
     let sig_elem_size = n + a * n;
 
-    // Process K trees in parallel
-    let roots: Vec<Vec<u8>> = (0..k)
-        .into_par_iter()
-        .map(|i| {
+    // Pre-allocate buffer for all roots and compute directly into it
+    let mut all_roots = vec![0u8; k * n];
+    all_roots
+        .par_chunks_mut(n)
+        .enumerate()
+        .for_each(|(i, root_chunk)| {
             let sig_i = &sig_fors[i * sig_elem_size..(i + 1) * sig_elem_size];
             let sk = &sig_i[..n];
             let auth = &sig_i[n..];
@@ -258,12 +263,14 @@ pub fn fors_pk_from_sig_parallel<H: HashSuite + Send + Sync>(
             let tree_idx = i as u32;
             let global_leaf_idx = tree_idx * t + idx;
 
-            // Compute leaf from secret key
+            // Compute leaf from secret key using stack buffers
             let mut tree_adrs = *adrs;
             tree_adrs.set_type(AdrsType::ForsTree);
             tree_adrs.set_tree_height(0);
             tree_adrs.set_tree_index(global_leaf_idx);
-            let mut node = H::f(pk_seed, &tree_adrs, sk);
+            let mut node = [0u8; MAX_N];
+            let mut tmp = [0u8; MAX_N];
+            H::f_to(&mut node[..n], pk_seed, &tree_adrs, sk);
 
             // Climb the tree using authentication path
             for j in 0..a {
@@ -277,18 +284,18 @@ pub fn fors_pk_from_sig_parallel<H: HashSuite + Send + Sync>(
                 tree_adrs.set_tree_index(global_parent_idx);
 
                 if (idx >> j) & 1 == 0 {
-                    node = H::h(pk_seed, &tree_adrs, &node, auth_j);
+                    H::h_to(&mut tmp[..n], pk_seed, &tree_adrs, &node[..n], auth_j);
                 } else {
-                    node = H::h(pk_seed, &tree_adrs, auth_j, &node);
+                    H::h_to(&mut tmp[..n], pk_seed, &tree_adrs, auth_j, &node[..n]);
                 }
+                node[..n].copy_from_slice(&tmp[..n]);
             }
 
-            node
-        })
-        .collect();
+            root_chunk.copy_from_slice(&node[..n]);
+            node.zeroize();
+            tmp.zeroize();
+        });
 
-    // Flatten roots and compress to get public key
-    let all_roots: Vec<u8> = roots.into_iter().flatten().collect();
     let fors_pk_adrs = adrs.with_type(AdrsType::ForsPk);
     H::t_l(pk_seed, &fors_pk_adrs, &all_roots)
 }
@@ -307,6 +314,8 @@ pub fn xmss_node_parallel<H: HashSuite + Send + Sync, const WOTS_LEN: usize>(
     pk_seed: &[u8],
     adrs: &Address,
 ) -> Vec<u8> {
+    let n = H::N;
+
     if z == 0 {
         // Leaf node: compute WOTS+ public key (already parallelized)
         let mut leaf_adrs = *adrs;
@@ -314,10 +323,17 @@ pub fn xmss_node_parallel<H: HashSuite + Send + Sync, const WOTS_LEN: usize>(
         leaf_adrs.set_keypair(i);
         wots_pk_gen_parallel::<H, WOTS_LEN>(sk_seed, pk_seed, &mut leaf_adrs)
     } else if z <= 2 {
-        // Small subtrees: compute sequentially to avoid Rayon overhead
-        xmss_node::<H, WOTS_LEN>(sk_seed, i, z, pk_seed, adrs)
+        // Small subtrees: compute sequentially using buffer variant
+        let mut node = [0u8; MAX_N];
+        xmss_node_to::<H, WOTS_LEN>(&mut node[..n], sk_seed, i, z, pk_seed, adrs);
+        let result = node[..n].to_vec();
+        node.zeroize();
+        result
     } else {
-        // Large subtrees: parallelize left and right
+        // Large subtrees: parallelize left/right via rayon::join.
+        // Returns Vec<u8> because join closures must return owned Send values.
+        // Small subtrees (z <= 2) use stack buffers; deeper parallel recursion
+        // keeps Vec<u8> for simplicity since these allocations are infrequent.
         let (left, right) = rayon::join(
             || xmss_node_parallel::<H, WOTS_LEN>(sk_seed, 2 * i, z - 1, pk_seed, adrs),
             || xmss_node_parallel::<H, WOTS_LEN>(sk_seed, 2 * i + 1, z - 1, pk_seed, adrs),
@@ -327,7 +343,9 @@ pub fn xmss_node_parallel<H: HashSuite + Send + Sync, const WOTS_LEN: usize>(
         node_adrs.set_type(AdrsType::Tree);
         node_adrs.set_tree_height(z);
         node_adrs.set_tree_index(i);
-        H::h(pk_seed, &node_adrs, &left, &right)
+        let mut result = vec![0u8; n];
+        H::h_to(&mut result, pk_seed, &node_adrs, &left, &right);
+        result
     }
 }
 
