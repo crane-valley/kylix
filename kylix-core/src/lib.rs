@@ -6,6 +6,7 @@
 //! - Common error types
 //! - Cryptographic primitive traits (`Kem`, `Signer`)
 //! - Modular arithmetic macros for lattice-based cryptography
+//! - NTT (Number Theoretic Transform) macros for polynomial multiplication
 //! - Secure memory handling with zeroize integration
 
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -14,6 +15,7 @@
 #![deny(unsafe_code)]
 
 mod error;
+mod ntt;
 mod reduce;
 mod traits;
 

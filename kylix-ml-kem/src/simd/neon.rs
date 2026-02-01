@@ -588,9 +588,7 @@ mod tests {
         }
 
         // Scalar NTT (call scalar function directly to avoid SIMD dispatch)
-        let mut poly_wrapper = crate::poly::Poly::from_coeffs(poly_scalar);
-        crate::ntt::ntt_scalar(&mut poly_wrapper);
-        poly_scalar = poly_wrapper.coeffs;
+        crate::ntt::ntt_scalar(&mut poly_scalar);
 
         assert_eq!(poly_simd, poly_scalar, "NTT SIMD vs scalar mismatch");
     }
@@ -612,9 +610,7 @@ mod tests {
         }
 
         // Scalar inverse NTT (call scalar function directly to avoid SIMD dispatch)
-        let mut poly_wrapper = crate::poly::Poly::from_coeffs(poly_scalar);
-        crate::ntt::inv_ntt_scalar(&mut poly_wrapper);
-        poly_scalar = poly_wrapper.coeffs;
+        crate::ntt::inv_ntt_scalar(&mut poly_scalar);
 
         // Compare mod Q (SIMD and scalar may use different canonical forms)
         for i in 0..N {
