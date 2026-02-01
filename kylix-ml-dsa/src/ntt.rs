@@ -5,6 +5,7 @@
 
 use crate::poly::N;
 use crate::reduce::{montgomery_mul, montgomery_reduce};
+use kylix_core::{define_ntt_forward, define_ntt_inverse};
 
 /// Scaling factor for inverse NTT: R^2 * N^(-1) mod q
 /// This produces output in Montgomery form (scaled by R).
@@ -70,27 +71,14 @@ pub fn ntt(a: &mut [i32; N]) {
     ntt_scalar(a);
 }
 
-/// Scalar implementation of forward NTT.
-#[inline]
-fn ntt_scalar(a: &mut [i32; N]) {
-    let mut k: usize = 0;
-    let mut len: usize = 128;
-
-    while len >= 1 {
-        let mut start: usize = 0;
-        while start < N {
-            k += 1;
-            let zeta = ZETAS[k];
-
-            for j in start..(start + len) {
-                let t = montgomery_mul(zeta, a[j + len]);
-                a[j + len] = a[j] - t;
-                a[j] = a[j] + t;
-            }
-            start += 2 * len;
-        }
-        len >>= 1;
-    }
+// Generate scalar forward NTT via macro
+define_ntt_forward! {
+    name: ntt_scalar,
+    coeff: i32,
+    n: 256,
+    len_min: 1,
+    zetas: ZETAS,
+    montgomery_mul: montgomery_mul
 }
 
 /// Inverse NTT: NTT domain to polynomial (Montgomery form output).
@@ -113,33 +101,30 @@ pub fn inv_ntt(a: &mut [i32; N]) {
     inv_ntt_scalar(a);
 }
 
-/// Scalar implementation of inverse NTT.
+/// Inverse NTT butterfly sum: plain addition.
 #[inline]
-fn inv_ntt_scalar(a: &mut [i32; N]) {
-    let mut k: usize = 256;
-    let mut len: usize = 1;
+fn inv_ntt_sum(t: i32, x: i32) -> i32 {
+    t + x
+}
 
-    while len < N {
-        let mut start: usize = 0;
-        while start < N {
-            k -= 1;
-            let zeta = -ZETAS[k];
+/// Inverse NTT butterfly difference: plain subtraction.
+#[inline]
+fn inv_ntt_diff(t: i32, x: i32) -> i32 {
+    t - x
+}
 
-            for j in start..(start + len) {
-                let t = a[j];
-                a[j] = t + a[j + len];
-                a[j + len] = t - a[j + len];
-                a[j + len] = montgomery_mul(zeta, a[j + len]);
-            }
-            start += 2 * len;
-        }
-        len <<= 1;
-    }
-
-    // Multiply by N^(-1) in Montgomery form to get proper inverse NTT
-    for c in a.iter_mut() {
-        *c = montgomery_mul(*c, INV_N_MONT);
-    }
+// Generate scalar inverse NTT via macro
+define_ntt_inverse! {
+    name: inv_ntt_scalar,
+    coeff: i32,
+    n: 256,
+    k_start: 256,
+    len_start: 1,
+    zetas: ZETAS,
+    montgomery_mul: montgomery_mul,
+    inv_n_mont: INV_N_MONT,
+    butterfly_sum: inv_ntt_sum,
+    butterfly_diff: inv_ntt_diff
 }
 
 /// Compute the product of two polynomials in NTT domain.

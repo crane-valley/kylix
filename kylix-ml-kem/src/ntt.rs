@@ -7,11 +7,11 @@
 
 // NTT internals used by polynomial multiplication; not directly exposed.
 #![allow(dead_code)]
-#![allow(clippy::assign_op_pattern)]
 #![allow(clippy::manual_range_contains)]
 
 use crate::poly::Poly;
 use crate::reduce::{barrett_reduce, montgomery_mul, INV_N_MONT};
+use kylix_core::{define_ntt_forward, define_ntt_inverse};
 
 /// Precomputed zetas (twiddle factors) in Montgomery form.
 ///
@@ -51,30 +51,17 @@ pub fn ntt(poly: &mut Poly) {
     }
 
     // Scalar fallback
-    ntt_scalar(poly);
+    ntt_scalar(&mut poly.coeffs);
 }
 
-/// Scalar implementation of forward NTT.
-pub(crate) fn ntt_scalar(poly: &mut Poly) {
-    let mut k: usize = 1;
-    let mut len: usize = 128;
-
-    while len >= 2 {
-        let mut start: usize = 0;
-        while start < 256 {
-            let zeta = ZETAS[k];
-            k += 1;
-
-            for j in start..(start + len) {
-                // Cooley-Tukey butterfly
-                let t = montgomery_mul(zeta, poly.coeffs[j + len]);
-                poly.coeffs[j + len] = poly.coeffs[j] - t;
-                poly.coeffs[j] = poly.coeffs[j] + t;
-            }
-            start += 2 * len;
-        }
-        len >>= 1;
-    }
+// Generate scalar forward NTT via macro
+define_ntt_forward! {
+    name: ntt_scalar,
+    coeff: i16,
+    n: 256,
+    len_min: 2,
+    zetas: ZETAS,
+    montgomery_mul: montgomery_mul
 }
 
 /// Inverse NTT: Transform from NTT domain back to coefficient representation.
@@ -97,37 +84,33 @@ pub fn inv_ntt(poly: &mut Poly) {
     }
 
     // Scalar fallback
-    inv_ntt_scalar(poly);
+    inv_ntt_scalar(&mut poly.coeffs);
 }
 
-/// Scalar implementation of inverse NTT.
-pub(crate) fn inv_ntt_scalar(poly: &mut Poly) {
-    let mut k: usize = 127;
-    let mut len: usize = 2;
+/// Inverse NTT butterfly sum: Barrett-reduce the wrapping addition.
+#[inline]
+fn inv_ntt_sum(t: i16, x: i16) -> i16 {
+    barrett_reduce(t.wrapping_add(x))
+}
 
-    while len <= 128 {
-        let mut start: usize = 0;
-        while start < 256 {
-            let zeta = ZETAS[k];
-            k = k.wrapping_sub(1);
+/// Inverse NTT butterfly difference: wrapping subtraction.
+#[inline]
+fn inv_ntt_diff(t: i16, x: i16) -> i16 {
+    t.wrapping_sub(x)
+}
 
-            for j in start..(start + len) {
-                // Gentleman-Sande butterfly
-                let t = poly.coeffs[j];
-                // Use Barrett reduction on the sum to keep values bounded
-                poly.coeffs[j] = barrett_reduce(t.wrapping_add(poly.coeffs[j + len]));
-                // Note: use t - poly[j+len] (not the other way) and negate for inverse
-                poly.coeffs[j + len] = montgomery_mul(-zeta, t.wrapping_sub(poly.coeffs[j + len]));
-            }
-            start += 2 * len;
-        }
-        len <<= 1;
-    }
-
-    // Multiply by n^(-1) = 128^(-1) mod q in Montgomery form
-    for i in 0..256 {
-        poly.coeffs[i] = montgomery_mul(INV_N_MONT, poly.coeffs[i]);
-    }
+// Generate scalar inverse NTT via macro
+define_ntt_inverse! {
+    name: inv_ntt_scalar,
+    coeff: i16,
+    n: 256,
+    k_start: 128,
+    len_start: 2,
+    zetas: ZETAS,
+    montgomery_mul: montgomery_mul,
+    inv_n_mont: INV_N_MONT,
+    butterfly_sum: inv_ntt_sum,
+    butterfly_diff: inv_ntt_diff
 }
 
 /// Base multiplication for a single pair of coefficients in NTT domain.
@@ -141,6 +124,7 @@ pub(crate) fn inv_ntt_scalar(poly: &mut Poly) {
 /// * `b` - Second input slice of length 2
 /// * `zeta` - The twiddle factor for this pair
 #[inline]
+#[allow(clippy::assign_op_pattern)]
 pub fn basemul(r: &mut [i16], a: &[i16], b: &[i16], zeta: i16) {
     // r[0] = a[0]*b[0] + a[1]*b[1]*zeta
     let t = montgomery_mul(a[1], b[1]);

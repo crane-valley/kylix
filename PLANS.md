@@ -38,7 +38,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | SLH-DSA: no_std test imports | LOW | Test | Add `use alloc::vec;` to test modules (utils.rs, sign.rs) for no_std builds |
 | SLH-DSA: slh_sign buffer API | MEDIUM | Performance | Refactor `slh_sign` to write to pre-allocated buffer instead of returning `Vec<u8>` (requires FORS/XMSS/Hypertree changes) |
 | ~~Core: Modular Arithmetic~~ | ~~HIGH~~ | ~~200 LOC~~ | ✓ Extracted Barrett/Montgomery reduction macros to kylix-core (ML-KEM i16, ML-DSA i32) |
-| Core: NTT Abstraction | HIGH | ~300 LOC | Extract generic NTT trait to kylix-core (forward/inverse NTT duplicated in ML-KEM/ML-DSA) |
+| ~~Core: NTT Abstraction~~ | ~~HIGH~~ | ~~100 LOC~~ | ✓ Extracted `define_ntt_forward!` / `define_ntt_inverse!` macros to kylix-core (ML-KEM i16, ML-DSA i32) |
 | Core: SIMD Wrapper Macro | MEDIUM | ~200 LOC | Unify SIMD dispatch pattern (AVX2/NEON/fallback) into shared macro |
 | Poly API Consistency | MEDIUM | Ergonomics | ML-KEM uses module functions (`poly_add()`), ML-DSA uses methods (`.add()`). Standardize to methods |
 | ML-KEM/ML-DSA: Clippy Fixes | LOW | Quality | Fix outstanding clippy warnings instead of suppressing them |
