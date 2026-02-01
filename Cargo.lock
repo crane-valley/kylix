@@ -181,7 +181,7 @@ dependencies = [
 
 [[package]]
 name = "kylix-core"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "rand_core",
  "subtle",
@@ -191,7 +191,7 @@ dependencies = [
 
 [[package]]
 name = "kylix-ml-dsa"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "hex",
  "kylix-core",
@@ -207,7 +207,7 @@ dependencies = [
 
 [[package]]
 name = "kylix-ml-kem"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "hex",
  "kylix-core",
@@ -223,7 +223,7 @@ dependencies = [
 
 [[package]]
 name = "kylix-pqc"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "kylix-core",
  "kylix-ml-dsa",
@@ -234,7 +234,7 @@ dependencies = [
 
 [[package]]
 name = "kylix-slh-dsa"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "hex",
  "hmac",

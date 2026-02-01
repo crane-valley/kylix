@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-02-02
+
+### Added
+
+- **SLH-DSA-SHA2 variants**: All 6 SHA2-based parameter sets (FIPS 205 Section 10.2) (#111)
+- **Property-based tests**: Roundtrip, key/sig sizes, tampering detection using proptest (#112)
+
+### Security
+
+- **Eliminate intermediate buffers**: `from_bytes()` for secret key types now writes directly into struct, preventing sensitive data from lingering on the stack (#117)
+- **Zeroize keygen intermediates**: Secret key bytes in `keygen()` are zeroized after use (#118)
+
+### Performance
+
+- **ML-DSA AVX2 Barrett reduction**: Vectorized Barrett reduction and caddq (#110)
+- **SLH-DSA buffer-write API**: `_to` variants for HashSuite methods and signing functions eliminate per-call `Vec` heap allocations in hot loops (#122, #124)
+- **Dev profile optimization**: `opt-level = 2` for crypto-heavy packages in dev/test builds (#125)
+
+### Refactored
+
+- **SLH-DSA internal storage**: Changed from struct-based to fixed-size `[u8; SIZE]` arrays for keys (#113)
+- **kylix-core extraction**: Modular arithmetic macros (#119), NTT macros (#121), SIMD dispatch macros (#123) moved to shared kylix-core crate
+- **ML-DSA dead code removal**: ~112 LOC removed (#109)
+- **Proptest consolidation**: Unified property test suites across crates (#125)
+
+### Fixed
+
+- **MSRV CI**: Use `cargo check` instead of `cargo test` for MSRV validation (#114)
+- **no_std builds**: Add missing `alloc` imports for SLH-DSA test modules (#120)
+
+### Docs
+
+- **README**: Add SLH-DSA-SHA2 variants to feature list (#116)
+
 ## [0.4.3] - 2026-01-28
 
 ### Changed
@@ -153,7 +187,8 @@ CLI-only release with security improvements and new features.
 - Constant-time operations using `subtle` crate
 - Zeroization of sensitive data using `zeroize` crate
 
-[Unreleased]: https://github.com/crane-valley/kylix/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/crane-valley/kylix/compare/v0.4.4...HEAD
+[0.4.4]: https://github.com/crane-valley/kylix/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/crane-valley/kylix/compare/v0.4.2-cli...v0.4.3
 [0.4.2-cli]: https://github.com/crane-valley/kylix/compare/v0.4.2...v0.4.2-cli
 [0.4.2]: https://github.com/crane-valley/kylix/compare/v0.4.1...v0.4.2

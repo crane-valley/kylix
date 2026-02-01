@@ -4,7 +4,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 
 ---
 
-## Current Status (v0.4.3)
+## Current Status (v0.4.4)
 
 ### Completed
 
