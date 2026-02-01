@@ -125,16 +125,15 @@ define_ntt_inverse! {
 /// * `b` - Second input slice of length 2
 /// * `zeta` - The twiddle factor for this pair
 #[inline]
-#[allow(clippy::assign_op_pattern)]
 pub fn basemul(r: &mut [i16], a: &[i16], b: &[i16], zeta: i16) {
     // r[0] = a[0]*b[0] + a[1]*b[1]*zeta
     let t = montgomery_mul(a[1], b[1]);
     r[0] = montgomery_mul(t, zeta);
-    r[0] = r[0] + montgomery_mul(a[0], b[0]);
+    r[0] += montgomery_mul(a[0], b[0]);
 
     // r[1] = a[0]*b[1] + a[1]*b[0]
     r[1] = montgomery_mul(a[0], b[1]);
-    r[1] = r[1] + montgomery_mul(a[1], b[0]);
+    r[1] += montgomery_mul(a[1], b[0]);
 }
 
 #[cfg(test)]

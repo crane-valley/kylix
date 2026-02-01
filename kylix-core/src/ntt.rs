@@ -300,10 +300,9 @@ mod tests {
         fn full_reduce(a: i32) -> i32 {
             let r = caddq(a);
             // Constant-time conditional subtract: if r >= q then r - q, else r
-            let r_minus_q = r - Q;
+            let r = r - Q;
             const SIGN_BIT: u32 = (core::mem::size_of::<i32>() * 8 - 1) as u32;
-            let mask = r_minus_q >> SIGN_BIT;
-            (r & mask) | (r_minus_q & !mask)
+            r + (Q & (r >> SIGN_BIT))
         }
 
         // First 256 ML-DSA zetas (from FIPS 204 reference)
