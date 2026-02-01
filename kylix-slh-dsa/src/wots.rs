@@ -130,6 +130,9 @@ pub fn wots_pk_gen<H: HashSuite, const WOTS_LEN: usize>(
 /// * `sk_seed` - Secret seed
 /// * `pk_seed` - Public seed
 /// * `adrs` - Address (will be modified during computation)
+///
+/// # Panics
+/// Panics in debug builds if `out.len() != WOTS_LEN * n`.
 pub fn wots_sign_to<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
     out: &mut [u8],
     message: &[u8],

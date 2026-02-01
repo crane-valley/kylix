@@ -110,6 +110,9 @@ pub(crate) fn fors_tree_node<H: HashSuite>(
 /// * `adrs` - Address (will be modified during computation)
 /// * `k` - Number of FORS trees
 /// * `a` - Height of each FORS tree
+///
+/// # Panics
+/// Panics in debug builds if `out.len() != k * (1 + a) * n`.
 pub fn fors_sign_to<H: HashSuite>(
     out: &mut [u8],
     md: &[u8],

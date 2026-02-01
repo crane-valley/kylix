@@ -29,6 +29,9 @@ use alloc::vec::Vec;
 /// * `idx_leaf` - Leaf index within the bottom tree
 /// * `h_prime` - Height of each XMSS tree
 /// * `d` - Number of hypertree layers
+///
+/// # Panics
+/// Panics in debug builds if `out.len() != d * (WOTS_LEN + h_prime) * n`.
 pub fn ht_sign_to<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
     out: &mut [u8],
     message: &[u8],

@@ -69,6 +69,9 @@ pub fn xmss_node<H: HashSuite, const WOTS_LEN: usize>(
 /// * `pk_seed` - Public seed
 /// * `adrs` - Address (will be modified during computation)
 /// * `h_prime` - Height of this XMSS tree
+///
+/// # Panics
+/// Panics in debug builds if `out.len() != (WOTS_LEN + h_prime) * n`.
 pub fn xmss_sign_to<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
     out: &mut [u8],
     message: &[u8],
