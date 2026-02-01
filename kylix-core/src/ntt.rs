@@ -68,7 +68,7 @@ macro_rules! define_ntt_forward {
 /// - `$name`: Function name (e.g., `inv_ntt_scalar`)
 /// - `$coeff`: Coefficient type (`i16` or `i32`)
 /// - `$n`: Polynomial degree (typically 256)
-/// - `$k_start`: Initial zeta index (ML-KEM: n/2, ML-DSA: n)
+/// - `$k_start`: Initial zeta index value (e.g., ML-KEM: `n/2` = 128, ML-DSA: `n` = 256)
 /// - `$len_start`: Initial butterfly length (ML-KEM: 2, ML-DSA: 1)
 /// - `$zetas`: Zeta table constant
 /// - `$mont_mul`: Montgomery multiplication function
@@ -207,7 +207,7 @@ mod tests {
             name: inv_ntt_scalar,
             coeff: i16,
             n: 256,
-            k_start: 128,
+            k_start: 256 / 2,
             len_start: 2,
             zetas: ZETAS,
             montgomery_mul: montgomery_mul,
@@ -216,16 +216,12 @@ mod tests {
             butterfly_diff: inv_ntt_diff
         }
 
-        /// Reduce to canonical [0, q-1]
-        fn full_reduce(a: i16) -> i16 {
-            let r = barrett_reduce(a);
-            if r < 0 {
-                r + Q
-            } else if r >= Q {
-                r - Q
-            } else {
-                r
-            }
+        // Reduce to canonical [0, q-1] using constant-time freeze
+        crate::define_freeze! {
+            name: full_reduce,
+            coeff: i16,
+            q: Q,
+            reduce_approx: barrett_reduce
         }
 
         /// Convert from Montgomery form

@@ -104,7 +104,7 @@ define_ntt_inverse! {
     name: inv_ntt_scalar,
     coeff: i16,
     n: 256,
-    k_start: 128,
+    k_start: 256 / 2,
     len_start: 2,
     zetas: ZETAS,
     montgomery_mul: montgomery_mul,
