@@ -1,6 +1,7 @@
 //! ML-KEM parameter sets as defined in FIPS 203.
 
 /// Common parameters for all ML-KEM variants.
+#[allow(dead_code)]
 pub mod common {
     /// Polynomial ring dimension (n).
     pub const N: usize = 256;
@@ -12,7 +13,6 @@ pub mod common {
     pub const SHARED_SECRET_SIZE: usize = 32;
 
     /// Seed size for key generation.
-    #[allow(dead_code)]
     pub const SEED_SIZE: usize = 32;
 }
 
