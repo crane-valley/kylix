@@ -104,8 +104,7 @@ pub mod slh_dsa_shake_128s {
     /// Signature size: n + k*(a+1)*n + (h + d*len)*n = 16 + 14*13*16 + (63 + 7*35)*16 = 7856
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes.
-    #[allow(clippy::manual_div_ceil)]
-    pub const MD_BYTES: usize = (K * A + H + 7) / 8;
+    pub const MD_BYTES: usize = (K * A + H).div_ceil(8);
 
     /// Parameter set marker type.
     pub struct Params128s;
@@ -157,8 +156,7 @@ pub mod slh_dsa_shake_128f {
     /// Signature size: n + k*(a+1)*n + (h + d*len)*n = 16 + 33*7*16 + (66 + 22*35)*16 = 17088
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes.
-    #[allow(clippy::manual_div_ceil)]
-    pub const MD_BYTES: usize = (K * A + H + 7) / 8;
+    pub const MD_BYTES: usize = (K * A + H).div_ceil(8);
 
     /// Parameter set marker type.
     pub struct Params128f;
@@ -210,8 +208,7 @@ pub mod slh_dsa_shake_192s {
     /// Signature size.
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes.
-    #[allow(clippy::manual_div_ceil)]
-    pub const MD_BYTES: usize = (K * A + H + 7) / 8;
+    pub const MD_BYTES: usize = (K * A + H).div_ceil(8);
 
     /// Parameter set marker type.
     pub struct Params192s;
@@ -263,8 +260,7 @@ pub mod slh_dsa_shake_192f {
     /// Signature size.
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes.
-    #[allow(clippy::manual_div_ceil)]
-    pub const MD_BYTES: usize = (K * A + H + 7) / 8;
+    pub const MD_BYTES: usize = (K * A + H).div_ceil(8);
 
     /// Parameter set marker type.
     pub struct Params192f;
@@ -316,8 +312,7 @@ pub mod slh_dsa_shake_256s {
     /// Signature size.
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes.
-    #[allow(clippy::manual_div_ceil)]
-    pub const MD_BYTES: usize = (K * A + H + 7) / 8;
+    pub const MD_BYTES: usize = (K * A + H).div_ceil(8);
 
     /// Parameter set marker type.
     pub struct Params256s;
@@ -369,8 +364,7 @@ pub mod slh_dsa_shake_256f {
     /// Signature size.
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes.
-    #[allow(clippy::manual_div_ceil)]
-    pub const MD_BYTES: usize = (K * A + H + 7) / 8;
+    pub const MD_BYTES: usize = (K * A + H).div_ceil(8);
 
     /// Parameter set marker type.
     pub struct Params256f;
@@ -423,8 +417,8 @@ pub mod slh_dsa_sha2_128s {
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
     /// FIPS 205 Section 11.1: m = ceil(k*a/8) + ceil(tree_bits/8) + ceil(leaf_bits/8)
-    #[allow(clippy::manual_div_ceil)]
-    pub const MD_BYTES: usize = (K * A + 7) / 8 + (H - H_PRIME + 7) / 8 + (H_PRIME + 7) / 8;
+    pub const MD_BYTES: usize =
+        (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
 
     /// Parameter set marker type.
     pub struct Params128s;
@@ -476,8 +470,8 @@ pub mod slh_dsa_sha2_128f {
     /// Signature size.
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
-    #[allow(clippy::manual_div_ceil)]
-    pub const MD_BYTES: usize = (K * A + 7) / 8 + (H - H_PRIME + 7) / 8 + (H_PRIME + 7) / 8;
+    pub const MD_BYTES: usize =
+        (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
 
     /// Parameter set marker type.
     pub struct Params128f;
@@ -529,8 +523,8 @@ pub mod slh_dsa_sha2_192s {
     /// Signature size.
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
-    #[allow(clippy::manual_div_ceil)]
-    pub const MD_BYTES: usize = (K * A + 7) / 8 + (H - H_PRIME + 7) / 8 + (H_PRIME + 7) / 8;
+    pub const MD_BYTES: usize =
+        (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
 
     /// Parameter set marker type.
     pub struct Params192s;
@@ -582,8 +576,8 @@ pub mod slh_dsa_sha2_192f {
     /// Signature size.
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
-    #[allow(clippy::manual_div_ceil)]
-    pub const MD_BYTES: usize = (K * A + 7) / 8 + (H - H_PRIME + 7) / 8 + (H_PRIME + 7) / 8;
+    pub const MD_BYTES: usize =
+        (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
 
     /// Parameter set marker type.
     pub struct Params192f;
@@ -635,8 +629,8 @@ pub mod slh_dsa_sha2_256s {
     /// Signature size.
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
-    #[allow(clippy::manual_div_ceil)]
-    pub const MD_BYTES: usize = (K * A + 7) / 8 + (H - H_PRIME + 7) / 8 + (H_PRIME + 7) / 8;
+    pub const MD_BYTES: usize =
+        (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
 
     /// Parameter set marker type.
     pub struct Params256s;
@@ -688,8 +682,8 @@ pub mod slh_dsa_sha2_256f {
     /// Signature size.
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
-    #[allow(clippy::manual_div_ceil)]
-    pub const MD_BYTES: usize = (K * A + 7) / 8 + (H - H_PRIME + 7) / 8 + (H_PRIME + 7) / 8;
+    pub const MD_BYTES: usize =
+        (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
 
     /// Parameter set marker type.
     pub struct Params256f;

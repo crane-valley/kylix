@@ -6,34 +6,6 @@
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 
-/// Convert a byte array to an integer (big-endian).
-///
-/// FIPS 205, Algorithm 1: toInt(X, n)
-#[must_use]
-#[allow(dead_code)]
-pub fn to_int(x: &[u8]) -> u64 {
-    let mut total: u64 = 0;
-    for &byte in x {
-        total = (total << 8) | u64::from(byte);
-    }
-    total
-}
-
-/// Convert an integer to a byte array of specified length (big-endian).
-///
-/// FIPS 205, Algorithm 2: toByte(x, n)
-#[must_use]
-#[allow(dead_code)]
-pub fn to_byte<const N: usize>(x: u64) -> [u8; N] {
-    let mut result = [0u8; N];
-    let mut val = x;
-    for i in (0..N).rev() {
-        result[i] = (val & 0xFF) as u8;
-        val >>= 8;
-    }
-    result
-}
-
 /// Extract base-2^b representation from a byte array.
 ///
 /// FIPS 205, Algorithm 3: base_2b(X, b, out_len)
@@ -100,40 +72,43 @@ pub fn wots_checksum(msg: &[u32], w: u32) -> u32 {
     csum
 }
 
-/// Encode checksum as base-w representation.
-///
-/// # Arguments
-/// * `csum` - Checksum value
-/// * `lg_w` - Log2 of Winternitz parameter
-/// * `len2` - Number of checksum digits
-///
-/// # Returns
-/// Base-w encoded checksum
-#[must_use]
-#[allow(dead_code)]
-pub fn encode_checksum(csum: u32, lg_w: usize, len2: usize) -> Vec<u32> {
-    // Convert checksum to bytes, then to base-w
-    let csum_bytes = to_byte::<4>(u64::from(csum << (8 - ((len2 * lg_w) % 8))));
-    base_2b(&csum_bytes, lg_w, len2)
-}
-
-/// Concatenate byte slices into a single vector.
-#[must_use]
-#[allow(dead_code)]
-pub fn concat(slices: &[&[u8]]) -> Vec<u8> {
-    let total_len: usize = slices.iter().map(|s| s.len()).sum();
-    let mut result = Vec::with_capacity(total_len);
-    for slice in slices {
-        result.extend_from_slice(slice);
-    }
-    result
-}
-
 #[cfg(test)]
 #[allow(clippy::unreadable_literal)]
 mod tests {
     use super::*;
     use alloc::vec;
+
+    /// Convert a byte array to an integer (big-endian).
+    /// FIPS 205, Algorithm 1: toInt(X, n)
+    fn to_int(x: &[u8]) -> u64 {
+        let mut total: u64 = 0;
+        for &byte in x {
+            total = (total << 8) | u64::from(byte);
+        }
+        total
+    }
+
+    /// Convert an integer to a byte array of specified length (big-endian).
+    /// FIPS 205, Algorithm 2: toByte(x, n)
+    fn to_byte<const N: usize>(x: u64) -> [u8; N] {
+        let mut result = [0u8; N];
+        let mut val = x;
+        for i in (0..N).rev() {
+            result[i] = (val & 0xFF) as u8;
+            val >>= 8;
+        }
+        result
+    }
+
+    /// Concatenate byte slices into a single vector.
+    fn concat(slices: &[&[u8]]) -> Vec<u8> {
+        let total_len: usize = slices.iter().map(|s| s.len()).sum();
+        let mut result = Vec::with_capacity(total_len);
+        for slice in slices {
+            result.extend_from_slice(slice);
+        }
+        result
+    }
 
     #[test]
     fn test_to_int() {

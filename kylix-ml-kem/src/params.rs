@@ -18,10 +18,7 @@ pub mod common {
 
 /// ML-KEM-512 parameters (NIST Security Level 1).
 #[cfg(feature = "ml-kem-512")]
-#[allow(dead_code)]
 pub mod ml_kem_512 {
-    #[allow(unused_imports)]
-    use super::common::*;
 
     /// Module rank (k).
     pub const K: usize = 2;
@@ -53,10 +50,7 @@ pub mod ml_kem_512 {
 
 /// ML-KEM-768 parameters (NIST Security Level 3).
 #[cfg(feature = "ml-kem-768")]
-#[allow(dead_code)]
 pub mod ml_kem_768 {
-    #[allow(unused_imports)]
-    use super::common::*;
 
     /// Module rank (k).
     pub const K: usize = 3;
@@ -88,10 +82,7 @@ pub mod ml_kem_768 {
 
 /// ML-KEM-1024 parameters (NIST Security Level 5).
 #[cfg(feature = "ml-kem-1024")]
-#[allow(dead_code)]
 pub mod ml_kem_1024 {
-    #[allow(unused_imports)]
-    use super::common::*;
 
     /// Module rank (k).
     pub const K: usize = 4;
