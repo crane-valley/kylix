@@ -21,6 +21,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 - SLH-DSA buffer-write API (`_to` variants for signing functions and HashSuite trait)
 - Intermediate buffer cleanup (direct-write `from_bytes()`, keygen zeroization)
 - Dev profile optimization and proptest consolidation with macros
+- Clippy fixes: `#[cfg(test)]` for test-only code, `.div_ceil()`, removed unnecessary lint suppression
 
 > See `CHANGELOG.md` for release history and `BENCHMARKS.md` for performance data.
 
@@ -38,7 +39,6 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | API: Key/Sig Bytes Method | LOW | Consistency | Unify `as_bytes()` vs `to_bytes()` across crates (see note below) |
 | SLH-DSA: wots_pk_gen_to / wots_pk_from_sig_to | LOW | Performance | Add `_to` buffer-write variants. Low priority since called once per WOTS+ operation (not in hot loops). |
 | Poly API Consistency | MEDIUM | Ergonomics | ML-KEM uses module functions (`poly_add()`), ML-DSA uses methods (`.add()`). Standardize to methods |
-| ML-KEM/ML-DSA: Clippy Fixes | LOW | Quality | Fix outstanding clippy warnings instead of suppressing them |
 
 #### API Consistency Note
 

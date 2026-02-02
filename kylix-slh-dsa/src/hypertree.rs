@@ -105,49 +105,6 @@ pub fn ht_sign_to<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
     }
 }
 
-/// Generate a hypertree signature.
-///
-/// FIPS 205, Algorithm 11: ht_sign(M, SK.seed, PK.seed, idx_tree, idx_leaf)
-///
-/// Signs a message through the d-layer hypertree.
-///
-/// # Arguments
-/// * `message` - Message to sign (n bytes, typically FORS public key)
-/// * `sk_seed` - Secret seed
-/// * `pk_seed` - Public seed
-/// * `idx_tree` - Tree index at the bottom layer
-/// * `idx_leaf` - Leaf index within the bottom tree
-/// * `h_prime` - Height of each XMSS tree
-/// * `d` - Number of hypertree layers
-///
-/// # Returns
-/// Hypertree signature: d * XMSS signatures
-#[allow(dead_code)]
-pub fn ht_sign<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
-    message: &[u8],
-    sk_seed: &[u8],
-    pk_seed: &[u8],
-    idx_tree: u64,
-    idx_leaf: u32,
-    h_prime: usize,
-    d: usize,
-) -> Vec<u8> {
-    let n = H::N;
-    let xmss_sig_len = WOTS_LEN * n + h_prime * n;
-    let mut sig_ht = vec![0u8; d * xmss_sig_len];
-    ht_sign_to::<H, WOTS_LEN, WOTS_LEN1>(
-        &mut sig_ht,
-        message,
-        sk_seed,
-        pk_seed,
-        idx_tree,
-        idx_leaf,
-        h_prime,
-        d,
-    );
-    sig_ht
-}
-
 /// Verify a hypertree signature.
 ///
 /// FIPS 205, Algorithm 12: ht_verify(M, SIG_HT, PK.seed, idx_tree, idx_leaf, PK.root)
@@ -248,6 +205,32 @@ mod tests {
     const WOTS_LEN1: usize = 32;
     const H_PRIME: usize = 3; // Small for testing
     const D: usize = 2; // Small for testing
+
+    /// Vec-returning wrapper around `ht_sign_to` for test convenience.
+    fn ht_sign<H: HashSuite, const WL: usize, const WL1: usize>(
+        message: &[u8],
+        sk_seed: &[u8],
+        pk_seed: &[u8],
+        idx_tree: u64,
+        idx_leaf: u32,
+        h_prime: usize,
+        d: usize,
+    ) -> Vec<u8> {
+        let n = H::N;
+        let xmss_sig_len = WL * n + h_prime * n;
+        let mut sig_ht = vec![0u8; d * xmss_sig_len];
+        ht_sign_to::<H, WL, WL1>(
+            &mut sig_ht,
+            message,
+            sk_seed,
+            pk_seed,
+            idx_tree,
+            idx_leaf,
+            h_prime,
+            d,
+        );
+        sig_ht
+    }
 
     #[test]
     fn test_ht_sign_size() {
