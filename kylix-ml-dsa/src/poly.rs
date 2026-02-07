@@ -268,6 +268,24 @@ mod tests {
     }
 
     #[test]
+    fn test_poly_check_norm_reduced_form() {
+        // Coefficients in reduced form [0, Q-1] where values > (Q-1)/2
+        // represent negative numbers in centered form.
+        let mut p = Poly::zero();
+
+        // Q - 50 represents -50 in centered form, so |c| = 50
+        p.coeffs[0] = Q - 50;
+        assert!(p.check_norm(51));
+        assert!(!p.check_norm(50));
+
+        // Test with failing coefficient in non-first position
+        let mut p2 = Poly::zero();
+        p2.coeffs[200] = Q - 1; // represents -1, |c| = 1
+        assert!(p2.check_norm(2));
+        assert!(!p2.check_norm(1));
+    }
+
+    #[test]
     fn test_poly_check_norm_non_positive_bound() {
         let p = Poly::zero();
         // bound <= 0 should always fail (no coefficient can satisfy |c| < 0)

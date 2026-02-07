@@ -252,4 +252,21 @@ mod tests {
         assert!(v.check_norm(101));
         assert!(!v.check_norm(100));
     }
+
+    #[test]
+    fn test_polyvec_check_norm_non_first_poly() {
+        use crate::reduce::Q;
+
+        // Failing coefficient in non-first polynomial (index 2 of 4)
+        let mut v = PolyVecK::<4>::zero();
+        v.polys[2].coeffs[100] = Q - 75; // represents -75, |c| = 75
+        assert!(v.check_norm(76));
+        assert!(!v.check_norm(75));
+
+        // Failing coefficient in last polynomial
+        let mut v2 = PolyVecK::<4>::zero();
+        v2.polys[3].coeffs[255] = 200;
+        assert!(v2.check_norm(201));
+        assert!(!v2.check_norm(200));
+    }
 }
