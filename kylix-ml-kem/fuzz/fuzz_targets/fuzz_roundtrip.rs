@@ -36,8 +36,8 @@ fuzz_target!(|input: RoundtripInput| {
 
             // Full roundtrip determinism check
             let (dk2, ek2) = ml_kem_keygen::<2, 3>(&input.d, &input.z);
-            let (ct2, ss_sender2) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek2, &input.m);
-            let ss_receiver2 = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk2, &ct2);
+            let (ct2, ss_sender2) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek2, &input.m).unwrap();
+            let ss_receiver2 = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk2, &ct2).unwrap();
 
             assert_eq!(dk, dk2, "KeyGen should be deterministic");
             assert_eq!(ek, ek2, "KeyGen should be deterministic");
@@ -57,8 +57,8 @@ fuzz_target!(|input: RoundtripInput| {
             );
 
             let (dk2, ek2) = ml_kem_keygen::<3, 2>(&input.d, &input.z);
-            let (ct2, ss_sender2) = ml_kem_encaps::<3, 2, 2, 10, 4>(&ek2, &input.m);
-            let ss_receiver2 = ml_kem_decaps::<3, 2, 2, 10, 4>(&dk2, &ct2);
+            let (ct2, ss_sender2) = ml_kem_encaps::<3, 2, 2, 10, 4>(&ek2, &input.m).unwrap();
+            let ss_receiver2 = ml_kem_decaps::<3, 2, 2, 10, 4>(&dk2, &ct2).unwrap();
 
             assert_eq!(dk, dk2, "KeyGen should be deterministic");
             assert_eq!(ek, ek2, "KeyGen should be deterministic");
@@ -78,8 +78,8 @@ fuzz_target!(|input: RoundtripInput| {
             );
 
             let (dk2, ek2) = ml_kem_keygen::<4, 2>(&input.d, &input.z);
-            let (ct2, ss_sender2) = ml_kem_encaps::<4, 2, 2, 11, 5>(&ek2, &input.m);
-            let ss_receiver2 = ml_kem_decaps::<4, 2, 2, 11, 5>(&dk2, &ct2);
+            let (ct2, ss_sender2) = ml_kem_encaps::<4, 2, 2, 11, 5>(&ek2, &input.m).unwrap();
+            let ss_receiver2 = ml_kem_decaps::<4, 2, 2, 11, 5>(&dk2, &ct2).unwrap();
 
             assert_eq!(dk, dk2, "KeyGen should be deterministic");
             assert_eq!(ek, ek2, "KeyGen should be deterministic");
