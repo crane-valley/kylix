@@ -82,14 +82,14 @@ impl<const K: usize> PolyVecK<K> {
 
     /// Check infinity norm of all polynomials.
     ///
-    /// Constant-time: accumulates results across all polynomials without
-    /// early return to prevent leaking which polynomial failed via timing.
+    /// Fully constant-time: uses `Poly::check_norm_ct` which returns `Choice`
+    /// directly, avoiding any `Choice` → `bool` → `Choice` roundtrip.
     pub fn check_norm(&self, bound: i32) -> bool {
-        let mut fail = Choice::from(0u8);
+        let mut pass = Choice::from(1u8);
         for p in &self.polys {
-            fail |= Choice::from(!p.check_norm(bound) as u8);
+            pass &= p.check_norm_ct(bound);
         }
-        !bool::from(fail)
+        bool::from(pass)
     }
 
     /// Conditional add Q.
@@ -170,14 +170,14 @@ impl<const L: usize> PolyVecL<L> {
 
     /// Check infinity norm of all polynomials.
     ///
-    /// Constant-time: accumulates results across all polynomials without
-    /// early return to prevent leaking which polynomial failed via timing.
+    /// Fully constant-time: uses `Poly::check_norm_ct` which returns `Choice`
+    /// directly, avoiding any `Choice` → `bool` → `Choice` roundtrip.
     pub fn check_norm(&self, bound: i32) -> bool {
-        let mut fail = Choice::from(0u8);
+        let mut pass = Choice::from(1u8);
         for p in &self.polys {
-            fail |= Choice::from(!p.check_norm(bound) as u8);
+            pass &= p.check_norm_ct(bound);
         }
-        !bool::from(fail)
+        bool::from(pass)
     }
 
     /// Conditional add Q.

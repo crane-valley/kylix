@@ -205,6 +205,35 @@ impl Poly {
         !bool::from(fail)
     }
 
+    /// Check infinity norm of all coefficients (constant-time, returns Choice).
+    ///
+    /// Returns `Choice(1)` if all coefficients have |c| < bound, `Choice(0)` otherwise.
+    /// This avoids the `Choice` → `bool` → `Choice` roundtrip that `check_norm` has.
+    pub fn check_norm_ct(&self, bound: i32) -> subtle::Choice {
+        use subtle::{ConditionallySelectable, ConstantTimeGreater};
+
+        let mut fail = subtle::Choice::from(0u8);
+        let bound_u32 = bound as u32;
+
+        for &c in &self.coeffs {
+            let c_negative = (c as u32).ct_gt(&(i32::MAX as u32));
+            let neg_c = (-(c as i64)) as u32;
+
+            let c_u32 = c as u32;
+            let half_q = ((Q - 1) / 2) as u32;
+            let c_gt_half = c_u32.ct_gt(&half_q);
+            let q_minus_c = (Q as u32).wrapping_sub(c_u32);
+
+            let abs_if_nonneg = u32::conditional_select(&c_u32, &q_minus_c, c_gt_half);
+            let abs_t = u32::conditional_select(&abs_if_nonneg, &neg_c, c_negative);
+
+            let exceeds = abs_t.ct_gt(&(bound_u32 - 1));
+            fail |= exceeds;
+        }
+
+        !fail
+    }
+
     /// Compute the infinity norm max |coeffs[i]|.
     pub fn norm_inf(&self) -> i32 {
         let mut max = 0;

@@ -185,20 +185,24 @@ impl HashSuite for Sha2_128Hash {
         let mut mac = HmacSha256::new_from_slice(sk_prf).expect("HMAC accepts any key length");
         mac.update(opt_rand);
         mac.update(message);
-        let result = mac.finalize().into_bytes();
-        Zeroizing::new(result[..16].to_vec())
+        let mut result = mac.finalize().into_bytes();
+        let out = Zeroizing::new(result[..16].to_vec());
+        result.zeroize();
+        out
     }
 
     fn h_msg(r: &[u8], pk_seed: &[u8], pk_root: &[u8], message: &[u8], out_len: usize) -> Vec<u8> {
         // Hmsg = MGF1-SHA-256(R || PK.seed || SHA-256(R || PK.seed || PK.root || M), m)
         use sha2::digest::Update;
-        let inner_hash = Sha256::new()
+        let mut inner_hash = Sha256::new()
             .chain(r)
             .chain(pk_seed)
             .chain(pk_root)
             .chain(message)
             .finalize();
-        mgf1_sha256(&[r, pk_seed, &inner_hash], out_len)
+        let out = mgf1_sha256(&[r, pk_seed, &inner_hash], out_len);
+        inner_hash.zeroize();
+        out
     }
 
     fn f(pk_seed: &[u8], adrs: &Address, m1: &[u8]) -> Vec<u8> {
@@ -334,8 +338,10 @@ macro_rules! impl_sha2_cat35_hash_suite {
                     HmacSha512::new_from_slice(sk_prf).expect("HMAC accepts any key length");
                 mac.update(opt_rand);
                 mac.update(message);
-                let result = mac.finalize().into_bytes();
-                Zeroizing::new(result[..$n].to_vec())
+                let mut result = mac.finalize().into_bytes();
+                let out = Zeroizing::new(result[..$n].to_vec());
+                result.zeroize();
+                out
             }
 
             fn h_msg(
@@ -347,13 +353,15 @@ macro_rules! impl_sha2_cat35_hash_suite {
             ) -> Vec<u8> {
                 // Hmsg = MGF1-SHA-512(R || PK.seed || SHA-512(R || PK.seed || PK.root || M), m)
                 use sha2::digest::Update;
-                let inner_hash = Sha512::new()
+                let mut inner_hash = Sha512::new()
                     .chain(r)
                     .chain(pk_seed)
                     .chain(pk_root)
                     .chain(message)
                     .finalize();
-                mgf1_sha512(&[r, pk_seed, &inner_hash], out_len)
+                let out = mgf1_sha512(&[r, pk_seed, &inner_hash], out_len);
+                inner_hash.zeroize();
+                out
             }
 
             fn f(pk_seed: &[u8], adrs: &Address, m1: &[u8]) -> Vec<u8> {
