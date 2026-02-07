@@ -28,11 +28,11 @@ See [SECURITY.md](SECURITY.md) for security policy and vulnerability reporting.
   - ML-DSA-65 (Security Level 3)
   - ML-DSA-87 (Security Level 5)
 - **SLH-DSA** (FIPS 205): Stateless Hash-Based Digital Signature Algorithm
-  - SHAKE-based variants:
+  - SHAKE-based variants (enabled by default):
     - SLH-DSA-SHAKE-128s/128f (Security Level 1)
     - SLH-DSA-SHAKE-192s/192f (Security Level 3)
     - SLH-DSA-SHAKE-256s/256f (Security Level 5)
-  - SHA2-based variants:
+  - SHA2-based variants (requires `slh-dsa-sha2` feature):
     - SLH-DSA-SHA2-128s/128f (Security Level 1)
     - SLH-DSA-SHA2-192s/192f (Security Level 3)
     - SLH-DSA-SHA2-256s/256f (Security Level 5)
@@ -51,20 +51,27 @@ Add to your `Cargo.toml`:
 kylix-pqc = "0.4"
 ```
 
+To enable SHA2-based SLH-DSA variants:
+
+```toml
+[dependencies]
+kylix-pqc = { version = "0.4", features = ["slh-dsa-sha2"] }
+```
+
 ## Usage
 
 ### ML-KEM (Key Encapsulation)
 
 ```rust
 use kylix_pqc::ml_kem::{MlKem768, Kem};
-use rand::rngs::OsRng;
+use rand::rng;
 
 fn main() -> kylix_pqc::Result<()> {
     // Generate a key pair
-    let (decapsulation_key, encapsulation_key) = MlKem768::keygen(&mut OsRng)?;
+    let (decapsulation_key, encapsulation_key) = MlKem768::keygen(&mut rng())?;
 
     // Sender: Encapsulate a shared secret
-    let (ciphertext, shared_secret_sender) = MlKem768::encaps(&encapsulation_key, &mut OsRng)?;
+    let (ciphertext, shared_secret_sender) = MlKem768::encaps(&encapsulation_key, &mut rng())?;
 
     // Receiver: Decapsulate the shared secret
     let shared_secret_receiver = MlKem768::decaps(&decapsulation_key, &ciphertext)?;
@@ -80,11 +87,11 @@ fn main() -> kylix_pqc::Result<()> {
 
 ```rust
 use kylix_pqc::ml_dsa::MlDsa65;
-use rand::rngs::OsRng;
+use rand::rng;
 
 fn main() -> kylix_pqc::Result<()> {
     // Generate a signing key pair
-    let (signing_key, verifying_key) = MlDsa65::keygen(&mut OsRng)?;
+    let (signing_key, verifying_key) = MlDsa65::keygen(&mut rng())?;
 
     // Sign a message (deterministic signing, no RNG needed)
     let message = b"Hello, post-quantum world!";
@@ -101,11 +108,11 @@ fn main() -> kylix_pqc::Result<()> {
 
 ```rust
 use kylix_pqc::slh_dsa::SlhDsaShake128f;
-use rand::rngs::OsRng;
+use rand::rng;
 
 fn main() -> kylix_pqc::Result<()> {
     // Generate a signing key pair
-    let (signing_key, verifying_key) = SlhDsaShake128f::keygen(&mut OsRng)?;
+    let (signing_key, verifying_key) = SlhDsaShake128f::keygen(&mut rng())?;
 
     // Sign a message (deterministic signing, no RNG needed)
     let message = b"Hello, post-quantum world!";

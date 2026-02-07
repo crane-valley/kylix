@@ -7,6 +7,8 @@
 //! - `std` (default): Enable standard library support
 //! - `ml-kem` (default): Enable ML-KEM (FIPS 203) key encapsulation
 //! - `ml-dsa` (default): Enable ML-DSA (FIPS 204) digital signatures
+//! - `slh-dsa` (default): Enable SLH-DSA (FIPS 205) SHAKE-based hash signatures
+//! - `slh-dsa-sha2`: Enable SLH-DSA (FIPS 205) SHA2-based hash signatures
 //!
 //! ## Supported Algorithms
 //!
@@ -18,6 +20,9 @@
 //!   - ML-DSA-44
 //!   - ML-DSA-65
 //!   - ML-DSA-87
+//! - **SLH-DSA** (FIPS 205): Stateless Hash-Based Digital Signature Algorithm
+//!   - SHAKE-based variants (default): 128s/128f, 192s/192f, 256s/256f
+//!   - SHA2-based variants (`slh-dsa-sha2` feature): 128s/128f, 192s/192f, 256s/256f
 //!
 //! ## Example
 //!

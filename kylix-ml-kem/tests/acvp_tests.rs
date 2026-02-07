@@ -350,7 +350,7 @@ mod encaps_512 {
             let ek = hex_decode(&prompt.ek);
             let m: [u8; 32] = hex_decode(&prompt.m).try_into().expect("Invalid m length");
 
-            let (ct, ss) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &m);
+            let (ct, ss) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &m).unwrap();
 
             let expected_c = hex_decode(&expected.c);
             let expected_k = hex_decode(&expected.k);
@@ -410,7 +410,7 @@ mod encaps_768 {
             let ek = hex_decode(&prompt.ek);
             let m: [u8; 32] = hex_decode(&prompt.m).try_into().expect("Invalid m length");
 
-            let (ct, ss) = ml_kem_encaps::<3, 2, 2, 10, 4>(&ek, &m);
+            let (ct, ss) = ml_kem_encaps::<3, 2, 2, 10, 4>(&ek, &m).unwrap();
 
             let expected_c = hex_decode(&expected.c);
             let expected_k = hex_decode(&expected.k);
@@ -470,7 +470,7 @@ mod encaps_1024 {
             let ek = hex_decode(&prompt.ek);
             let m: [u8; 32] = hex_decode(&prompt.m).try_into().expect("Invalid m length");
 
-            let (ct, ss) = ml_kem_encaps::<4, 2, 2, 11, 5>(&ek, &m);
+            let (ct, ss) = ml_kem_encaps::<4, 2, 2, 11, 5>(&ek, &m).unwrap();
 
             let expected_c = hex_decode(&expected.c);
             let expected_k = hex_decode(&expected.k);
@@ -534,7 +534,7 @@ mod decaps_512 {
             let dk = hex_decode(&prompt.dk);
             let ct = hex_decode(&prompt.c);
 
-            let ss = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk, &ct);
+            let ss = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk, &ct).unwrap();
 
             let expected_k = hex_decode(&expected.k);
 
@@ -588,7 +588,7 @@ mod decaps_768 {
             let dk = hex_decode(&prompt.dk);
             let ct = hex_decode(&prompt.c);
 
-            let ss = ml_kem_decaps::<3, 2, 2, 10, 4>(&dk, &ct);
+            let ss = ml_kem_decaps::<3, 2, 2, 10, 4>(&dk, &ct).unwrap();
 
             let expected_k = hex_decode(&expected.k);
 
@@ -642,7 +642,7 @@ mod decaps_1024 {
             let dk = hex_decode(&prompt.dk);
             let ct = hex_decode(&prompt.c);
 
-            let ss = ml_kem_decaps::<4, 2, 2, 11, 5>(&dk, &ct);
+            let ss = ml_kem_decaps::<4, 2, 2, 11, 5>(&dk, &ct).unwrap();
 
             let expected_k = hex_decode(&expected.k);
 

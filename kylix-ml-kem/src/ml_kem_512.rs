@@ -61,7 +61,7 @@ impl Kem for MlKem512 {
         let mut m = [0u8; 32];
         rng.fill_bytes(&mut m);
 
-        let (ct_bytes, ss_bytes) = ml_kem_encaps::<K, ETA1, ETA2, DU, DV>(ek.as_bytes(), &m);
+        let (ct_bytes, ss_bytes) = ml_kem_encaps::<K, ETA1, ETA2, DU, DV>(ek.as_bytes(), &m)?;
 
         // Zeroize message
         m.zeroize();
@@ -73,7 +73,7 @@ impl Kem for MlKem512 {
     }
 
     fn decaps(dk: &Self::DecapsulationKey, ct: &Self::Ciphertext) -> Result<Self::SharedSecret> {
-        let ss_bytes = ml_kem_decaps::<K, ETA1, ETA2, DU, DV>(dk.as_bytes(), ct.as_bytes());
+        let ss_bytes = ml_kem_decaps::<K, ETA1, ETA2, DU, DV>(dk.as_bytes(), ct.as_bytes())?;
         Ok(SharedSecret { bytes: ss_bytes })
     }
 }

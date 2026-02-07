@@ -12,6 +12,7 @@ use alloc::vec::Vec;
 
 use crate::hash::{hash_g, hash_h, hash_j};
 use crate::k_pke::{k_pke_decrypt, k_pke_encrypt, k_pke_keygen};
+use kylix_core::{Error, Result};
 use subtle::{ConditionallySelectable, ConstantTimeEq};
 
 /// ML-KEM Key Generation (FIPS 203 Algorithm 16).
@@ -76,6 +77,9 @@ pub fn ml_kem_keygen<const K: usize, const ETA1: usize>(
 /// * `c` - Ciphertext
 /// * `K` - 32-byte shared secret
 ///
+/// # Errors
+/// Returns [`Error::InvalidKeyLength`] if `ek` length is not `K * 384 + 32`.
+///
 /// # Algorithm
 /// 1. h = H(ek)
 /// 2. (K, r) = G(m || h)
@@ -90,7 +94,15 @@ pub fn ml_kem_encaps<
 >(
     ek: &[u8],
     m: &[u8; 32],
-) -> (Vec<u8>, [u8; 32]) {
+) -> Result<(Vec<u8>, [u8; 32])> {
+    let expected_ek_size = K * 384 + 32;
+    if ek.len() != expected_ek_size {
+        return Err(Error::InvalidKeyLength {
+            expected: expected_ek_size,
+            actual: ek.len(),
+        });
+    }
+
     // 1. h = H(ek)
     let h = hash_h(ek);
 
@@ -108,7 +120,7 @@ pub fn ml_kem_encaps<
     // 3. c = K-PKE.Encrypt(ek, m, r)
     let c = k_pke_encrypt::<K, ETA1, ETA2, DU, DV>(ek, m, &r);
 
-    (c, shared_secret)
+    Ok((c, shared_secret))
 }
 
 /// ML-KEM Decapsulation (FIPS 203 Algorithm 18).
@@ -130,6 +142,10 @@ pub fn ml_kem_encaps<
 /// # Returns
 /// 32-byte shared secret
 ///
+/// # Errors
+/// Returns [`Error::InvalidKeyLength`] if `dk` length is not
+/// `K * 768 + 96` (i.e., `dk_pke + ek + H(ek) + z`).
+///
 /// # Algorithm (with implicit rejection)
 /// 1. Parse dk as (dk_pke || ek || h || z)
 /// 2. m' = K-PKE.Decrypt(dk_pke, c)
@@ -146,19 +162,27 @@ pub fn ml_kem_decaps<
 >(
     dk: &[u8],
     c: &[u8],
-) -> [u8; 32] {
+) -> Result<[u8; 32]> {
     // Parse dk = dk_pke || ek || h || z
     let dk_pke_size = K * 384;
     let ek_size = K * 384 + 32;
+    let expected_dk_size = dk_pke_size + ek_size + 32 + 32;
+
+    if dk.len() != expected_dk_size {
+        return Err(Error::InvalidKeyLength {
+            expected: expected_dk_size,
+            actual: dk.len(),
+        });
+    }
 
     let dk_pke = &dk[..dk_pke_size];
     let ek = &dk[dk_pke_size..dk_pke_size + ek_size];
     let h: &[u8; 32] = dk[dk_pke_size + ek_size..dk_pke_size + ek_size + 32]
         .try_into()
-        .unwrap();
+        .expect("length already validated");
     let z: &[u8; 32] = dk[dk_pke_size + ek_size + 32..dk_pke_size + ek_size + 64]
         .try_into()
-        .unwrap();
+        .expect("length already validated");
 
     // 1. m' = K-PKE.Decrypt(dk_pke, c)
     let m_prime = k_pke_decrypt::<K, DU, DV>(dk_pke, c);
@@ -190,7 +214,7 @@ pub fn ml_kem_decaps<
         result[i] = u8::conditional_select(&k_bar[i], &k_prime[i], ciphertexts_equal);
     }
 
-    result
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -268,8 +292,8 @@ mod tests {
         let m = [0x55u8; 32];
 
         let (dk, ek) = ml_kem_keygen::<K512, ETA1_512>(&d, &z);
-        let (c, ss1) = ml_kem_encaps::<K512, ETA1_512, ETA2_512, DU_512, DV_512>(&ek, &m);
-        let ss2 = ml_kem_decaps::<K512, ETA1_512, ETA2_512, DU_512, DV_512>(&dk, &c);
+        let (c, ss1) = ml_kem_encaps::<K512, ETA1_512, ETA2_512, DU_512, DV_512>(&ek, &m).unwrap();
+        let ss2 = ml_kem_decaps::<K512, ETA1_512, ETA2_512, DU_512, DV_512>(&dk, &c).unwrap();
 
         assert_eq!(ss1, ss2);
     }
@@ -281,8 +305,8 @@ mod tests {
         let m = [0x55u8; 32];
 
         let (dk, ek) = ml_kem_keygen::<K768, ETA1_768>(&d, &z);
-        let (c, ss1) = ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &m);
-        let ss2 = ml_kem_decaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&dk, &c);
+        let (c, ss1) = ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &m).unwrap();
+        let ss2 = ml_kem_decaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&dk, &c).unwrap();
 
         assert_eq!(ss1, ss2);
     }
@@ -294,8 +318,9 @@ mod tests {
         let m = [0x55u8; 32];
 
         let (dk, ek) = ml_kem_keygen::<K1024, ETA1_1024>(&d, &z);
-        let (c, ss1) = ml_kem_encaps::<K1024, ETA1_1024, ETA2_1024, DU_1024, DV_1024>(&ek, &m);
-        let ss2 = ml_kem_decaps::<K1024, ETA1_1024, ETA2_1024, DU_1024, DV_1024>(&dk, &c);
+        let (c, ss1) =
+            ml_kem_encaps::<K1024, ETA1_1024, ETA2_1024, DU_1024, DV_1024>(&ek, &m).unwrap();
+        let ss2 = ml_kem_decaps::<K1024, ETA1_1024, ETA2_1024, DU_1024, DV_1024>(&dk, &c).unwrap();
 
         assert_eq!(ss1, ss2);
     }
@@ -308,18 +333,20 @@ mod tests {
 
         // ML-KEM-512: c1 = 640, c2 = 128, total = 768
         let (_, ek512) = ml_kem_keygen::<K512, ETA1_512>(&d, &z);
-        let (c512, _) = ml_kem_encaps::<K512, ETA1_512, ETA2_512, DU_512, DV_512>(&ek512, &m);
+        let (c512, _) =
+            ml_kem_encaps::<K512, ETA1_512, ETA2_512, DU_512, DV_512>(&ek512, &m).unwrap();
         assert_eq!(c512.len(), 768);
 
         // ML-KEM-768: c1 = 960, c2 = 128, total = 1088
         let (_, ek768) = ml_kem_keygen::<K768, ETA1_768>(&d, &z);
-        let (c768, _) = ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek768, &m);
+        let (c768, _) =
+            ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek768, &m).unwrap();
         assert_eq!(c768.len(), 1088);
 
         // ML-KEM-1024: c1 = 1408, c2 = 160, total = 1568
         let (_, ek1024) = ml_kem_keygen::<K1024, ETA1_1024>(&d, &z);
         let (c1024, _) =
-            ml_kem_encaps::<K1024, ETA1_1024, ETA2_1024, DU_1024, DV_1024>(&ek1024, &m);
+            ml_kem_encaps::<K1024, ETA1_1024, ETA2_1024, DU_1024, DV_1024>(&ek1024, &m).unwrap();
         assert_eq!(c1024.len(), 1568);
     }
 
@@ -330,19 +357,20 @@ mod tests {
         let m = [0x55u8; 32];
 
         let (dk, ek) = ml_kem_keygen::<K768, ETA1_768>(&d, &z);
-        let (mut c, ss1) = ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &m);
+        let (mut c, ss1) =
+            ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &m).unwrap();
 
         // Corrupt the ciphertext
         c[0] ^= 0xFF;
 
         // Decapsulation should still succeed but return a different key
-        let ss2 = ml_kem_decaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&dk, &c);
+        let ss2 = ml_kem_decaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&dk, &c).unwrap();
 
         // The shared secrets should be different
         assert_ne!(ss1, ss2);
 
         // The "bad" shared secret should still be deterministic
-        let ss3 = ml_kem_decaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&dk, &c);
+        let ss3 = ml_kem_decaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&dk, &c).unwrap();
         assert_eq!(ss2, ss3);
     }
 
@@ -353,8 +381,8 @@ mod tests {
         let m = [0x55u8; 32];
 
         let (_, ek) = ml_kem_keygen::<K768, ETA1_768>(&d, &z);
-        let (c1, ss1) = ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &m);
-        let (c2, ss2) = ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &m);
+        let (c1, ss1) = ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &m).unwrap();
+        let (c2, ss2) = ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &m).unwrap();
 
         assert_eq!(c1, c2);
         assert_eq!(ss1, ss2);
@@ -370,16 +398,18 @@ mod tests {
         let m1 = [0x00u8; 32];
         let m2 = [0xFFu8; 32];
 
-        let (c1, ss1) = ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &m1);
-        let (c2, ss2) = ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &m2);
+        let (c1, ss1) =
+            ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &m1).unwrap();
+        let (c2, ss2) =
+            ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &m2).unwrap();
 
         // Different messages should produce different ciphertexts and shared secrets
         assert_ne!(c1, c2);
         assert_ne!(ss1, ss2);
 
         // But decapsulation should recover the correct shared secrets
-        let dec_ss1 = ml_kem_decaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&dk, &c1);
-        let dec_ss2 = ml_kem_decaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&dk, &c2);
+        let dec_ss1 = ml_kem_decaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&dk, &c1).unwrap();
+        let dec_ss2 = ml_kem_decaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&dk, &c2).unwrap();
 
         assert_eq!(ss1, dec_ss1);
         assert_eq!(ss2, dec_ss2);

@@ -51,8 +51,8 @@ mod ml_kem_512_kat {
         let m = hex_decode("147c03f7a5bebba406c8fae1874d7f13c80efe79a3a9a874cc09fe76f6997615");
 
         let (dk, ek) = ml_kem_keygen::<2, 3>(&d.try_into().unwrap(), &z.try_into().unwrap());
-        let (c, ss_enc) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &m.try_into().unwrap());
-        let ss_dec = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk, &c);
+        let (c, ss_enc) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &m.try_into().unwrap()).unwrap();
+        let ss_dec = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk, &c).unwrap();
 
         assert_eq!(ss_enc, ss_dec, "Shared secrets should match");
         assert_eq!(c.len(), 768, "ML-KEM-512 ciphertext should be 768 bytes");
@@ -65,12 +65,12 @@ mod ml_kem_512_kat {
         let m = hex_decode("147c03f7a5bebba406c8fae1874d7f13c80efe79a3a9a874cc09fe76f6997615");
 
         let (dk, ek) = ml_kem_keygen::<2, 3>(&d.try_into().unwrap(), &z.try_into().unwrap());
-        let (mut c, ss_enc) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &m.try_into().unwrap());
+        let (mut c, ss_enc) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &m.try_into().unwrap()).unwrap();
 
         // Corrupt the ciphertext
         c[0] ^= 0xFF;
 
-        let ss_dec = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk, &c);
+        let ss_dec = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk, &c).unwrap();
 
         // Implicit rejection: decaps should NOT produce the same shared secret
         assert_ne!(
@@ -116,8 +116,8 @@ mod ml_kem_768_kat {
         let m = hex_decode("cafebabe0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c");
 
         let (dk, ek) = ml_kem_keygen::<3, 2>(&d.try_into().unwrap(), &z.try_into().unwrap());
-        let (c, ss_enc) = ml_kem_encaps::<3, 2, 2, 10, 4>(&ek, &m.try_into().unwrap());
-        let ss_dec = ml_kem_decaps::<3, 2, 2, 10, 4>(&dk, &c);
+        let (c, ss_enc) = ml_kem_encaps::<3, 2, 2, 10, 4>(&ek, &m.try_into().unwrap()).unwrap();
+        let ss_dec = ml_kem_decaps::<3, 2, 2, 10, 4>(&dk, &c).unwrap();
 
         assert_eq!(ss_enc, ss_dec, "Shared secrets should match");
         assert_eq!(c.len(), 1088, "ML-KEM-768 ciphertext should be 1088 bytes");
@@ -130,14 +130,14 @@ mod ml_kem_768_kat {
         let m = hex_decode("cafebabe0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c");
 
         let (dk, ek) = ml_kem_keygen::<3, 2>(&d.try_into().unwrap(), &z.try_into().unwrap());
-        let (mut c, ss_enc) = ml_kem_encaps::<3, 2, 2, 10, 4>(&ek, &m.try_into().unwrap());
+        let (mut c, ss_enc) = ml_kem_encaps::<3, 2, 2, 10, 4>(&ek, &m.try_into().unwrap()).unwrap();
 
         // Corrupt multiple bytes of the ciphertext
         for byte in c.iter_mut().take(8) {
             *byte ^= 0xFF;
         }
 
-        let ss_dec = ml_kem_decaps::<3, 2, 2, 10, 4>(&dk, &c);
+        let ss_dec = ml_kem_decaps::<3, 2, 2, 10, 4>(&dk, &c).unwrap();
 
         assert_ne!(
             ss_enc, ss_dec,
@@ -182,8 +182,8 @@ mod ml_kem_1024_kat {
         let m = hex_decode("00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff");
 
         let (dk, ek) = ml_kem_keygen::<4, 2>(&d.try_into().unwrap(), &z.try_into().unwrap());
-        let (c, ss_enc) = ml_kem_encaps::<4, 2, 2, 11, 5>(&ek, &m.try_into().unwrap());
-        let ss_dec = ml_kem_decaps::<4, 2, 2, 11, 5>(&dk, &c);
+        let (c, ss_enc) = ml_kem_encaps::<4, 2, 2, 11, 5>(&ek, &m.try_into().unwrap()).unwrap();
+        let ss_dec = ml_kem_decaps::<4, 2, 2, 11, 5>(&dk, &c).unwrap();
 
         assert_eq!(ss_enc, ss_dec, "Shared secrets should match");
         assert_eq!(c.len(), 1568, "ML-KEM-1024 ciphertext should be 1568 bytes");
@@ -196,12 +196,12 @@ mod ml_kem_1024_kat {
         let m = hex_decode("00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff");
 
         let (dk, ek) = ml_kem_keygen::<4, 2>(&d.try_into().unwrap(), &z.try_into().unwrap());
-        let (mut c, ss_enc) = ml_kem_encaps::<4, 2, 2, 11, 5>(&ek, &m.try_into().unwrap());
+        let (mut c, ss_enc) = ml_kem_encaps::<4, 2, 2, 11, 5>(&ek, &m.try_into().unwrap()).unwrap();
 
         // Corrupt the ciphertext
         c[100] ^= 0x01;
 
-        let ss_dec = ml_kem_decaps::<4, 2, 2, 11, 5>(&dk, &c);
+        let ss_dec = ml_kem_decaps::<4, 2, 2, 11, 5>(&dk, &c).unwrap();
 
         assert_ne!(
             ss_enc, ss_dec,
@@ -249,8 +249,8 @@ mod determinism_tests {
 
         let (_, ek) = ml_kem_keygen::<2, 3>(&d, &z);
 
-        let (c1, ss1) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &m);
-        let (c2, ss2) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &m);
+        let (c1, ss1) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &m).unwrap();
+        let (c2, ss2) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &m).unwrap();
 
         assert_eq!(c1, c2, "Encaps should be deterministic");
         assert_eq!(ss1, ss2, "Encaps should be deterministic");
@@ -304,8 +304,8 @@ mod edge_cases {
         let m = [0u8; 32];
 
         let (dk, ek) = ml_kem_keygen::<2, 3>(&d, &z);
-        let (c, ss_enc) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &m);
-        let ss_dec = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk, &c);
+        let (c, ss_enc) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &m).unwrap();
+        let ss_dec = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk, &c).unwrap();
 
         assert_eq!(ss_enc, ss_dec, "Should work with all-zero seed");
     }
@@ -317,8 +317,8 @@ mod edge_cases {
         let m = [0xFFu8; 32];
 
         let (dk, ek) = ml_kem_keygen::<2, 3>(&d, &z);
-        let (c, ss_enc) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &m);
-        let ss_dec = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk, &c);
+        let (c, ss_enc) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &m).unwrap();
+        let ss_dec = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk, &c).unwrap();
 
         assert_eq!(ss_enc, ss_dec, "Should work with all-ones seed");
     }
@@ -362,8 +362,8 @@ mod edge_cases {
         // Multiple encapsulations with different messages
         for i in 0u8..5 {
             let m = [i; 32];
-            let (c, ss_enc) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &m);
-            let ss_dec = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk, &c);
+            let (c, ss_enc) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &m).unwrap();
+            let ss_dec = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk, &c).unwrap();
             assert_eq!(
                 ss_enc, ss_dec,
                 "Encaps/Decaps should work for multiple messages"
