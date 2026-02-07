@@ -638,19 +638,41 @@ mod tests {
 
     #[test]
     fn test_192_h_uses_sha512() {
-        // Verify that 192-bit H produces different output than a pure SHA-256 would
+        // Verify that 192-bit H uses SHA-512 by independently computing the expected value
         let pk_seed = [0u8; 24];
         let adrs = Address::new();
         let m1 = [1u8; 24];
         let m2 = [2u8; 24];
 
         let h_out = Sha2_192Hash::h(&pk_seed, &adrs, &m1, &m2);
-        let f_out = Sha2_192Hash::f(&pk_seed, &adrs, &m1);
-
-        // H and F should produce different outputs (different hash functions)
-        assert_ne!(h_out, f_out);
         assert_eq!(h_out.len(), 24);
-        assert_eq!(f_out.len(), 24);
+
+        // Independently compute: Trunc_24(SHA-512(PK.seed || toByte(0, 128-24) || ADRSc || M1 || M2))
+        let adrs_c = adrs_compress(&adrs);
+        let expected_sha512 = {
+            let mut hasher = Sha512::new();
+            hasher.update(pk_seed);
+            hasher.update(PADDING_512_192);
+            hasher.update(adrs_c);
+            hasher.update(m1);
+            hasher.update(m2);
+            let hash = hasher.finalize();
+            hash[..24].to_vec()
+        };
+        assert_eq!(h_out, expected_sha512, "H should match independent SHA-512 computation");
+
+        // Also verify it differs from what SHA-256 would produce
+        let sha256_result = {
+            let mut hasher = Sha256::new();
+            hasher.update(pk_seed);
+            hasher.update(PADDING_256_192);
+            hasher.update(adrs_c);
+            hasher.update(m1);
+            hasher.update(m2);
+            let hash = hasher.finalize();
+            hash[..24].to_vec()
+        };
+        assert_ne!(h_out, sha256_result, "H should differ from SHA-256 computation");
     }
 
     #[test]
@@ -662,8 +684,26 @@ mod tests {
         let out = Sha2_256Hash::prf_msg(&sk_prf, &opt_rand, message);
         assert_eq!(out.len(), 32);
 
-        // Different message should give different output
-        let out2 = Sha2_256Hash::prf_msg(&sk_prf, &opt_rand, b"different message");
-        assert_ne!(out, out2);
+        // Independently compute: Trunc_32(HMAC-SHA-512(SK.prf, OptRand || M))
+        let expected = {
+            let mut mac =
+                HmacSha512::new_from_slice(&sk_prf).expect("HMAC accepts any key length");
+            mac.update(&opt_rand);
+            mac.update(message);
+            let result = mac.finalize().into_bytes();
+            result[..32].to_vec()
+        };
+        assert_eq!(*out, expected, "PRFmsg should match independent HMAC-SHA-512 computation");
+
+        // Also verify it differs from HMAC-SHA-256
+        let hmac256_result = {
+            let mut mac =
+                HmacSha256::new_from_slice(&sk_prf).expect("HMAC accepts any key length");
+            mac.update(&opt_rand);
+            mac.update(message);
+            let result = mac.finalize().into_bytes();
+            result[..32].to_vec()
+        };
+        assert_ne!(*out, hmac256_result, "PRFmsg should differ from HMAC-SHA-256 computation");
     }
 }
