@@ -188,8 +188,14 @@ pub fn ml_kem_decaps<
     let (ek, rest) = rest.split_at(ek_size);
     let (h_bytes, z_bytes) = rest.split_at(32);
 
-    let h: &[u8; 32] = h_bytes.try_into().expect("length already validated");
-    let z: &[u8; 32] = z_bytes.try_into().expect("length already validated");
+    let h: &[u8; 32] = h_bytes.try_into().map_err(|_| Error::InvalidKeyLength {
+        expected: expected_dk_size,
+        actual: dk.len(),
+    })?;
+    let z: &[u8; 32] = z_bytes.try_into().map_err(|_| Error::InvalidKeyLength {
+        expected: expected_dk_size,
+        actual: dk.len(),
+    })?;
 
     // 1. m' = K-PKE.Decrypt(dk_pke, c)
     let m_prime = k_pke_decrypt::<K, DU, DV>(dk_pke, c);
