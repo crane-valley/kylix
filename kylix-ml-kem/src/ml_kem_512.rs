@@ -58,13 +58,10 @@ impl Kem for MlKem512 {
         ek: &Self::EncapsulationKey,
         rng: &mut impl CryptoRng,
     ) -> Result<(Self::Ciphertext, Self::SharedSecret)> {
-        let mut m = [0u8; 32];
-        rng.fill_bytes(&mut m);
+        let mut m = Zeroizing::new([0u8; 32]);
+        rng.fill_bytes(m.as_mut());
 
         let (ct_bytes, ss_bytes) = ml_kem_encaps::<K, ETA1, ETA2, DU, DV>(ek.as_bytes(), &m)?;
-
-        // Zeroize message
-        m.zeroize();
 
         Ok((
             Ciphertext::from_bytes(&ct_bytes)?,
