@@ -74,9 +74,9 @@ pub fn ml_kem_keygen<const K: usize, const ETA1: usize>(
 /// * `m` - 32-byte random message
 ///
 /// # Returns
-/// On success, returns `Ok((c, K))` where:
+/// On success, returns `Ok((c, shared_secret))` where:
 /// * `c` - Ciphertext
-/// * `K` - 32-byte shared secret
+/// * `shared_secret` - 32-byte shared secret
 ///
 /// # Errors
 /// Returns [`Error::InvalidKeyLength`] if `ek` length is not `K * 384 + 32`.
@@ -519,6 +519,45 @@ mod tests {
             result,
             Err(Error::InvalidKeyLength { expected, actual })
                 if expected == expected_ek_1024 && actual == 1
+        ));
+
+        // ML-KEM-512 decaps: invalid dk
+        let expected_dk_512 = K512 * 768 + 96;
+        let expected_ct_512 = 32 * (K512 * DU_512 + DV_512);
+        let result = ml_kem_decaps::<K512, ETA1_512, ETA2_512, DU_512, DV_512>(&[0u8; 1], &[]);
+        assert!(matches!(
+            result,
+            Err(Error::InvalidKeyLength { expected, actual })
+                if expected == expected_dk_512 && actual == 1
+        ));
+
+        // ML-KEM-512 decaps: valid dk size, invalid ct
+        let dk_512 = vec![0u8; expected_dk_512];
+        let result = ml_kem_decaps::<K512, ETA1_512, ETA2_512, DU_512, DV_512>(&dk_512, &[0u8; 1]);
+        assert!(matches!(
+            result,
+            Err(Error::InvalidCiphertextLength { expected, actual })
+                if expected == expected_ct_512 && actual == 1
+        ));
+
+        // ML-KEM-1024 decaps: invalid dk
+        let expected_dk_1024 = K1024 * 768 + 96;
+        let expected_ct_1024 = 32 * (K1024 * DU_1024 + DV_1024);
+        let result = ml_kem_decaps::<K1024, ETA1_1024, ETA2_1024, DU_1024, DV_1024>(&[0u8; 1], &[]);
+        assert!(matches!(
+            result,
+            Err(Error::InvalidKeyLength { expected, actual })
+                if expected == expected_dk_1024 && actual == 1
+        ));
+
+        // ML-KEM-1024 decaps: valid dk size, invalid ct
+        let dk_1024 = vec![0u8; expected_dk_1024];
+        let result =
+            ml_kem_decaps::<K1024, ETA1_1024, ETA2_1024, DU_1024, DV_1024>(&dk_1024, &[0u8; 1]);
+        assert!(matches!(
+            result,
+            Err(Error::InvalidCiphertextLength { expected, actual })
+                if expected == expected_ct_1024 && actual == 1
         ));
     }
 }

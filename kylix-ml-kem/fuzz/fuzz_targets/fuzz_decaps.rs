@@ -27,61 +27,61 @@ fuzz_target!(|input: DecapsInput| {
         0 => {
             // ML-KEM-512
             let (dk, ek) = ml_kem_keygen::<2, 3>(&input.d, &input.z);
-            let (mut ct, ss_sender) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &input.m);
+            let (mut ct, ss_sender) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &input.m).unwrap();
 
             // Test normal decapsulation
-            let ss_receiver = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk, &ct);
+            let ss_receiver = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk, &ct).unwrap();
             assert_eq!(ss_sender, ss_receiver, "Valid decaps should recover shared secret");
 
             // Verify determinism
-            let ss_receiver2 = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk, &ct);
+            let ss_receiver2 = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk, &ct).unwrap();
             assert_eq!(ss_receiver, ss_receiver2, "Decaps should be deterministic");
 
             // Test implicit rejection with corrupted ciphertext
             if !ct.is_empty() {
                 let idx = input.corrupt_index % ct.len();
                 ct[idx] ^= input.corrupt_byte.wrapping_add(1);
-                let ss_bad = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk, &ct);
+                let ss_bad = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk, &ct).unwrap();
                 // Should still produce deterministic output (implicit rejection)
-                let ss_bad2 = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk, &ct);
+                let ss_bad2 = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk, &ct).unwrap();
                 assert_eq!(ss_bad, ss_bad2, "Implicit rejection should be deterministic");
             }
         }
         1 => {
             // ML-KEM-768
             let (dk, ek) = ml_kem_keygen::<3, 2>(&input.d, &input.z);
-            let (mut ct, ss_sender) = ml_kem_encaps::<3, 2, 2, 10, 4>(&ek, &input.m);
+            let (mut ct, ss_sender) = ml_kem_encaps::<3, 2, 2, 10, 4>(&ek, &input.m).unwrap();
 
-            let ss_receiver = ml_kem_decaps::<3, 2, 2, 10, 4>(&dk, &ct);
+            let ss_receiver = ml_kem_decaps::<3, 2, 2, 10, 4>(&dk, &ct).unwrap();
             assert_eq!(ss_sender, ss_receiver, "Valid decaps should recover shared secret");
 
-            let ss_receiver2 = ml_kem_decaps::<3, 2, 2, 10, 4>(&dk, &ct);
+            let ss_receiver2 = ml_kem_decaps::<3, 2, 2, 10, 4>(&dk, &ct).unwrap();
             assert_eq!(ss_receiver, ss_receiver2, "Decaps should be deterministic");
 
             if !ct.is_empty() {
                 let idx = input.corrupt_index % ct.len();
                 ct[idx] ^= input.corrupt_byte.wrapping_add(1);
-                let ss_bad = ml_kem_decaps::<3, 2, 2, 10, 4>(&dk, &ct);
-                let ss_bad2 = ml_kem_decaps::<3, 2, 2, 10, 4>(&dk, &ct);
+                let ss_bad = ml_kem_decaps::<3, 2, 2, 10, 4>(&dk, &ct).unwrap();
+                let ss_bad2 = ml_kem_decaps::<3, 2, 2, 10, 4>(&dk, &ct).unwrap();
                 assert_eq!(ss_bad, ss_bad2, "Implicit rejection should be deterministic");
             }
         }
         _ => {
             // ML-KEM-1024
             let (dk, ek) = ml_kem_keygen::<4, 2>(&input.d, &input.z);
-            let (mut ct, ss_sender) = ml_kem_encaps::<4, 2, 2, 11, 5>(&ek, &input.m);
+            let (mut ct, ss_sender) = ml_kem_encaps::<4, 2, 2, 11, 5>(&ek, &input.m).unwrap();
 
-            let ss_receiver = ml_kem_decaps::<4, 2, 2, 11, 5>(&dk, &ct);
+            let ss_receiver = ml_kem_decaps::<4, 2, 2, 11, 5>(&dk, &ct).unwrap();
             assert_eq!(ss_sender, ss_receiver, "Valid decaps should recover shared secret");
 
-            let ss_receiver2 = ml_kem_decaps::<4, 2, 2, 11, 5>(&dk, &ct);
+            let ss_receiver2 = ml_kem_decaps::<4, 2, 2, 11, 5>(&dk, &ct).unwrap();
             assert_eq!(ss_receiver, ss_receiver2, "Decaps should be deterministic");
 
             if !ct.is_empty() {
                 let idx = input.corrupt_index % ct.len();
                 ct[idx] ^= input.corrupt_byte.wrapping_add(1);
-                let ss_bad = ml_kem_decaps::<4, 2, 2, 11, 5>(&dk, &ct);
-                let ss_bad2 = ml_kem_decaps::<4, 2, 2, 11, 5>(&dk, &ct);
+                let ss_bad = ml_kem_decaps::<4, 2, 2, 11, 5>(&dk, &ct).unwrap();
+                let ss_bad2 = ml_kem_decaps::<4, 2, 2, 11, 5>(&dk, &ct).unwrap();
                 assert_eq!(ss_bad, ss_bad2, "Implicit rejection should be deterministic");
             }
         }

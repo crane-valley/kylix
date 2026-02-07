@@ -26,8 +26,8 @@ fuzz_target!(|input: RoundtripInput| {
         0 => {
             // ML-KEM-512
             let (dk, ek) = ml_kem_keygen::<2, 3>(&input.d, &input.z);
-            let (ct, ss_sender) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &input.m);
-            let ss_receiver = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk, &ct);
+            let (ct, ss_sender) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &input.m).unwrap();
+            let ss_receiver = ml_kem_decaps::<2, 3, 2, 10, 4>(&dk, &ct).unwrap();
 
             assert_eq!(
                 ss_sender, ss_receiver,
@@ -48,8 +48,8 @@ fuzz_target!(|input: RoundtripInput| {
         1 => {
             // ML-KEM-768
             let (dk, ek) = ml_kem_keygen::<3, 2>(&input.d, &input.z);
-            let (ct, ss_sender) = ml_kem_encaps::<3, 2, 2, 10, 4>(&ek, &input.m);
-            let ss_receiver = ml_kem_decaps::<3, 2, 2, 10, 4>(&dk, &ct);
+            let (ct, ss_sender) = ml_kem_encaps::<3, 2, 2, 10, 4>(&ek, &input.m).unwrap();
+            let ss_receiver = ml_kem_decaps::<3, 2, 2, 10, 4>(&dk, &ct).unwrap();
 
             assert_eq!(
                 ss_sender, ss_receiver,
@@ -69,8 +69,8 @@ fuzz_target!(|input: RoundtripInput| {
         _ => {
             // ML-KEM-1024
             let (dk, ek) = ml_kem_keygen::<4, 2>(&input.d, &input.z);
-            let (ct, ss_sender) = ml_kem_encaps::<4, 2, 2, 11, 5>(&ek, &input.m);
-            let ss_receiver = ml_kem_decaps::<4, 2, 2, 11, 5>(&dk, &ct);
+            let (ct, ss_sender) = ml_kem_encaps::<4, 2, 2, 11, 5>(&ek, &input.m).unwrap();
+            let ss_receiver = ml_kem_decaps::<4, 2, 2, 11, 5>(&dk, &ct).unwrap();
 
             assert_eq!(
                 ss_sender, ss_receiver,

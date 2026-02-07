@@ -67,11 +67,13 @@ use kylix_pqc::ml_kem::{MlKem768, Kem};
 use rand::rng;
 
 fn main() -> kylix_pqc::Result<()> {
+    let mut rng = rng();
+
     // Generate a key pair
-    let (decapsulation_key, encapsulation_key) = MlKem768::keygen(&mut rng())?;
+    let (decapsulation_key, encapsulation_key) = MlKem768::keygen(&mut rng)?;
 
     // Sender: Encapsulate a shared secret
-    let (ciphertext, shared_secret_sender) = MlKem768::encaps(&encapsulation_key, &mut rng())?;
+    let (ciphertext, shared_secret_sender) = MlKem768::encaps(&encapsulation_key, &mut rng)?;
 
     // Receiver: Decapsulate the shared secret
     let shared_secret_receiver = MlKem768::decaps(&decapsulation_key, &ciphertext)?;
@@ -90,8 +92,10 @@ use kylix_pqc::ml_dsa::MlDsa65;
 use rand::rng;
 
 fn main() -> kylix_pqc::Result<()> {
+    let mut rng = rng();
+
     // Generate a signing key pair
-    let (signing_key, verifying_key) = MlDsa65::keygen(&mut rng())?;
+    let (signing_key, verifying_key) = MlDsa65::keygen(&mut rng)?;
 
     // Sign a message (deterministic signing, no RNG needed)
     let message = b"Hello, post-quantum world!";
@@ -111,8 +115,10 @@ use kylix_pqc::slh_dsa::SlhDsaShake128f;
 use rand::rng;
 
 fn main() -> kylix_pqc::Result<()> {
+    let mut rng = rng();
+
     // Generate a signing key pair
-    let (signing_key, verifying_key) = SlhDsaShake128f::keygen(&mut rng())?;
+    let (signing_key, verifying_key) = SlhDsaShake128f::keygen(&mut rng)?;
 
     // Sign a message (deterministic signing, no RNG needed)
     let message = b"Hello, post-quantum world!";
