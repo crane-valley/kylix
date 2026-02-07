@@ -268,6 +268,19 @@ mod tests {
     }
 
     #[test]
+    fn test_poly_check_norm_non_positive_bound() {
+        let p = Poly::zero();
+        // bound <= 0 should always fail (no coefficient can satisfy |c| < 0)
+        assert!(!p.check_norm(0));
+        assert!(!p.check_norm(-1));
+        assert!(!p.check_norm(i32::MIN));
+
+        // check_norm_ct should agree
+        assert!(!bool::from(p.check_norm_ct(0)));
+        assert!(!bool::from(p.check_norm_ct(-1)));
+    }
+
+    #[test]
     fn test_poly_norm_inf() {
         let mut p = Poly::zero();
         p.coeffs[0] = 50;
