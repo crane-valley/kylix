@@ -2,6 +2,7 @@
 
 use crate::ntt::pointwise_acc;
 use crate::poly::Poly;
+use subtle::Choice;
 use zeroize::Zeroize;
 
 /// Polynomial vector with K elements.
@@ -80,13 +81,15 @@ impl<const K: usize> PolyVecK<K> {
     }
 
     /// Check infinity norm of all polynomials.
+    ///
+    /// Constant-time: accumulates results across all polynomials without
+    /// early return to prevent leaking which polynomial failed via timing.
     pub fn check_norm(&self, bound: i32) -> bool {
+        let mut fail = Choice::from(0u8);
         for p in &self.polys {
-            if !p.check_norm(bound) {
-                return false;
-            }
+            fail |= Choice::from(!p.check_norm(bound) as u8);
         }
-        true
+        !bool::from(fail)
     }
 
     /// Conditional add Q.
@@ -166,13 +169,15 @@ impl<const L: usize> PolyVecL<L> {
     }
 
     /// Check infinity norm of all polynomials.
+    ///
+    /// Constant-time: accumulates results across all polynomials without
+    /// early return to prevent leaking which polynomial failed via timing.
     pub fn check_norm(&self, bound: i32) -> bool {
+        let mut fail = Choice::from(0u8);
         for p in &self.polys {
-            if !p.check_norm(bound) {
-                return false;
-            }
+            fail |= Choice::from(!p.check_norm(bound) as u8);
         }
-        true
+        !bool::from(fail)
     }
 
     /// Conditional add Q.
