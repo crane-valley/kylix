@@ -9,10 +9,10 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 ### Completed
 
 - **Algorithms**: ML-KEM-512/768/1024 (FIPS 203), ML-DSA-44/65/87 (FIPS 204), SLH-DSA-SHAKE/SHA2 all variants (FIPS 205)
-- **Performance**: SIMD (AVX2/NEON) for NTT, basemul, Barrett reduction, pointwise mul; benchmark stability (kylix-cli)
+- **Performance**: SIMD (AVX2/NEON) for NTT, basemul, Barrett reduction, pointwise mul; ML-DSA expanded verification; SLH-DSA parallel feature; benchmark stability (kylix-cli)
 - **Quality**: ACVP tests, fuzz testing, no_std, constant-time (`subtle`/dudect), zeroization, proptest, clippy clean
 - **Infrastructure**: Core shared macros (kylix-core), key type wrapper macros, buffer-write API (`_to` variants), dudect CI
-- **Security fixes**: CT hypertree verify (`ct_eq`), CT polyvec `check_norm` (`Choice`), SHA-512 for SHA2 cat 3/5 (FIPS 205 §10.2)
+- **Security fixes**: Constant-time hypertree verify (`ct_eq`), constant-time polyvec `check_norm` (`Choice`), SHA-512 for SHA2 category 3/5 (FIPS 205 §10.2)
 
 > See `CHANGELOG.md` for full release history and `BENCHMARKS.md` for performance data.
 
@@ -53,7 +53,9 @@ Recommended fix: Add `as_bytes()` methods returning `&[u8]` for all types, depre
 
 ### Constant-time Verification
 
-Dudect-based timing tests in `timing/` directory. ML-KEM decaps passes (max t < 4.5). ML-DSA sign has expected variance (rejection sampling).
+Dudect-based timing tests in `timing/` directory.
+- ML-KEM decaps: passes (max t < 4.5)
+- ML-DSA sign: expected variance (rejection sampling)
 
 **Future work:**
 - ML-DSA subroutine-level timing tests (NTT, poly ops, secret vector operations)
