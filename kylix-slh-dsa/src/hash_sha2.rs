@@ -85,7 +85,7 @@ fn mgf1_sha256(seed_parts: &[&[u8]], mask_len: usize) -> Vec<u8> {
     let num_blocks = mask_len.div_ceil(HASH_LEN);
     let num_blocks_u32 =
         u32::try_from(num_blocks).expect("MGF1 counter overflow: mask_len too large");
-    let mut output = Vec::with_capacity(num_blocks * HASH_LEN);
+    let mut output = Vec::with_capacity(mask_len);
 
     // Pre-hash all seed parts once, then clone for each block
     let mut base_hasher = Sha256::new();
@@ -111,7 +111,7 @@ fn mgf1_sha512(seed_parts: &[&[u8]], mask_len: usize) -> Vec<u8> {
     let num_blocks = mask_len.div_ceil(HASH_LEN);
     let num_blocks_u32 =
         u32::try_from(num_blocks).expect("MGF1 counter overflow: mask_len too large");
-    let mut output = Vec::with_capacity(num_blocks * HASH_LEN);
+    let mut output = Vec::with_capacity(mask_len);
 
     let mut base_hasher = Sha512::new();
     for part in seed_parts {
