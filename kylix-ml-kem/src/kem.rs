@@ -74,6 +74,7 @@ pub fn ml_kem_keygen<const K: usize, const ETA1: usize>(
 /// * `m` - 32-byte random message
 ///
 /// # Returns
+/// On success, returns `Ok((c, K))` where:
 /// * `c` - Ciphertext
 /// * `K` - 32-byte shared secret
 ///
@@ -140,7 +141,7 @@ pub fn ml_kem_encaps<
 /// * `c` - Ciphertext
 ///
 /// # Returns
-/// 32-byte shared secret
+/// On success, returns `Ok(shared_secret)` — the 32-byte shared secret.
 ///
 /// # Errors
 /// - [`Error::InvalidKeyLength`] if `dk` length is not `K * 768 + 96`
@@ -424,16 +425,15 @@ mod tests {
     #[test]
     fn test_ml_kem_encaps_invalid_ek_length() {
         let m = [0x55u8; 32];
+        let expected_ek_len = K768 * 384 + 32;
 
         // Too short
         let short_ek = vec![0u8; 100];
         let result = ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&short_ek, &m);
         assert!(matches!(
             result,
-            Err(Error::InvalidKeyLength {
-                expected: 1184,
-                actual: 100
-            })
+            Err(Error::InvalidKeyLength { expected, actual })
+                if expected == expected_ek_len && actual == 100
         ));
 
         // Too long
@@ -441,20 +441,16 @@ mod tests {
         let result = ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&long_ek, &m);
         assert!(matches!(
             result,
-            Err(Error::InvalidKeyLength {
-                expected: 1184,
-                actual: 2000
-            })
+            Err(Error::InvalidKeyLength { expected, actual })
+                if expected == expected_ek_len && actual == 2000
         ));
 
         // Empty
         let result = ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&[], &m);
         assert!(matches!(
             result,
-            Err(Error::InvalidKeyLength {
-                expected: 1184,
-                actual: 0
-            })
+            Err(Error::InvalidKeyLength { expected, actual })
+                if expected == expected_ek_len && actual == 0
         ));
     }
 
@@ -463,6 +459,8 @@ mod tests {
         let d = [0x42u8; 32];
         let z = [0x43u8; 32];
         let m = [0x55u8; 32];
+        let expected_dk_len = K768 * 768 + 96;
+        let expected_ct_len = 32 * (K768 * DU_768 + DV_768);
 
         let (dk, ek) = ml_kem_keygen::<K768, ETA1_768>(&d, &z);
         let (c, _) = ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &m).unwrap();
@@ -472,40 +470,32 @@ mod tests {
         let result = ml_kem_decaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&short_dk, &c);
         assert!(matches!(
             result,
-            Err(Error::InvalidKeyLength {
-                expected: 2400,
-                actual: 100
-            })
+            Err(Error::InvalidKeyLength { expected, actual })
+                if expected == expected_dk_len && actual == 100
         ));
 
         // Empty dk
         let result = ml_kem_decaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&[], &c);
         assert!(matches!(
             result,
-            Err(Error::InvalidKeyLength {
-                expected: 2400,
-                actual: 0
-            })
+            Err(Error::InvalidKeyLength { expected, actual })
+                if expected == expected_dk_len && actual == 0
         ));
 
         // Invalid ciphertext length
         let result = ml_kem_decaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&dk, &[0u8; 100]);
         assert!(matches!(
             result,
-            Err(Error::InvalidCiphertextLength {
-                expected: 1088,
-                actual: 100
-            })
+            Err(Error::InvalidCiphertextLength { expected, actual })
+                if expected == expected_ct_len && actual == 100
         ));
 
         // Empty ciphertext
         let result = ml_kem_decaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&dk, &[]);
         assert!(matches!(
             result,
-            Err(Error::InvalidCiphertextLength {
-                expected: 1088,
-                actual: 0
-            })
+            Err(Error::InvalidCiphertextLength { expected, actual })
+                if expected == expected_ct_len && actual == 0
         ));
     }
 
@@ -513,24 +503,22 @@ mod tests {
     fn test_ml_kem_validation_all_variants() {
         let m = [0x55u8; 32];
 
-        // ML-KEM-512: ek = 800, dk = 1632, ct = 768
+        // ML-KEM-512
+        let expected_ek_512 = K512 * 384 + 32;
         let result = ml_kem_encaps::<K512, ETA1_512, ETA2_512, DU_512, DV_512>(&[0u8; 1], &m);
         assert!(matches!(
             result,
-            Err(Error::InvalidKeyLength {
-                expected: 800,
-                actual: 1
-            })
+            Err(Error::InvalidKeyLength { expected, actual })
+                if expected == expected_ek_512 && actual == 1
         ));
 
-        // ML-KEM-1024: ek = 1568, dk = 3168, ct = 1568
+        // ML-KEM-1024
+        let expected_ek_1024 = K1024 * 384 + 32;
         let result = ml_kem_encaps::<K1024, ETA1_1024, ETA2_1024, DU_1024, DV_1024>(&[0u8; 1], &m);
         assert!(matches!(
             result,
-            Err(Error::InvalidKeyLength {
-                expected: 1568,
-                actual: 1
-            })
+            Err(Error::InvalidKeyLength { expected, actual })
+                if expected == expected_ek_1024 && actual == 1
         ));
     }
 }
