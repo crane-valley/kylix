@@ -22,6 +22,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 - Intermediate buffer cleanup (direct-write `from_bytes()`, keygen zeroization)
 - Dev profile optimization and proptest consolidation with macros
 - Clippy fixes: `#[cfg(test)]` for test-only code, `.div_ceil()`, removed unnecessary lint suppression
+- Security review fixes: constant-time hypertree verify (`ct_eq`), constant-time polyvec `check_norm` (`subtle::Choice`), SHA-512 for SHA2 category 3/5 per FIPS 205 §10.2
 
 > See `CHANGELOG.md` for release history and `BENCHMARKS.md` for performance data.
 
