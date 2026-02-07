@@ -15,7 +15,7 @@
 Before committing or creating a PR, always run:
 1. `cargo fmt --all` - Format all code
 2. `cargo clippy --all-targets --all-features -- -D warnings` - Check for lints
-3. `cargo clippy --all-targets --no-default-features -- -D warnings` - Check no_std build
+3. `cargo clippy --all-targets --no-default-features -- -D warnings` - Check for lints (no default features)
 4. `cargo test --workspace --all-features` - Run all tests
 
 Note: CLI-related tests are in the separate [kylix-cli repository](https://github.com/crane-valley/kylix-cli).
