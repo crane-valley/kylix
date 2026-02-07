@@ -83,11 +83,9 @@ fn adrs_compress(adrs: &Address) -> [u8; 22] {
 fn mgf1_sha256(seed_parts: &[&[u8]], mask_len: usize) -> Vec<u8> {
     const HASH_LEN: usize = 32; // SHA-256 output size
     let num_blocks = mask_len.div_ceil(HASH_LEN);
-    debug_assert!(
-        u32::try_from(num_blocks).is_ok(),
-        "MGF1 counter overflow: mask_len too large"
-    );
-    let mut output = Vec::with_capacity(num_blocks.saturating_mul(HASH_LEN));
+    let num_blocks_u32 =
+        u32::try_from(num_blocks).expect("MGF1 counter overflow: mask_len too large");
+    let mut output = Vec::with_capacity(num_blocks * HASH_LEN);
 
     // Pre-hash all seed parts once, then clone for each block
     let mut base_hasher = Sha256::new();
@@ -95,7 +93,7 @@ fn mgf1_sha256(seed_parts: &[&[u8]], mask_len: usize) -> Vec<u8> {
         base_hasher.update(part);
     }
 
-    for i in 0..num_blocks as u32 {
+    for i in 0..num_blocks_u32 {
         let mut hasher = base_hasher.clone();
         hasher.update(i.to_be_bytes());
         output.extend_from_slice(&hasher.finalize());
@@ -111,18 +109,16 @@ fn mgf1_sha256(seed_parts: &[&[u8]], mask_len: usize) -> Vec<u8> {
 fn mgf1_sha512(seed_parts: &[&[u8]], mask_len: usize) -> Vec<u8> {
     const HASH_LEN: usize = 64; // SHA-512 output size
     let num_blocks = mask_len.div_ceil(HASH_LEN);
-    debug_assert!(
-        u32::try_from(num_blocks).is_ok(),
-        "MGF1 counter overflow: mask_len too large"
-    );
-    let mut output = Vec::with_capacity(num_blocks.saturating_mul(HASH_LEN));
+    let num_blocks_u32 =
+        u32::try_from(num_blocks).expect("MGF1 counter overflow: mask_len too large");
+    let mut output = Vec::with_capacity(num_blocks * HASH_LEN);
 
     let mut base_hasher = Sha512::new();
     for part in seed_parts {
         base_hasher.update(part);
     }
 
-    for i in 0..num_blocks as u32 {
+    for i in 0..num_blocks_u32 {
         let mut hasher = base_hasher.clone();
         hasher.update(i.to_be_bytes());
         output.extend_from_slice(&hasher.finalize());

@@ -168,7 +168,8 @@ impl Poly {
     /// Check infinity norm of all coefficients (constant-time, returns Choice).
     ///
     /// Returns `Choice(1)` if all coefficients have |c| < bound, `Choice(0)` otherwise.
-    /// This avoids the `Choice` → `bool` → `Choice` roundtrip that `check_norm` has.
+    /// This keeps the result in `Choice` form so callers can decide when (or whether)
+    /// to convert to `bool` (e.g., via [`check_norm`](Self::check_norm)).
     ///
     /// Non-positive bounds always return `Choice(0)` (fail).
     pub fn check_norm_ct(&self, bound: i32) -> subtle::Choice {
@@ -183,14 +184,17 @@ impl Poly {
         let bound_u32 = bound as u32;
 
         for &c in &self.coeffs {
+            // Compute |c| in constant time, handling both centered and reduced coefficients.
             let c_negative = (c as u32).ct_gt(&(i32::MAX as u32));
             let neg_c = (-(c as i64)) as u32;
 
+            // For non-negative c, check if it represents a negative in reduced form.
             let c_u32 = c as u32;
             let half_q = ((Q - 1) / 2) as u32;
             let c_gt_half = c_u32.ct_gt(&half_q);
             let q_minus_c = (Q as u32).wrapping_sub(c_u32);
 
+            // Select the absolute value.
             let abs_if_nonneg = u32::conditional_select(&c_u32, &q_minus_c, c_gt_half);
             let abs_t = u32::conditional_select(&abs_if_nonneg, &neg_c, c_negative);
 
