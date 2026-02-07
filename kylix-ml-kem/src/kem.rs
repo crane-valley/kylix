@@ -524,8 +524,7 @@ mod tests {
         ));
 
         // ML-KEM-1024: ek = 1568, dk = 3168, ct = 1568
-        let result =
-            ml_kem_encaps::<K1024, ETA1_1024, ETA2_1024, DU_1024, DV_1024>(&[0u8; 1], &m);
+        let result = ml_kem_encaps::<K1024, ETA1_1024, ETA2_1024, DU_1024, DV_1024>(&[0u8; 1], &m);
         assert!(matches!(
             result,
             Err(Error::InvalidKeyLength {
