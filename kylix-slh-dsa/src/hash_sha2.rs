@@ -659,7 +659,10 @@ mod tests {
             let hash = hasher.finalize();
             hash[..24].to_vec()
         };
-        assert_eq!(h_out, expected_sha512, "H should match independent SHA-512 computation");
+        assert_eq!(
+            h_out, expected_sha512,
+            "H should match independent SHA-512 computation"
+        );
 
         // Also verify it differs from what SHA-256 would produce
         let sha256_result = {
@@ -672,7 +675,10 @@ mod tests {
             let hash = hasher.finalize();
             hash[..24].to_vec()
         };
-        assert_ne!(h_out, sha256_result, "H should differ from SHA-256 computation");
+        assert_ne!(
+            h_out, sha256_result,
+            "H should differ from SHA-256 computation"
+        );
     }
 
     #[test]
@@ -686,24 +692,28 @@ mod tests {
 
         // Independently compute: Trunc_32(HMAC-SHA-512(SK.prf, OptRand || M))
         let expected = {
-            let mut mac =
-                HmacSha512::new_from_slice(&sk_prf).expect("HMAC accepts any key length");
+            let mut mac = HmacSha512::new_from_slice(&sk_prf).expect("HMAC accepts any key length");
             mac.update(&opt_rand);
             mac.update(message);
             let result = mac.finalize().into_bytes();
             result[..32].to_vec()
         };
-        assert_eq!(*out, expected, "PRFmsg should match independent HMAC-SHA-512 computation");
+        assert_eq!(
+            *out, expected,
+            "PRFmsg should match independent HMAC-SHA-512 computation"
+        );
 
         // Also verify it differs from HMAC-SHA-256
         let hmac256_result = {
-            let mut mac =
-                HmacSha256::new_from_slice(&sk_prf).expect("HMAC accepts any key length");
+            let mut mac = HmacSha256::new_from_slice(&sk_prf).expect("HMAC accepts any key length");
             mac.update(&opt_rand);
             mac.update(message);
             let result = mac.finalize().into_bytes();
             result[..32].to_vec()
         };
-        assert_ne!(*out, hmac256_result, "PRFmsg should differ from HMAC-SHA-256 computation");
+        assert_ne!(
+            *out, hmac256_result,
+            "PRFmsg should differ from HMAC-SHA-256 computation"
+        );
     }
 }
