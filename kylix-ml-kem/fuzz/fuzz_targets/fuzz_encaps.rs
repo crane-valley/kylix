@@ -25,9 +25,9 @@ fuzz_target!(|input: EncapsInput| {
         0 => {
             // ML-KEM-512
             let (_, ek) = ml_kem_keygen::<2, 3>(&input.d, &input.z);
-            let (ct, ss) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &input.m);
+            let (ct, ss) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &input.m).unwrap();
             // Verify determinism
-            let (ct2, ss2) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &input.m);
+            let (ct2, ss2) = ml_kem_encaps::<2, 3, 2, 10, 4>(&ek, &input.m).unwrap();
             assert_eq!(ct, ct2, "Encaps should be deterministic");
             assert_eq!(ss, ss2, "Encaps should be deterministic");
             // Verify sizes
@@ -37,8 +37,8 @@ fuzz_target!(|input: EncapsInput| {
         1 => {
             // ML-KEM-768
             let (_, ek) = ml_kem_keygen::<3, 2>(&input.d, &input.z);
-            let (ct, ss) = ml_kem_encaps::<3, 2, 2, 10, 4>(&ek, &input.m);
-            let (ct2, ss2) = ml_kem_encaps::<3, 2, 2, 10, 4>(&ek, &input.m);
+            let (ct, ss) = ml_kem_encaps::<3, 2, 2, 10, 4>(&ek, &input.m).unwrap();
+            let (ct2, ss2) = ml_kem_encaps::<3, 2, 2, 10, 4>(&ek, &input.m).unwrap();
             assert_eq!(ct, ct2, "Encaps should be deterministic");
             assert_eq!(ss, ss2, "Encaps should be deterministic");
             assert_eq!(ct.len(), 1088, "ML-KEM-768 ct should be 1088 bytes");
@@ -47,8 +47,8 @@ fuzz_target!(|input: EncapsInput| {
         _ => {
             // ML-KEM-1024
             let (_, ek) = ml_kem_keygen::<4, 2>(&input.d, &input.z);
-            let (ct, ss) = ml_kem_encaps::<4, 2, 2, 11, 5>(&ek, &input.m);
-            let (ct2, ss2) = ml_kem_encaps::<4, 2, 2, 11, 5>(&ek, &input.m);
+            let (ct, ss) = ml_kem_encaps::<4, 2, 2, 11, 5>(&ek, &input.m).unwrap();
+            let (ct2, ss2) = ml_kem_encaps::<4, 2, 2, 11, 5>(&ek, &input.m).unwrap();
             assert_eq!(ct, ct2, "Encaps should be deterministic");
             assert_eq!(ss, ss2, "Encaps should be deterministic");
             assert_eq!(ct.len(), 1568, "ML-KEM-1024 ct should be 1568 bytes");

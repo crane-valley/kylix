@@ -58,13 +58,10 @@ impl Kem for MlKem768 {
         ek: &Self::EncapsulationKey,
         rng: &mut impl CryptoRng,
     ) -> Result<(Self::Ciphertext, Self::SharedSecret)> {
-        let mut m = [0u8; 32];
-        rng.fill_bytes(&mut m);
+        let mut m = Zeroizing::new([0u8; 32]);
+        rng.fill_bytes(m.as_mut());
 
-        let (ct_bytes, ss_bytes) = ml_kem_encaps::<K, ETA1, ETA2, DU, DV>(ek.as_bytes(), &m);
-
-        // Zeroize message
-        m.zeroize();
+        let (ct_bytes, ss_bytes) = ml_kem_encaps::<K, ETA1, ETA2, DU, DV>(ek.as_bytes(), &m)?;
 
         Ok((
             Ciphertext::from_bytes(&ct_bytes)?,
@@ -73,7 +70,7 @@ impl Kem for MlKem768 {
     }
 
     fn decaps(dk: &Self::DecapsulationKey, ct: &Self::Ciphertext) -> Result<Self::SharedSecret> {
-        let ss_bytes = ml_kem_decaps::<K, ETA1, ETA2, DU, DV>(dk.as_bytes(), ct.as_bytes());
+        let ss_bytes = ml_kem_decaps::<K, ETA1, ETA2, DU, DV>(dk.as_bytes(), ct.as_bytes())?;
         Ok(SharedSecret { bytes: ss_bytes })
     }
 }
