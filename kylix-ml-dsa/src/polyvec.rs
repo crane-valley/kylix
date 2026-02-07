@@ -2,6 +2,7 @@
 
 use crate::ntt::pointwise_acc;
 use crate::poly::Poly;
+use subtle::Choice;
 use zeroize::Zeroize;
 
 /// Polynomial vector with K elements.
@@ -80,13 +81,16 @@ impl<const K: usize> PolyVecK<K> {
     }
 
     /// Check infinity norm of all polynomials.
+    ///
+    /// Constant-time over the vector (no early return): uses
+    /// `Poly::check_norm_ct` to accumulate a `Choice` and converts to `bool`
+    /// only once at the end.
     pub fn check_norm(&self, bound: i32) -> bool {
+        let mut pass = Choice::from(1u8);
         for p in &self.polys {
-            if !p.check_norm(bound) {
-                return false;
-            }
+            pass &= p.check_norm_ct(bound);
         }
-        true
+        bool::from(pass)
     }
 
     /// Conditional add Q.
@@ -166,13 +170,16 @@ impl<const L: usize> PolyVecL<L> {
     }
 
     /// Check infinity norm of all polynomials.
+    ///
+    /// Constant-time over the vector (no early return): uses
+    /// `Poly::check_norm_ct` to accumulate a `Choice` and converts to `bool`
+    /// only once at the end.
     pub fn check_norm(&self, bound: i32) -> bool {
+        let mut pass = Choice::from(1u8);
         for p in &self.polys {
-            if !p.check_norm(bound) {
-                return false;
-            }
+            pass &= p.check_norm_ct(bound);
         }
-        true
+        bool::from(pass)
     }
 
     /// Conditional add Q.
@@ -244,5 +251,22 @@ mod tests {
         v.polys[0].coeffs[0] = 100;
         assert!(v.check_norm(101));
         assert!(!v.check_norm(100));
+    }
+
+    #[test]
+    fn test_polyvec_check_norm_non_first_poly() {
+        use crate::reduce::Q;
+
+        // Failing coefficient in non-first polynomial (index 2 of 4)
+        let mut v = PolyVecK::<4>::zero();
+        v.polys[2].coeffs[100] = Q - 75; // represents -75, |c| = 75
+        assert!(v.check_norm(76));
+        assert!(!v.check_norm(75));
+
+        // Failing coefficient in last polynomial
+        let mut v2 = PolyVecK::<4>::zero();
+        v2.polys[3].coeffs[255] = 200;
+        assert!(v2.check_norm(201));
+        assert!(!v2.check_norm(200));
     }
 }

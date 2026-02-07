@@ -22,6 +22,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 - Intermediate buffer cleanup (direct-write `from_bytes()`, keygen zeroization)
 - Dev profile optimization and proptest consolidation with macros
 - Clippy fixes: `#[cfg(test)]` for test-only code, `.div_ceil()`, removed unnecessary lint suppression
+- Security review fixes: constant-time hypertree verify (`ct_eq`), constant-time polyvec `check_norm` (`subtle::Choice`), SHA-512 for SHA2 category 3/5 per FIPS 205 §10.2
 
 > See `CHANGELOG.md` for release history and `BENCHMARKS.md` for performance data.
 
@@ -41,6 +42,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | SLH-DSA: wots_pk_gen_to / wots_pk_from_sig_to | LOW | Performance | Add `_to` buffer-write variants for `wots_pk_gen` and `wots_pk_from_sig` to eliminate their single Vec return allocation. Low priority since these are called once per WOTS+ operation (not in hot loops). |
 | Poly API Consistency | MEDIUM | Ergonomics | ML-KEM uses module functions (`poly_add()`), ML-DSA uses methods (`.add()`). Standardize to methods |
 | k_pke Internal Validation | LOW | Defense-in-depth | `k_pke_encrypt`/`k_pke_decrypt` accept `&[u8]` with no length validation; panics on short input via `try_into().unwrap()`. Currently protected by ML-KEM layer validation (PR #132), but direct `pub(crate)` callers are unguarded. |
+| SLH-DSA: MGF1 Deduplication | LOW | Code quality | `mgf1_sha256` and `mgf1_sha512` in `hash_sha2.rs` share identical structure. Extract a generic MGF1 helper parameterized by hash function. |
 
 #### API Consistency Note
 
