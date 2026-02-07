@@ -40,6 +40,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | API: Key/Sig Bytes Method | LOW | Consistency | Unify `as_bytes()` vs `to_bytes()` across crates (see note below) |
 | SLH-DSA: wots_pk_gen_to / wots_pk_from_sig_to | LOW | Performance | Add `_to` buffer-write variants for `wots_pk_gen` and `wots_pk_from_sig` to eliminate their single Vec return allocation. Low priority since these are called once per WOTS+ operation (not in hot loops). |
 | Poly API Consistency | MEDIUM | Ergonomics | ML-KEM uses module functions (`poly_add()`), ML-DSA uses methods (`.add()`). Standardize to methods |
+| SLH-DSA: MGF1 Deduplication | LOW | Code quality | `mgf1_sha256` and `mgf1_sha512` in `hash_sha2.rs` share identical structure. Extract a generic MGF1 helper parameterized by hash function. |
 
 #### API Consistency Note
 
