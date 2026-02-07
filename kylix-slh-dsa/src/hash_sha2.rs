@@ -96,10 +96,11 @@ fn mgf1_sha256(seed_parts: &[&[u8]], mask_len: usize) -> Vec<u8> {
     for i in 0..num_blocks_u32 {
         let mut hasher = base_hasher.clone();
         hasher.update(i.to_be_bytes());
-        output.extend_from_slice(&hasher.finalize());
+        let block = hasher.finalize();
+        let remaining = mask_len - output.len();
+        output.extend_from_slice(&block[..remaining.min(HASH_LEN)]);
     }
 
-    output.truncate(mask_len);
     output
 }
 
@@ -121,10 +122,11 @@ fn mgf1_sha512(seed_parts: &[&[u8]], mask_len: usize) -> Vec<u8> {
     for i in 0..num_blocks_u32 {
         let mut hasher = base_hasher.clone();
         hasher.update(i.to_be_bytes());
-        output.extend_from_slice(&hasher.finalize());
+        let block = hasher.finalize();
+        let remaining = mask_len - output.len();
+        output.extend_from_slice(&block[..remaining.min(HASH_LEN)]);
     }
 
-    output.truncate(mask_len);
     output
 }
 

@@ -172,7 +172,7 @@ impl Poly {
     /// to convert to `bool` (e.g., via [`check_norm`](Self::check_norm)).
     ///
     /// Non-positive bounds always return `Choice(0)` (fail).
-    pub fn check_norm_ct(&self, bound: i32) -> subtle::Choice {
+    pub(crate) fn check_norm_ct(&self, bound: i32) -> subtle::Choice {
         use subtle::{ConditionallySelectable, ConstantTimeGreater};
 
         // Non-positive bounds: no coefficient can satisfy |c| < bound <= 0
