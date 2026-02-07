@@ -30,6 +30,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | Component | Priority | Notes |
 |-----------|----------|-------|
 | Security Audit | HIGH | External |
+| FIPS 203 ek Modulus Check | MEDIUM | Section 7.3: verify each coefficient of decoded ek is in [0, q-1]. Currently only length validation is performed (PR #132). |
 | SIMD NTT (WASM) | LOW | - |
 
 ### Refactoring Backlog
@@ -39,6 +40,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | API: Key/Sig Bytes Method | LOW | Consistency | Unify `as_bytes()` vs `to_bytes()` across crates (see note below) |
 | SLH-DSA: wots_pk_gen_to / wots_pk_from_sig_to | LOW | Performance | Add `_to` buffer-write variants for `wots_pk_gen` and `wots_pk_from_sig` to eliminate their single Vec return allocation. Low priority since these are called once per WOTS+ operation (not in hot loops). |
 | Poly API Consistency | MEDIUM | Ergonomics | ML-KEM uses module functions (`poly_add()`), ML-DSA uses methods (`.add()`). Standardize to methods |
+| k_pke Internal Validation | LOW | Defense-in-depth | `k_pke_encrypt`/`k_pke_decrypt` accept `&[u8]` with no length validation; panics on short input via `try_into().unwrap()`. Currently protected by ML-KEM layer validation (PR #132), but direct `pub(crate)` callers are unguarded. |
 
 #### API Consistency Note
 
@@ -75,6 +77,7 @@ cd timing && cargo run --release --bin ml_dsa
 - Add ML-DSA subroutine-level timing tests (NTT, poly ops, secret vector operations)
 - SLH-DSA timing tests (LOW priority) - hash-based design is inherently constant-time, very slow execution
 - Formal verification with ct-verif or ctgrind for critical paths
+- Zeroize intermediate secrets in `ml_kem_encaps`/`ml_kem_decaps` (`g_input`, `k_prime`, `r_prime`, `m_prime`, `r`, `shared_secret`) — stack-allocated but not explicitly zeroized on function return
 
 ---
 
@@ -112,5 +115,6 @@ SIMD complete for AVX2/NEON. WASM-SIMD128 pending (pointwise mul only).
 - [x] Dudect CI integration (ML-KEM regression detection)
 - [x] cargo-audit in CI
 - [x] Property-based tests (proptest: roundtrip, key/sig sizes, tampering detection)
+- [ ] Fuzz targets for error/validation paths (invalid-length inputs to encaps/decaps)
 - [ ] Constant-time formal verification
 - [ ] Security audit
