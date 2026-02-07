@@ -124,16 +124,16 @@ fn mgf1_sha512(seed_parts: &[&[u8]], mask_len: usize) -> Vec<u8> {
     output
 }
 
-/// Zero padding for SHA-256 block alignment (64-byte block): 64 - n bytes.
+/// Zero padding for SHA-256 block alignment (64-byte block): toByte(0, 64-n).
 /// Used by F and PRF for all security levels.
-const PADDING_256_128: [u8; 48] = [0u8; 48]; // 64 - 16
-const PADDING_256_192: [u8; 40] = [0u8; 40]; // 64 - 24
-const PADDING_256_256: [u8; 32] = [0u8; 32]; // 64 - 32
+const PADDING_SHA256_N16: [u8; 48] = [0u8; 48]; // 64 - 16, for n=16 (128-bit)
+const PADDING_SHA256_N24: [u8; 40] = [0u8; 40]; // 64 - 24, for n=24 (192-bit)
+const PADDING_SHA256_N32: [u8; 32] = [0u8; 32]; // 64 - 32, for n=32 (256-bit)
 
-/// Zero padding for SHA-512 block alignment (128-byte block): 128 - n bytes.
+/// Zero padding for SHA-512 block alignment (128-byte block): toByte(0, 128-n).
 /// Used by H and T_l for 192/256-bit security levels.
-const PADDING_512_192: [u8; 104] = [0u8; 104]; // 128 - 24
-const PADDING_512_256: [u8; 96] = [0u8; 96]; // 128 - 32
+const PADDING_SHA512_N24: [u8; 104] = [0u8; 104]; // 128 - 24, for n=24 (192-bit)
+const PADDING_SHA512_N32: [u8; 96] = [0u8; 96]; // 128 - 32, for n=32 (256-bit)
 
 // =============================================================================
 // 128-bit security: All functions use SHA-256
@@ -145,13 +145,15 @@ impl Sha2_128Hash {
         let adrs_c = adrs_compress(adrs);
         let mut hasher = Sha256::new();
         hasher.update(pk_seed);
-        hasher.update(PADDING_256_128);
+        hasher.update(PADDING_SHA256_N16);
         hasher.update(adrs_c);
         for m in ms {
             hasher.update(m);
         }
-        let hash = hasher.finalize();
-        hash[..16].to_vec()
+        let mut hash = hasher.finalize();
+        let out = hash[..16].to_vec();
+        hash.zeroize();
+        out
     }
 
     fn sha256_hash_trunc_n_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, ms: &[&[u8]]) {
@@ -159,7 +161,7 @@ impl Sha2_128Hash {
         let adrs_c = adrs_compress(adrs);
         let mut hasher = Sha256::new();
         hasher.update(pk_seed);
-        hasher.update(PADDING_256_128);
+        hasher.update(PADDING_SHA256_N16);
         hasher.update(adrs_c);
         for m in ms {
             hasher.update(m);
@@ -253,8 +255,10 @@ macro_rules! impl_sha2_cat35_hash_suite {
                 for m in ms {
                     hasher.update(m);
                 }
-                let hash = hasher.finalize();
-                hash[..$n].to_vec()
+                let mut hash = hasher.finalize();
+                let out = hash[..$n].to_vec();
+                hash.zeroize();
+                out
             }
 
             /// Buffer-write variant of sha256_hash_trunc_n (for F and PRF).
@@ -288,8 +292,10 @@ macro_rules! impl_sha2_cat35_hash_suite {
                 for m in ms {
                     hasher.update(m);
                 }
-                let hash = hasher.finalize();
-                hash[..$n].to_vec()
+                let mut hash = hasher.finalize();
+                let out = hash[..$n].to_vec();
+                hash.zeroize();
+                out
             }
 
             /// Buffer-write variant of sha512_hash_trunc_n (for H and T_l).
@@ -388,8 +394,8 @@ macro_rules! impl_sha2_cat35_hash_suite {
     };
 }
 
-impl_sha2_cat35_hash_suite!(Sha2_192Hash, 24, PADDING_256_192, PADDING_512_192);
-impl_sha2_cat35_hash_suite!(Sha2_256Hash, 32, PADDING_256_256, PADDING_512_256);
+impl_sha2_cat35_hash_suite!(Sha2_192Hash, 24, PADDING_SHA256_N24, PADDING_SHA512_N24);
+impl_sha2_cat35_hash_suite!(Sha2_256Hash, 32, PADDING_SHA256_N32, PADDING_SHA512_N32);
 
 #[cfg(test)]
 mod tests {
@@ -652,7 +658,7 @@ mod tests {
         let expected_sha512 = {
             let mut hasher = Sha512::new();
             hasher.update(pk_seed);
-            hasher.update(PADDING_512_192);
+            hasher.update(PADDING_SHA512_N24);
             hasher.update(adrs_c);
             hasher.update(m1);
             hasher.update(m2);
@@ -668,7 +674,7 @@ mod tests {
         let sha256_result = {
             let mut hasher = Sha256::new();
             hasher.update(pk_seed);
-            hasher.update(PADDING_256_192);
+            hasher.update(PADDING_SHA256_N24);
             hasher.update(adrs_c);
             hasher.update(m1);
             hasher.update(m2);
