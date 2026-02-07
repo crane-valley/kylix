@@ -184,18 +184,28 @@ impl Poly {
         let bound_u32 = bound as u32;
 
         for &c in &self.coeffs {
-            // Compute |c| in constant time, handling both centered and reduced coefficients.
+            // Coefficients can be in two representations:
+            //   1. Centered:  c in [-(Q-1)/2, (Q-1)/2], stored as signed i32
+            //   2. Reduced:   c in [0, Q-1], where c > (Q-1)/2 represents negative (Q - c)
+            //
+            // We compute |c| in constant time for both cases:
+
+            // Step 1: Detect truly negative i32 values (centered representation).
+            // Cast to u32: negative i32 maps to values > i32::MAX (two's complement).
             let c_negative = (c as u32).ct_gt(&(i32::MAX as u32));
+            // Negate via i64 to avoid i32 overflow on i32::MIN.
             let neg_c = (-(c as i64)) as u32;
 
-            // For non-negative c, check if it represents a negative in reduced form.
+            // Step 2: For non-negative c, detect reduced-form negatives (c > (Q-1)/2).
             let c_u32 = c as u32;
             let half_q = ((Q - 1) / 2) as u32;
             let c_gt_half = c_u32.ct_gt(&half_q);
             let q_minus_c = (Q as u32).wrapping_sub(c_u32);
 
-            // Select the absolute value.
+            // Step 3: Select the absolute value via two constant-time selects.
+            // First, handle reduced-form: if c > (Q-1)/2, use Q - c; else use c.
             let abs_if_nonneg = u32::conditional_select(&c_u32, &q_minus_c, c_gt_half);
+            // Then, handle centered negatives: if c < 0 (as i32), use -c directly.
             let abs_t = u32::conditional_select(&abs_if_nonneg, &neg_c, c_negative);
 
             let exceeds = abs_t.ct_gt(&(bound_u32 - 1));
