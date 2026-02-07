@@ -3,18 +3,22 @@
 //! This module provides hash function implementations for the SHA2-based
 //! SLH-DSA parameter sets (SHA2-128s/f, SHA2-192s/f, SHA2-256s/f).
 //!
-//! FIPS 205, Section 10.2 defines the SHA2-based hash functions.
+//! FIPS 205, Section 10.2 defines the SHA2-based hash functions:
+//! - Category 1 (128-bit, n=16): All functions use SHA-256
+//! - Category 3/5 (192/256-bit, n=24/32): F and PRF use SHA-256,
+//!   H, T_l, PRFmsg, and Hmsg use SHA-512
 
 use crate::address::{Address, AdrsType};
 use crate::hash::HashSuite;
 use hmac::{Hmac, Mac};
-use sha2::{Digest, Sha256};
+use sha2::{Digest, Sha256, Sha512};
 use zeroize::{Zeroize, Zeroizing};
 
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 
 type HmacSha256 = Hmac<Sha256>;
+type HmacSha512 = Hmac<Sha512>;
 
 /// SHA2-based hash suite for 128-bit security (n=16).
 pub struct Sha2_128Hash;
@@ -75,12 +79,13 @@ fn adrs_compress(adrs: &Address) -> [u8; 22] {
 
 /// MGF1 mask generation function using SHA-256.
 ///
-/// FIPS 205, Section 10.2.1: MGF1-SHA-256 is used for variable-length outputs.
-/// Takes a slice of byte slices to avoid intermediate Vec allocation.
+/// FIPS 205, Section 10.2: MGF1-SHA-256 for 128-bit security.
 fn mgf1_sha256(seed_parts: &[&[u8]], mask_len: usize) -> Vec<u8> {
     const HASH_LEN: usize = 32; // SHA-256 output size
     let num_blocks = mask_len.div_ceil(HASH_LEN);
-    let mut output = Vec::with_capacity(num_blocks * HASH_LEN);
+    let num_blocks_u32 =
+        u32::try_from(num_blocks).expect("MGF1 counter overflow: mask_len too large");
+    let mut output = Vec::with_capacity(mask_len);
 
     // Pre-hash all seed parts once, then clone for each block
     let mut base_hasher = Sha256::new();
@@ -88,48 +93,233 @@ fn mgf1_sha256(seed_parts: &[&[u8]], mask_len: usize) -> Vec<u8> {
         base_hasher.update(part);
     }
 
-    for i in 0..num_blocks as u32 {
+    for i in 0..num_blocks_u32 {
         let mut hasher = base_hasher.clone();
         hasher.update(i.to_be_bytes());
-        output.extend_from_slice(&hasher.finalize());
+        let block = hasher.finalize();
+        let remaining = mask_len - output.len();
+        output.extend_from_slice(&block[..remaining.min(HASH_LEN)]);
     }
 
-    output.truncate(mask_len);
     output
 }
 
-/// Zero padding for SHA2 block alignment: 64 - n bytes.
-/// FIPS 205 Section 10.2 specifies that SHA2 variants require zero padding
-/// between PK.seed and ADRSc: `toByte(0, 64 - n)` where n is the security parameter.
-const PADDING_128: [u8; 48] = [0u8; 48]; // 64 - 16
-const PADDING_192: [u8; 40] = [0u8; 40]; // 64 - 24
-const PADDING_256: [u8; 32] = [0u8; 32]; // 64 - 32
+/// MGF1 mask generation function using SHA-512.
+///
+/// FIPS 205, Section 10.2: MGF1-SHA-512 for 192/256-bit security.
+fn mgf1_sha512(seed_parts: &[&[u8]], mask_len: usize) -> Vec<u8> {
+    const HASH_LEN: usize = 64; // SHA-512 output size
+    let num_blocks = mask_len.div_ceil(HASH_LEN);
+    let num_blocks_u32 =
+        u32::try_from(num_blocks).expect("MGF1 counter overflow: mask_len too large");
+    let mut output = Vec::with_capacity(mask_len);
 
-/// Macro to implement HashSuite for SHA2-based security levels.
-macro_rules! impl_sha2_hash_suite {
-    ($name:ident, $n:expr, $padding:ident) => {
+    let mut base_hasher = Sha512::new();
+    for part in seed_parts {
+        base_hasher.update(part);
+    }
+
+    for i in 0..num_blocks_u32 {
+        let mut hasher = base_hasher.clone();
+        hasher.update(i.to_be_bytes());
+        let block = hasher.finalize();
+        let remaining = mask_len - output.len();
+        output.extend_from_slice(&block[..remaining.min(HASH_LEN)]);
+    }
+
+    output
+}
+
+/// Zero padding for SHA-256 block alignment (64-byte block): toByte(0, 64-n).
+/// Used by F and PRF for all security levels.
+const PADDING_SHA256_N16: [u8; 48] = [0u8; 48]; // 64 - 16, for n=16 (128-bit)
+const PADDING_SHA256_N24: [u8; 40] = [0u8; 40]; // 64 - 24, for n=24 (192-bit)
+const PADDING_SHA256_N32: [u8; 32] = [0u8; 32]; // 64 - 32, for n=32 (256-bit)
+
+/// Zero padding for SHA-512 block alignment (128-byte block): toByte(0, 128-n).
+/// Used by H and T_l for 192/256-bit security levels.
+const PADDING_SHA512_N24: [u8; 104] = [0u8; 104]; // 128 - 24, for n=24 (192-bit)
+const PADDING_SHA512_N32: [u8; 96] = [0u8; 96]; // 128 - 32, for n=32 (256-bit)
+
+// =============================================================================
+// 128-bit security: All functions use SHA-256
+// =============================================================================
+
+impl Sha2_128Hash {
+    /// Trunc_n(SHA-256(PK.seed || toByte(0, 64-n) || ADRSc || M...))
+    fn sha256_hash_trunc_n(pk_seed: &[u8], adrs: &Address, ms: &[&[u8]]) -> Vec<u8> {
+        let adrs_c = adrs_compress(adrs);
+        let mut hasher = Sha256::new();
+        hasher.update(pk_seed);
+        hasher.update(PADDING_SHA256_N16);
+        hasher.update(adrs_c);
+        for m in ms {
+            hasher.update(m);
+        }
+        let mut hash = hasher.finalize();
+        let out = hash[..16].to_vec();
+        hash.zeroize();
+        out
+    }
+
+    fn sha256_hash_trunc_n_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, ms: &[&[u8]]) {
+        debug_assert_eq!(out.len(), 16);
+        let adrs_c = adrs_compress(adrs);
+        let mut hasher = Sha256::new();
+        hasher.update(pk_seed);
+        hasher.update(PADDING_SHA256_N16);
+        hasher.update(adrs_c);
+        for m in ms {
+            hasher.update(m);
+        }
+        let mut hash = hasher.finalize();
+        out.copy_from_slice(&hash[..16]);
+        hash.zeroize();
+    }
+}
+
+impl HashSuite for Sha2_128Hash {
+    const N: usize = 16;
+
+    fn prf(pk_seed: &[u8], sk_seed: &[u8], adrs: &Address) -> Zeroizing<Vec<u8>> {
+        // PRF(PK.seed, SK.seed, ADRS) = Trunc_n(SHA-256(PK.seed || toByte(0, 64-n) || ADRSc || SK.seed))
+        Zeroizing::new(Self::sha256_hash_trunc_n(pk_seed, adrs, &[sk_seed]))
+    }
+
+    fn prf_msg(sk_prf: &[u8], opt_rand: &[u8], message: &[u8]) -> Zeroizing<Vec<u8>> {
+        // PRFmsg = Trunc_n(HMAC-SHA-256(SK.prf, OptRand || M))
+        let mut mac = HmacSha256::new_from_slice(sk_prf).expect("HMAC accepts any key length");
+        mac.update(opt_rand);
+        mac.update(message);
+        let mut result = mac.finalize().into_bytes();
+        let out = Zeroizing::new(result[..16].to_vec());
+        result.zeroize();
+        out
+    }
+
+    fn h_msg(r: &[u8], pk_seed: &[u8], pk_root: &[u8], message: &[u8], out_len: usize) -> Vec<u8> {
+        // Hmsg = MGF1-SHA-256(R || PK.seed || SHA-256(R || PK.seed || PK.root || M), m)
+        use sha2::digest::Update;
+        let mut inner_hash = Sha256::new()
+            .chain(r)
+            .chain(pk_seed)
+            .chain(pk_root)
+            .chain(message)
+            .finalize();
+        let out = mgf1_sha256(&[r, pk_seed, &inner_hash], out_len);
+        inner_hash.zeroize();
+        out
+    }
+
+    fn f(pk_seed: &[u8], adrs: &Address, m1: &[u8]) -> Vec<u8> {
+        Self::sha256_hash_trunc_n(pk_seed, adrs, &[m1])
+    }
+
+    fn h(pk_seed: &[u8], adrs: &Address, m1: &[u8], m2: &[u8]) -> Vec<u8> {
+        Self::sha256_hash_trunc_n(pk_seed, adrs, &[m1, m2])
+    }
+
+    fn t_l(pk_seed: &[u8], adrs: &Address, m: &[u8]) -> Vec<u8> {
+        Self::sha256_hash_trunc_n(pk_seed, adrs, &[m])
+    }
+
+    fn f_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m1: &[u8]) {
+        Self::sha256_hash_trunc_n_to(out, pk_seed, adrs, &[m1]);
+    }
+
+    fn h_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m1: &[u8], m2: &[u8]) {
+        Self::sha256_hash_trunc_n_to(out, pk_seed, adrs, &[m1, m2]);
+    }
+
+    fn t_l_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m: &[u8]) {
+        Self::sha256_hash_trunc_n_to(out, pk_seed, adrs, &[m]);
+    }
+
+    fn prf_to(out: &mut [u8], pk_seed: &[u8], sk_seed: &[u8], adrs: &Address) {
+        Self::sha256_hash_trunc_n_to(out, pk_seed, adrs, &[sk_seed]);
+    }
+}
+
+// =============================================================================
+// 192/256-bit security: F and PRF use SHA-256, H/T_l/PRFmsg/Hmsg use SHA-512
+// FIPS 205, Section 10.2
+// =============================================================================
+
+/// Macro to implement HashSuite for SHA2 192/256-bit security levels.
+///
+/// Per FIPS 205 Section 10.2:
+/// - F, PRF: SHA-256 with 64-byte block padding (toByte(0, 64-n))
+/// - H, T_l: SHA-512 with 128-byte block padding (toByte(0, 128-n))
+/// - PRFmsg: HMAC-SHA-512
+/// - Hmsg: MGF1-SHA-512 with inner SHA-512
+macro_rules! impl_sha2_cat35_hash_suite {
+    ($name:ident, $n:expr, $padding_256:ident, $padding_512:ident) => {
         impl $name {
-            /// Common SHA2 hash with padding and truncation: Trunc_n(SHA-256(PK.seed || padding || ADRSc || M...))
-            fn sha2_hash_trunc_n(pk_seed: &[u8], adrs: &Address, ms: &[&[u8]]) -> Vec<u8> {
+            /// SHA-256 hash with padding and truncation (for F and PRF).
+            fn sha256_hash_trunc_n(pk_seed: &[u8], adrs: &Address, ms: &[&[u8]]) -> Vec<u8> {
                 let adrs_c = adrs_compress(adrs);
                 let mut hasher = Sha256::new();
                 hasher.update(pk_seed);
-                hasher.update(&$padding);
+                hasher.update(&$padding_256);
                 hasher.update(&adrs_c);
                 for m in ms {
                     hasher.update(m);
                 }
-                let hash = hasher.finalize();
-                hash[..$n].to_vec()
+                let mut hash = hasher.finalize();
+                let out = hash[..$n].to_vec();
+                hash.zeroize();
+                out
             }
 
-            /// Buffer-write variant of sha2_hash_trunc_n.
-            fn sha2_hash_trunc_n_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, ms: &[&[u8]]) {
+            /// Buffer-write variant of sha256_hash_trunc_n (for F and PRF).
+            fn sha256_hash_trunc_n_to(
+                out: &mut [u8],
+                pk_seed: &[u8],
+                adrs: &Address,
+                ms: &[&[u8]],
+            ) {
                 debug_assert_eq!(out.len(), $n);
                 let adrs_c = adrs_compress(adrs);
                 let mut hasher = Sha256::new();
                 hasher.update(pk_seed);
-                hasher.update(&$padding);
+                hasher.update(&$padding_256);
+                hasher.update(&adrs_c);
+                for m in ms {
+                    hasher.update(m);
+                }
+                let mut hash = hasher.finalize();
+                out.copy_from_slice(&hash[..$n]);
+                hash.zeroize();
+            }
+
+            /// SHA-512 hash with padding and truncation (for H and T_l).
+            fn sha512_hash_trunc_n(pk_seed: &[u8], adrs: &Address, ms: &[&[u8]]) -> Vec<u8> {
+                let adrs_c = adrs_compress(adrs);
+                let mut hasher = Sha512::new();
+                hasher.update(pk_seed);
+                hasher.update(&$padding_512);
+                hasher.update(&adrs_c);
+                for m in ms {
+                    hasher.update(m);
+                }
+                let mut hash = hasher.finalize();
+                let out = hash[..$n].to_vec();
+                hash.zeroize();
+                out
+            }
+
+            /// Buffer-write variant of sha512_hash_trunc_n (for H and T_l).
+            fn sha512_hash_trunc_n_to(
+                out: &mut [u8],
+                pk_seed: &[u8],
+                adrs: &Address,
+                ms: &[&[u8]],
+            ) {
+                debug_assert_eq!(out.len(), $n);
+                let adrs_c = adrs_compress(adrs);
+                let mut hasher = Sha512::new();
+                hasher.update(pk_seed);
+                hasher.update(&$padding_512);
                 hasher.update(&adrs_c);
                 for m in ms {
                     hasher.update(m);
@@ -144,19 +334,20 @@ macro_rules! impl_sha2_hash_suite {
             const N: usize = $n;
 
             fn prf(pk_seed: &[u8], sk_seed: &[u8], adrs: &Address) -> Zeroizing<Vec<u8>> {
-                // PRF(PK.seed, SK.seed, ADRS) = Trunc_n(SHA-256(PK.seed || toByte(0, 64-n) || ADRSc || SK.seed))
-                Zeroizing::new(Self::sha2_hash_trunc_n(pk_seed, adrs, &[sk_seed]))
+                // PRF uses SHA-256 for all security levels
+                Zeroizing::new(Self::sha256_hash_trunc_n(pk_seed, adrs, &[sk_seed]))
             }
 
             fn prf_msg(sk_prf: &[u8], opt_rand: &[u8], message: &[u8]) -> Zeroizing<Vec<u8>> {
-                // PRFmsg(SK.prf, OptRand, M) = Trunc_n(HMAC-SHA-256(SK.prf, OptRand || M))
-                // Note: HMAC does not use the zero padding
+                // PRFmsg = Trunc_n(HMAC-SHA-512(SK.prf, OptRand || M))
                 let mut mac =
-                    HmacSha256::new_from_slice(sk_prf).expect("HMAC accepts any key length");
+                    HmacSha512::new_from_slice(sk_prf).expect("HMAC accepts any key length");
                 mac.update(opt_rand);
                 mac.update(message);
-                let result = mac.finalize().into_bytes();
-                Zeroizing::new(result[..$n].to_vec())
+                let mut result = mac.finalize().into_bytes();
+                let out = Zeroizing::new(result[..$n].to_vec());
+                result.zeroize();
+                out
             }
 
             fn h_msg(
@@ -166,57 +357,59 @@ macro_rules! impl_sha2_hash_suite {
                 message: &[u8],
                 out_len: usize,
             ) -> Vec<u8> {
-                // Hmsg(R, PK.seed, PK.root, M) =
-                //   MGF1-SHA-256(R || PK.seed || SHA-256(R || PK.seed || PK.root || M), m)
-                // Note: MGF1 does not use the zero padding
+                // Hmsg = MGF1-SHA-512(R || PK.seed || SHA-512(R || PK.seed || PK.root || M), m)
                 use sha2::digest::Update;
-                let inner_hash = Sha256::new()
+                let mut inner_hash = Sha512::new()
                     .chain(r)
                     .chain(pk_seed)
                     .chain(pk_root)
                     .chain(message)
                     .finalize();
-
-                mgf1_sha256(&[r, pk_seed, &inner_hash], out_len)
+                let out = mgf1_sha512(&[r, pk_seed, &inner_hash], out_len);
+                inner_hash.zeroize();
+                out
             }
 
             fn f(pk_seed: &[u8], adrs: &Address, m1: &[u8]) -> Vec<u8> {
-                // F(PK.seed, ADRS, M1) = Trunc_n(SHA-256(PK.seed || toByte(0, 64-n) || ADRSc || M1))
-                Self::sha2_hash_trunc_n(pk_seed, adrs, &[m1])
+                // F uses SHA-256 for all security levels
+                Self::sha256_hash_trunc_n(pk_seed, adrs, &[m1])
             }
 
             fn h(pk_seed: &[u8], adrs: &Address, m1: &[u8], m2: &[u8]) -> Vec<u8> {
-                // H(PK.seed, ADRS, M1 || M2) = Trunc_n(SHA-256(PK.seed || toByte(0, 64-n) || ADRSc || M1 || M2))
-                Self::sha2_hash_trunc_n(pk_seed, adrs, &[m1, m2])
+                // H uses SHA-512 for category 3/5
+                Self::sha512_hash_trunc_n(pk_seed, adrs, &[m1, m2])
             }
 
             fn t_l(pk_seed: &[u8], adrs: &Address, m: &[u8]) -> Vec<u8> {
-                // Tl(PK.seed, ADRS, M) = Trunc_n(SHA-256(PK.seed || toByte(0, 64-n) || ADRSc || M))
-                Self::sha2_hash_trunc_n(pk_seed, adrs, &[m])
+                // T_l uses SHA-512 for category 3/5
+                Self::sha512_hash_trunc_n(pk_seed, adrs, &[m])
             }
 
             fn f_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m1: &[u8]) {
-                Self::sha2_hash_trunc_n_to(out, pk_seed, adrs, &[m1]);
+                // F uses SHA-256
+                Self::sha256_hash_trunc_n_to(out, pk_seed, adrs, &[m1]);
             }
 
             fn h_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m1: &[u8], m2: &[u8]) {
-                Self::sha2_hash_trunc_n_to(out, pk_seed, adrs, &[m1, m2]);
+                // H uses SHA-512 for category 3/5
+                Self::sha512_hash_trunc_n_to(out, pk_seed, adrs, &[m1, m2]);
             }
 
             fn t_l_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m: &[u8]) {
-                Self::sha2_hash_trunc_n_to(out, pk_seed, adrs, &[m]);
+                // T_l uses SHA-512 for category 3/5
+                Self::sha512_hash_trunc_n_to(out, pk_seed, adrs, &[m]);
             }
 
             fn prf_to(out: &mut [u8], pk_seed: &[u8], sk_seed: &[u8], adrs: &Address) {
-                Self::sha2_hash_trunc_n_to(out, pk_seed, adrs, &[sk_seed]);
+                // PRF uses SHA-256
+                Self::sha256_hash_trunc_n_to(out, pk_seed, adrs, &[sk_seed]);
             }
         }
     };
 }
 
-impl_sha2_hash_suite!(Sha2_128Hash, 16, PADDING_128);
-impl_sha2_hash_suite!(Sha2_192Hash, 24, PADDING_192);
-impl_sha2_hash_suite!(Sha2_256Hash, 32, PADDING_256);
+impl_sha2_cat35_hash_suite!(Sha2_192Hash, 24, PADDING_SHA256_N24, PADDING_SHA512_N24);
+impl_sha2_cat35_hash_suite!(Sha2_256Hash, 32, PADDING_SHA256_N32, PADDING_SHA512_N32);
 
 #[cfg(test)]
 mod tests {
@@ -338,6 +531,20 @@ mod tests {
     }
 
     #[test]
+    fn test_mgf1_sha512() {
+        let seed = b"test seed";
+        let output = mgf1_sha512(&[seed.as_slice()], 128);
+        assert_eq!(output.len(), 128);
+
+        // Verify determinism
+        assert_eq!(output, mgf1_sha512(&[seed.as_slice()], 128));
+
+        // Verify prefix property
+        let output_64 = mgf1_sha512(&[seed.as_slice()], 64);
+        assert_eq!(&output[..64], &output_64[..]);
+    }
+
+    #[test]
     fn test_prf_determinism() {
         let pk_seed = [0u8; 16];
         let sk_seed = [1u8; 16];
@@ -447,5 +654,86 @@ mod tests {
         let pk256 = [0u8; 32];
         let sk256 = [1u8; 32];
         assert_eq!(Sha2_256Hash::prf(&pk256, &sk256, &adrs).len(), 32);
+    }
+
+    #[test]
+    fn test_192_h_uses_sha512() {
+        // Verify that 192-bit H uses SHA-512 by independently computing the expected value
+        let pk_seed = [0u8; 24];
+        let adrs = Address::new();
+        let m1 = [1u8; 24];
+        let m2 = [2u8; 24];
+
+        let h_out = Sha2_192Hash::h(&pk_seed, &adrs, &m1, &m2);
+        assert_eq!(h_out.len(), 24);
+
+        // Independently compute: Trunc_24(SHA-512(PK.seed || toByte(0, 128-24) || ADRSc || M1 || M2))
+        let adrs_c = adrs_compress(&adrs);
+        let expected_sha512 = {
+            let mut hasher = Sha512::new();
+            hasher.update(pk_seed);
+            hasher.update(PADDING_SHA512_N24);
+            hasher.update(adrs_c);
+            hasher.update(m1);
+            hasher.update(m2);
+            let hash = hasher.finalize();
+            hash[..24].to_vec()
+        };
+        assert_eq!(
+            h_out, expected_sha512,
+            "H should match independent SHA-512 computation"
+        );
+
+        // Also verify it differs from what SHA-256 would produce
+        let sha256_result = {
+            let mut hasher = Sha256::new();
+            hasher.update(pk_seed);
+            hasher.update(PADDING_SHA256_N24);
+            hasher.update(adrs_c);
+            hasher.update(m1);
+            hasher.update(m2);
+            let hash = hasher.finalize();
+            hash[..24].to_vec()
+        };
+        assert_ne!(
+            h_out, sha256_result,
+            "H should differ from SHA-256 computation"
+        );
+    }
+
+    #[test]
+    fn test_256_prf_msg_uses_hmac_sha512() {
+        let sk_prf = [0u8; 32];
+        let opt_rand = [1u8; 32];
+        let message = b"test message";
+
+        let out = Sha2_256Hash::prf_msg(&sk_prf, &opt_rand, message);
+        assert_eq!(out.len(), 32);
+
+        // Independently compute: Trunc_32(HMAC-SHA-512(SK.prf, OptRand || M))
+        let expected = {
+            let mut mac = HmacSha512::new_from_slice(&sk_prf).expect("HMAC accepts any key length");
+            mac.update(&opt_rand);
+            mac.update(message);
+            let result = mac.finalize().into_bytes();
+            result[..32].to_vec()
+        };
+        assert_eq!(
+            *out, expected,
+            "PRFmsg should match independent HMAC-SHA-512 computation"
+        );
+
+        // Also verify it differs from HMAC-SHA-256
+        let hmac256_result = {
+            let mut mac = HmacSha256::new_from_slice(&sk_prf).expect("HMAC accepts any key length");
+            mac.update(&opt_rand);
+            mac.update(message);
+            let result = mac.finalize().into_bytes();
+            result[..32].to_vec()
+        };
+        assert_ne!(
+            *out, hmac256_result,
+            "PRFmsg should differ from HMAC-SHA-256 computation"
+        );
     }
 }

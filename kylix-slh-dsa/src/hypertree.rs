@@ -9,6 +9,7 @@
 use crate::address::Address;
 use crate::hash::HashSuite;
 use crate::xmss::{xmss_node_to, xmss_pk_from_sig, xmss_sign_to};
+use subtle::ConstantTimeEq;
 
 #[cfg(not(feature = "std"))]
 use alloc::{vec, vec::Vec};
@@ -162,8 +163,8 @@ pub fn ht_verify<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
         );
     }
 
-    // Compare with expected root
-    node == pk_root
+    // Compare with expected root (constant-time to prevent timing leaks)
+    bool::from(node.ct_eq(pk_root))
 }
 
 /// Compute the hypertree root (public key component).
