@@ -82,8 +82,9 @@ impl<const K: usize> PolyVecK<K> {
 
     /// Check infinity norm of all polynomials.
     ///
-    /// Fully constant-time: uses `Poly::check_norm_ct` which returns `Choice`
-    /// directly, avoiding any `Choice` → `bool` → `Choice` roundtrip.
+    /// Constant-time over the vector (no early return): uses
+    /// `Poly::check_norm_ct` to accumulate a `Choice` and converts to `bool`
+    /// only once at the end.
     pub fn check_norm(&self, bound: i32) -> bool {
         let mut pass = Choice::from(1u8);
         for p in &self.polys {
@@ -170,8 +171,9 @@ impl<const L: usize> PolyVecL<L> {
 
     /// Check infinity norm of all polynomials.
     ///
-    /// Fully constant-time: uses `Poly::check_norm_ct` which returns `Choice`
-    /// directly, avoiding any `Choice` → `bool` → `Choice` roundtrip.
+    /// Constant-time over the vector (no early return): uses
+    /// `Poly::check_norm_ct` to accumulate a `Choice` and converts to `bool`
+    /// only once at the end.
     pub fn check_norm(&self, bound: i32) -> bool {
         let mut pass = Choice::from(1u8);
         for p in &self.polys {

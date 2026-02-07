@@ -162,55 +162,22 @@ impl Poly {
     /// Handles both reduced coefficients in [0, Q-1] and centered
     /// coefficients that may be negative.
     pub fn check_norm(&self, bound: i32) -> bool {
-        use subtle::{ConditionallySelectable, ConstantTimeGreater};
-
-        // Accumulate result in constant time
-        let mut fail = subtle::Choice::from(0u8);
-        let bound_u32 = bound as u32;
-
-        for &c in &self.coeffs {
-            // Handle both cases:
-            // 1. Reduced form: c in [0, Q-1], values > (Q-1)/2 represent negatives
-            // 2. Centered form: c can be negative directly
-            //
-            // Compute absolute value in constant time:
-            // - If c < 0: use -c
-            // - If c >= 0 and c > (Q-1)/2: use Q - c (reduced negative)
-            // - Otherwise: use c
-
-            // Check if c < 0 when interpreted as signed i32
-            // When cast to u32, negative values have their MSB set, making them > i32::MAX
-            let c_negative = (c as u32).ct_gt(&(i32::MAX as u32));
-            let neg_c = (-(c as i64)) as u32; // -c (safe for all i32)
-
-            // For non-negative c, check if it represents a negative in reduced form
-            let c_u32 = c as u32;
-            let half_q = ((Q - 1) / 2) as u32;
-            let c_gt_half = c_u32.ct_gt(&half_q);
-            let q_minus_c = (Q as u32).wrapping_sub(c_u32);
-
-            // Select the absolute value:
-            // If c < 0: use -c
-            // Else if c > (Q-1)/2: use Q - c
-            // Else: use c
-            let abs_if_nonneg = u32::conditional_select(&c_u32, &q_minus_c, c_gt_half);
-            let abs_t = u32::conditional_select(&abs_if_nonneg, &neg_c, c_negative);
-
-            // Check if abs_t >= bound (constant-time)
-            let exceeds = abs_t.ct_gt(&(bound_u32 - 1));
-            fail |= exceeds;
-        }
-
-        // Return true only if no coefficient exceeded the bound
-        !bool::from(fail)
+        bool::from(self.check_norm_ct(bound))
     }
 
     /// Check infinity norm of all coefficients (constant-time, returns Choice).
     ///
     /// Returns `Choice(1)` if all coefficients have |c| < bound, `Choice(0)` otherwise.
     /// This avoids the `Choice` → `bool` → `Choice` roundtrip that `check_norm` has.
+    ///
+    /// Non-positive bounds always return `Choice(0)` (fail).
     pub fn check_norm_ct(&self, bound: i32) -> subtle::Choice {
         use subtle::{ConditionallySelectable, ConstantTimeGreater};
+
+        // Non-positive bounds: no coefficient can satisfy |c| < bound <= 0
+        if bound <= 0 {
+            return subtle::Choice::from(0u8);
+        }
 
         let mut fail = subtle::Choice::from(0u8);
         let bound_u32 = bound as u32;
