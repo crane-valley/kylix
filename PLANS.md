@@ -8,23 +8,13 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 
 ### Completed
 
-- ML-KEM-512/768/1024 (FIPS 203) with SIMD (AVX2/NEON) optimizations for NTT, basemul, and Barrett reduction
-- ML-DSA-44/65/87 (FIPS 204) with SIMD (AVX2/NEON) and expanded verification
-- SLH-DSA-SHAKE all variants (FIPS 205) with parallel feature
-- SLH-DSA-SHA2 all variants (FIPS 205 Section 10.2)
-- NIST ACVP tests, fuzz testing, no_std, constant-time, zeroization
-- Key type wrapper macros (`define_kem_types!` / `define_dsa_types!` / `define_slh_dsa_variant!`)
-- Dudect timing tests for constant-time verification
-- Dudect CI integration (ML-KEM regression detection)
-- Benchmark stability with fixed seed (kylix-cli)
-- Core shared macros: modular arithmetic (Barrett/Montgomery), NTT, SIMD dispatch in kylix-core
-- SLH-DSA buffer-write API (`_to` variants for signing functions and HashSuite trait)
-- Intermediate buffer cleanup (direct-write `from_bytes()`, keygen zeroization)
-- Dev profile optimization and proptest consolidation with macros
-- Clippy fixes: `#[cfg(test)]` for test-only code, `.div_ceil()`, removed unnecessary lint suppression
-- Security review fixes: constant-time hypertree verify (`ct_eq`), constant-time polyvec `check_norm` (`subtle::Choice`), SHA-512 for SHA2 category 3/5 per FIPS 205 §10.2
+- **Algorithms**: ML-KEM-512/768/1024 (FIPS 203), ML-DSA-44/65/87 (FIPS 204), SLH-DSA-SHAKE/SHA2 all variants (FIPS 205)
+- **Performance**: SIMD (AVX2/NEON) for NTT, basemul, Barrett reduction, pointwise mul; ML-DSA expanded verification; SLH-DSA parallel feature; benchmark stability (kylix-cli)
+- **Quality**: ACVP tests, fuzz testing, no_std, constant-time (`subtle`/dudect), zeroization, proptest, clippy clean
+- **Infrastructure**: Core shared macros (kylix-core), key type wrapper macros, buffer-write API (`_to` variants), dudect CI
+- **Security fixes**: Constant-time hypertree verify (`ct_eq`), constant-time polyvec `check_norm` (`Choice`), SHA-512 for SHA2 category 3/5 (FIPS 205 §10.2)
 
-> See `CHANGELOG.md` for release history and `BENCHMARKS.md` for performance data.
+> See `CHANGELOG.md` for full release history and `BENCHMARKS.md` for performance data.
 
 ### Not Started
 
@@ -63,23 +53,15 @@ Recommended fix: Add `as_bytes()` methods returning `&[u8]` for all types, depre
 
 ### Constant-time Verification
 
-**Status:** Added dudect-based timing tests in `timing/` directory.
-
-**Results:**
-- **ML-KEM decaps**: ✅ Passes (max t < 4.5) - implicit rejection is constant-time
-- **ML-DSA sign**: ⚠️ Expected variance due to rejection sampling loop
-
-**Running tests:**
-```bash
-cd timing && cargo run --release --bin ml_kem
-cd timing && cargo run --release --bin ml_dsa
-```
+Dudect-based timing tests in `timing/` directory.
+- ML-KEM decaps: passes (max t < 4.5)
+- ML-DSA sign: expected variance (rejection sampling)
 
 **Future work:**
-- Add ML-DSA subroutine-level timing tests (NTT, poly ops, secret vector operations)
-- SLH-DSA timing tests (LOW priority) - hash-based design is inherently constant-time, very slow execution
-- Formal verification with ct-verif or ctgrind for critical paths
-- Zeroize intermediate secrets in `ml_kem_encaps`/`ml_kem_decaps` (`g_input`, `k_prime`, `r_prime`, `m_prime`, `r`, `shared_secret`) — stack-allocated but not explicitly zeroized on function return
+- ML-DSA subroutine-level timing tests (NTT, poly ops, secret vector operations)
+- SLH-DSA timing tests (LOW — inherently constant-time hash-based design)
+- Formal verification (ct-verif / ctgrind) for critical paths
+- Zeroize intermediate secrets in `ml_kem_encaps`/`ml_kem_decaps` (stack-allocated `g_input`, `k_prime`, `r_prime`, `m_prime`, `r`, `shared_secret`)
 
 ---
 
