@@ -314,6 +314,33 @@ fn byte_encode_11(poly: &Poly, out: &mut [u8]) {
     }
 }
 
+/// Check that all 12-bit coefficients in an encapsulation key are in [0, q-1].
+///
+/// FIPS 203 §7.2 (Algorithm 17) requires this type check on the encapsulation key
+/// before encapsulation. Each pair of 12-bit coefficients is unpacked from the
+/// t portion of ek (excluding the 32-byte rho suffix) and checked against Q.
+///
+/// # Arguments
+/// * `ek` - Full encapsulation key bytes (K*384 + 32)
+///
+/// # Returns
+/// `true` if all coefficients are valid (< Q), `false` otherwise
+pub fn check_ek_modulus(ek: &[u8]) -> bool {
+    // Check t bytes only (exclude 32-byte rho suffix)
+    let t_bytes = &ek[..ek.len() - 32];
+    for chunk in t_bytes.chunks_exact(3) {
+        let b0 = chunk[0] as u16;
+        let b1 = chunk[1] as u16;
+        let b2 = chunk[2] as u16;
+        let c0 = b0 | ((b1 & 0x0F) << 8);
+        let c1 = (b1 >> 4) | (b2 << 4);
+        if c0 >= Q || c1 >= Q {
+            return false;
+        }
+    }
+    true
+}
+
 fn byte_decode_11(bytes: &[u8]) -> Poly {
     let mut poly = Poly::new();
     for i in 0..32 {
@@ -490,5 +517,64 @@ mod tests {
         for i in 0..N {
             assert_eq!(poly.coeffs[i], recovered.coeffs[i], "Mismatch at {}", i);
         }
+    }
+
+    #[test]
+    fn test_check_ek_modulus_valid() {
+        // Build a valid ek: K=3 polynomials (3*384 bytes) + 32-byte rho
+        let ek_size = 3 * 384 + 32;
+        let t_size = 3 * 384;
+
+        // All coefficients = 0 (valid)
+        let ek_zeros = vec![0u8; ek_size];
+        assert!(check_ek_modulus(&ek_zeros));
+
+        // All coefficients = Q-1 = 3328 = 0xD00
+        // c0 = b0 | ((b1 & 0x0F) << 8) = 0x00 | (0x0D << 8) = 0xD00
+        // c1 = (b1 >> 4) | (b2 << 4) = 0x00 | (0xD0 << 4) = 0xD00
+        let mut ek_max = vec![0u8; ek_size];
+        for chunk in ek_max[..t_size].chunks_exact_mut(3) {
+            chunk[0] = 0x00;
+            chunk[1] = 0x0D;
+            chunk[2] = 0xD0;
+        }
+        assert!(check_ek_modulus(&ek_max));
+    }
+
+    #[test]
+    fn test_check_ek_modulus_invalid() {
+        let ek_size = 3 * 384 + 32;
+        let t_size = 3 * 384;
+
+        // c0 = Q = 3329 = 0xD01
+        // b0 = 0x01, b1 low nibble = 0x0D
+        let mut ek = vec![0u8; ek_size];
+        ek[0] = 0x01;
+        ek[1] = 0x0D;
+        assert!(!check_ek_modulus(&ek));
+
+        // c1 = Q = 3329 = 0xD01
+        // c1 = (b1 >> 4) | (b2 << 4)
+        // Need (b1 >> 4) | (b2 << 4) = 0xD01
+        // b1 high nibble = 0x10 (>> 4 = 0x01), b2 = 0xD0 (<< 4 = 0xD00)
+        // 0x01 | 0xD00 = 0xD01 = 3329
+        let mut ek2 = vec![0u8; ek_size];
+        ek2[1] = 0x10;
+        ek2[2] = 0xD0;
+        assert!(!check_ek_modulus(&ek2));
+
+        // c0 = 0xFFF = 4095 (max 12-bit value, well above Q)
+        let mut ek3 = vec![0u8; ek_size];
+        ek3[0] = 0xFF;
+        ek3[1] = 0x0F;
+        assert!(!check_ek_modulus(&ek3));
+
+        // Invalid coefficient in the middle of the ek
+        let mut ek4 = vec![0u8; ek_size];
+        let mid = t_size / 2;
+        let mid_aligned = mid - (mid % 3); // align to chunk boundary
+        ek4[mid_aligned] = 0x01;
+        ek4[mid_aligned + 1] = 0x0D;
+        assert!(!check_ek_modulus(&ek4));
     }
 }

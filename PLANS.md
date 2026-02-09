@@ -12,7 +12,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 - **Performance**: SIMD (AVX2/NEON) for NTT, basemul, Barrett reduction, pointwise mul; ML-DSA expanded verification; SLH-DSA parallel feature; benchmark stability (kylix-cli)
 - **Quality**: ACVP tests, fuzz testing, no_std, constant-time (`subtle`/dudect), zeroization, proptest, clippy clean
 - **Infrastructure**: Core shared macros (kylix-core), key type wrapper macros, buffer-write API (`_to` variants), dudect CI
-- **Security fixes**: Constant-time hypertree verify (`ct_eq`), constant-time polyvec `check_norm` (`Choice`), SHA-512 for SHA2 category 3/5 (FIPS 205 §10.2)
+- **Security fixes**: Constant-time hypertree verify (`ct_eq`), constant-time polyvec `check_norm` (`Choice`), SHA-512 for SHA2 category 3/5 (FIPS 205 §10.2), FIPS 203 §7.2 ek modulus check in `ml_kem_encaps`
 
 > See `CHANGELOG.md` for full release history and `BENCHMARKS.md` for performance data.
 
@@ -21,7 +21,6 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | Component | Priority | Notes |
 |-----------|----------|-------|
 | Security Audit | HIGH | External |
-| FIPS 203 ek Modulus Check | MEDIUM | Section 7.3: verify each coefficient of decoded ek is in [0, q-1]. Currently only length validation is performed (PR #132). |
 | SIMD NTT (WASM) | LOW | - |
 
 ### Refactoring Backlog
