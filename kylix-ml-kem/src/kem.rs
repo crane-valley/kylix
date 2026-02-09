@@ -543,13 +543,24 @@ mod tests {
         assert!(matches!(result, Err(Error::EncodingError)));
 
         // Also test with coefficient = 0xFFF (4095)
-        let mut ek2 = original_ek;
+        let mut ek2 = original_ek.clone();
         // Set c0 = 0xFFF: b0 = 0xFF, b1 low nibble = 0x0F
         let b1_high = ek2[1] & 0xF0;
         ek2[0] = 0xFF;
         ek2[1] = b1_high | 0x0F;
 
         let result = ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek2, &m);
+        assert!(matches!(result, Err(Error::EncodingError)));
+
+        // Test with c1 invalid (second coefficient in the 3-byte group)
+        // c1 = (b1 >> 4) | (b2 << 4) = 0xD01 = Q = 3329
+        // b1 high nibble = 0x10 (>> 4 = 0x01), b2 = 0xD0 (<< 4 = 0xD00)
+        let mut ek3 = original_ek;
+        let b1_low = ek3[1] & 0x0F;
+        ek3[1] = b1_low | 0x10;
+        ek3[2] = 0xD0;
+
+        let result = ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek3, &m);
         assert!(matches!(result, Err(Error::EncodingError)));
     }
 
@@ -652,14 +663,20 @@ mod tests {
         let dk_size = dk_pke_size + ek_size + 32 + 32; // dk_pke || ek || h || z
         let ct_size = 32 * (K768 * DU_768 + DV_768);
 
+        let ct = vec![0u8; ct_size];
+
+        // c0 invalid: coefficient = Q (3329 = 0xD01)
         let mut dk = vec![0u8; dk_size];
-        // Set a coefficient in the ek portion to Q (3329 = 0xD01)
-        // ek starts at offset dk_pke_size
         dk[dk_pke_size] = 0x01; // b0 of first ek chunk
         dk[dk_pke_size + 1] = 0x0D; // b1 low nibble => c0 = 0xD01 = 3329
-
-        let ct = vec![0u8; ct_size];
         let result = ml_kem_decaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&dk, &ct);
+        assert!(matches!(result, Err(Error::EncodingError)));
+
+        // c1 invalid: coefficient = Q (3329 = 0xD01) in second position
+        let mut dk2 = vec![0u8; dk_size];
+        dk2[dk_pke_size + 1] = 0x10; // b1 high nibble => c1 high bits
+        dk2[dk_pke_size + 2] = 0xD0; // b2 => c1 = (0x10>>4) | (0xD0<<4) = 0xD01
+        let result = ml_kem_decaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&dk2, &ct);
         assert!(matches!(result, Err(Error::EncodingError)));
     }
 }

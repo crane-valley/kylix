@@ -12,6 +12,7 @@
 
 use crate::params::common::Q;
 use crate::poly::Poly;
+use subtle::{Choice, ConstantTimeLess};
 
 /// Encode a polynomial to bytes using 12-bit coefficients.
 ///
@@ -343,7 +344,8 @@ fn byte_decode_11(bytes: &[u8]) -> Poly {
 /// Uses the same ByteDecode₁₂ unpacking as [`poly_from_bytes`].
 ///
 /// # Arguments
-/// * `ek` - Full encapsulation key bytes (must be 32 + a multiple of 384)
+/// * `ek` - Full encapsulation key bytes (32-byte rho suffix plus one or more
+///   384-byte polynomials, i.e., `32 + n*384` with `n >= 1`)
 ///
 /// # Returns
 /// `true` if all coefficients are valid (< Q), `false` otherwise
@@ -363,24 +365,20 @@ pub(crate) fn check_ek_modulus(ek: &[u8]) -> bool {
     }
 
     let t_bytes = &ek[..t_len];
-    // Constant-time: accumulate failure flag across all chunks to avoid
-    // leaking the position of the first invalid coefficient via timing.
-    // For 12-bit coefficients (max 4095) and Q=3329:
-    //   c < Q  => (Q-1-c) is in 0..3328, high bit clear in u16
-    //   c >= Q => (Q-1-c) wraps to 62207..65535, high bit set in u16
-    let mut invalid = 0u16;
+    // Constant-time coefficient scan: accumulate validity using subtle::Choice
+    // to avoid leaking the position of any invalid coefficient via timing.
+    // The early returns above on length/alignment are not secret-dependent.
+    let mut all_valid = Choice::from(1u8);
     for chunk in t_bytes.chunks_exact(3) {
         let b0 = chunk[0] as u16;
         let b1 = chunk[1] as u16;
         let b2 = chunk[2] as u16;
         let c0 = b0 | ((b1 & 0x0F) << 8);
         let c1 = (b1 >> 4) | (b2 << 4);
-        // (Q - 1 - c) wraps when c >= Q, setting the high bit
-        invalid |= (Q - 1).wrapping_sub(c0);
-        invalid |= (Q - 1).wrapping_sub(c1);
+        all_valid &= c0.ct_lt(&Q);
+        all_valid &= c1.ct_lt(&Q);
     }
-    // If any coefficient >= Q, high bit of `invalid` is set
-    invalid >> 15 == 0
+    all_valid.into()
 }
 
 #[cfg(test)]
