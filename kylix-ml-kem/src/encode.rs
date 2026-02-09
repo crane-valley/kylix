@@ -326,8 +326,9 @@ fn byte_encode_11(poly: &Poly, out: &mut [u8]) {
 /// # Returns
 /// `true` if all coefficients are valid (< Q), `false` otherwise
 pub(crate) fn check_ek_modulus(ek: &[u8]) -> bool {
-    // ek must contain at least the 32-byte rho suffix
-    if ek.len() < 32 {
+    // ek must contain the 32-byte rho suffix plus at least one polynomial
+    // (384 bytes = 128 coefficient pairs * 3 bytes each)
+    if ek.len() <= 32 {
         return false;
     }
 
@@ -588,5 +589,11 @@ mod tests {
         ek4[mid_aligned] = 0x01;
         ek4[mid_aligned + 1] = 0x0D;
         assert!(!check_ek_modulus(&ek4));
+
+        // Degenerate inputs: too short or rho-only
+        assert!(!check_ek_modulus(&[]));
+        assert!(!check_ek_modulus(&[0u8; 31]));
+        assert!(!check_ek_modulus(&[0u8; 32])); // rho-only, no t portion
+        assert!(!check_ek_modulus(&[0u8; 33])); // t_len=1, not divisible by 3
     }
 }
