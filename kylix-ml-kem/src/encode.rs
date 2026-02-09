@@ -65,7 +65,8 @@ pub fn poly_from_bytes(bytes: &[u8]) -> Poly {
         let c0 = b0 | ((b1 & 0x0F) << 8);
         let c1 = (b1 >> 4) | (b2 << 4);
 
-        // Reduce mod q (accepting potentially non-canonical 12-bit inputs)
+        // Reduce mod q — redundant for ek inputs pre-validated by check_ek_modulus,
+        // but necessary for other callers (e.g., secret key deserialization in k_pke_decrypt).
         poly.coeffs[2 * i] = (c0 % Q) as i16;
         poly.coeffs[2 * i + 1] = (c1 % Q) as i16;
     }
@@ -314,17 +315,39 @@ fn byte_encode_11(poly: &Poly, out: &mut [u8]) {
     }
 }
 
+fn byte_decode_11(bytes: &[u8]) -> Poly {
+    let mut poly = Poly::new();
+    for i in 0..32 {
+        let b = &bytes[11 * i..11 * i + 11];
+        poly.coeffs[8 * i] = ((b[0] as u16) | ((b[1] as u16 & 0x07) << 8)) as i16;
+        poly.coeffs[8 * i + 1] = (((b[1] >> 3) as u16) | ((b[2] as u16 & 0x3F) << 5)) as i16;
+        poly.coeffs[8 * i + 2] =
+            (((b[2] >> 6) as u16) | ((b[3] as u16) << 2) | ((b[4] as u16 & 0x01) << 10)) as i16;
+        poly.coeffs[8 * i + 3] = (((b[4] >> 1) as u16) | ((b[5] as u16 & 0x0F) << 7)) as i16;
+        poly.coeffs[8 * i + 4] = (((b[5] >> 4) as u16) | ((b[6] as u16 & 0x7F) << 4)) as i16;
+        poly.coeffs[8 * i + 5] =
+            (((b[6] >> 7) as u16) | ((b[7] as u16) << 1) | ((b[8] as u16 & 0x03) << 9)) as i16;
+        poly.coeffs[8 * i + 6] = (((b[8] >> 2) as u16) | ((b[9] as u16 & 0x1F) << 6)) as i16;
+        poly.coeffs[8 * i + 7] = (((b[9] >> 5) as u16) | ((b[10] as u16) << 3)) as i16;
+    }
+    poly
+}
+
+// --- Validation ---
+
 /// Check that all 12-bit coefficients in an encapsulation key are in [0, q-1].
 ///
 /// FIPS 203 §7.2 (Algorithm 17) requires this type check on the encapsulation key
 /// before encapsulation. Each pair of 12-bit coefficients is unpacked from the
 /// t portion of ek (excluding the 32-byte rho suffix) and checked against Q.
+/// Uses the same ByteDecode₁₂ unpacking as [`poly_from_bytes`].
 ///
 /// # Arguments
 /// * `ek` - Full encapsulation key bytes (must be 32 + a multiple of 384)
 ///
 /// # Returns
 /// `true` if all coefficients are valid (< Q), `false` otherwise
+#[inline(never)]
 pub(crate) fn check_ek_modulus(ek: &[u8]) -> bool {
     // ek must contain the 32-byte rho suffix plus at least one polynomial
     if ek.len() <= 32 {
@@ -358,24 +381,6 @@ pub(crate) fn check_ek_modulus(ek: &[u8]) -> bool {
     }
     // If any coefficient >= Q, high bit of `invalid` is set
     invalid >> 15 == 0
-}
-
-fn byte_decode_11(bytes: &[u8]) -> Poly {
-    let mut poly = Poly::new();
-    for i in 0..32 {
-        let b = &bytes[11 * i..11 * i + 11];
-        poly.coeffs[8 * i] = ((b[0] as u16) | ((b[1] as u16 & 0x07) << 8)) as i16;
-        poly.coeffs[8 * i + 1] = (((b[1] >> 3) as u16) | ((b[2] as u16 & 0x3F) << 5)) as i16;
-        poly.coeffs[8 * i + 2] =
-            (((b[2] >> 6) as u16) | ((b[3] as u16) << 2) | ((b[4] as u16 & 0x01) << 10)) as i16;
-        poly.coeffs[8 * i + 3] = (((b[4] >> 1) as u16) | ((b[5] as u16 & 0x0F) << 7)) as i16;
-        poly.coeffs[8 * i + 4] = (((b[5] >> 4) as u16) | ((b[6] as u16 & 0x7F) << 4)) as i16;
-        poly.coeffs[8 * i + 5] =
-            (((b[6] >> 7) as u16) | ((b[7] as u16) << 1) | ((b[8] as u16 & 0x03) << 9)) as i16;
-        poly.coeffs[8 * i + 6] = (((b[8] >> 2) as u16) | ((b[9] as u16 & 0x1F) << 6)) as i16;
-        poly.coeffs[8 * i + 7] = (((b[9] >> 5) as u16) | ((b[10] as u16) << 3)) as i16;
-    }
-    poly
 }
 
 #[cfg(test)]
