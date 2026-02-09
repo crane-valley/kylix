@@ -153,6 +153,7 @@ pub fn ml_kem_encaps<
 /// # Errors
 /// - [`Error::InvalidKeyLength`] if `dk` length is not `K * 768 + 96`
 /// - [`Error::InvalidCiphertextLength`] if `c` length is not `32 * (K * DU + DV)`
+/// - [`Error::EncodingError`] if any decoded 12-bit coefficient in the embedded `ek` is `>= q` (FIPS 203 §7.3 modulus check).
 ///
 /// # Algorithm (with implicit rejection)
 /// 1. Parse dk as (dk_pke || ek || h || z)
@@ -203,6 +204,11 @@ pub fn ml_kem_decaps<
     let z: &[u8; 32] = z_bytes
         .try_into()
         .expect("infallible: z_bytes is 32 bytes after dk length check");
+
+    // FIPS 203 §7.3: Modulus check on embedded ek
+    if !check_ek_modulus(ek) {
+        return Err(Error::EncodingError);
+    }
 
     // 1. m' = K-PKE.Decrypt(dk_pke, c)
     let m_prime = k_pke_decrypt::<K, DU, DV>(dk_pke, c);
@@ -634,5 +640,24 @@ mod tests {
             Err(Error::InvalidCiphertextLength { expected, actual })
                 if expected == expected_ct_1024 && actual == 1
         ));
+    }
+
+    #[test]
+    fn test_ml_kem_decaps_invalid_ek_in_dk() {
+        // Construct a dk with a corrupted ek (coefficient >= Q)
+        let dk_pke_size = K768 * 384;
+        let ek_size = K768 * 384 + 32;
+        let dk_size = dk_pke_size + ek_size + 32 + 32; // dk_pke || ek || h || z
+        let ct_size = 32 * (K768 * DU_768 + DV_768);
+
+        let mut dk = vec![0u8; dk_size];
+        // Set a coefficient in the ek portion to Q (3329 = 0xD01)
+        // ek starts at offset dk_pke_size
+        dk[dk_pke_size] = 0x01; // b0 of first ek chunk
+        dk[dk_pke_size + 1] = 0x0D; // b1 low nibble => c0 = 0xD01 = 3329
+
+        let ct = vec![0u8; ct_size];
+        let result = ml_kem_decaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&dk, &ct);
+        assert!(matches!(result, Err(Error::EncodingError)));
     }
 }

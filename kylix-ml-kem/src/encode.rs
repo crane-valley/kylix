@@ -66,6 +66,10 @@ pub fn poly_from_bytes(bytes: &[u8]) -> Poly {
         let c1 = (b1 >> 4) | (b2 << 4);
 
         // Reduce mod q (mask to 12 bits for valid input)
+        debug_assert!(
+            c0 < Q && c1 < Q,
+            "12-bit coefficient >= Q in poly_from_bytes"
+        );
         poly.coeffs[2 * i] = (c0 % Q) as i16;
         poly.coeffs[2 * i + 1] = (c1 % Q) as i16;
     }
@@ -340,17 +344,24 @@ pub(crate) fn check_ek_modulus(ek: &[u8]) -> bool {
     }
 
     let t_bytes = &ek[..t_len];
+    // Constant-time: accumulate failure flag across all chunks to avoid
+    // leaking the position of the first invalid coefficient via timing.
+    // For 12-bit coefficients (max 4095) and Q=3329:
+    //   c < Q  => (Q-1-c) is in 0..3328, high bit clear in u16
+    //   c >= Q => (Q-1-c) wraps to 62207..65535, high bit set in u16
+    let mut invalid = 0u16;
     for chunk in t_bytes.chunks_exact(3) {
         let b0 = chunk[0] as u16;
         let b1 = chunk[1] as u16;
         let b2 = chunk[2] as u16;
         let c0 = b0 | ((b1 & 0x0F) << 8);
         let c1 = (b1 >> 4) | (b2 << 4);
-        if c0 >= Q || c1 >= Q {
-            return false;
-        }
+        // (Q - 1 - c) wraps when c >= Q, setting the high bit
+        invalid |= (Q - 1).wrapping_sub(c0);
+        invalid |= (Q - 1).wrapping_sub(c1);
     }
-    true
+    // If any coefficient >= Q, high bit of `invalid` is set
+    invalid >> 15 == 0
 }
 
 fn byte_decode_11(bytes: &[u8]) -> Poly {
@@ -580,6 +591,15 @@ mod tests {
         ek3[0] = 0xFF;
         ek3[1] = 0x0F;
         assert!(!check_ek_modulus(&ek3));
+
+        // c1 = 0xFFF = 4095 (max 12-bit value in second coefficient position)
+        // c1 = (b1 >> 4) | (b2 << 4) = 0xFFF
+        // b1 high nibble = 0xF0 (>> 4 = 0x0F), b2 = 0xFF (<< 4 = 0xFF0)
+        // 0x0F | 0xFF0 = 0xFFF = 4095
+        let mut ek3b = vec![0u8; ek_size];
+        ek3b[1] = 0xF0;
+        ek3b[2] = 0xFF;
+        assert!(!check_ek_modulus(&ek3b));
 
         // Invalid coefficient in the middle of the ek
         let mut ek4 = vec![0u8; ek_size];
