@@ -325,9 +325,21 @@ fn byte_encode_11(poly: &Poly, out: &mut [u8]) {
 ///
 /// # Returns
 /// `true` if all coefficients are valid (< Q), `false` otherwise
-pub fn check_ek_modulus(ek: &[u8]) -> bool {
+pub(crate) fn check_ek_modulus(ek: &[u8]) -> bool {
+    // ek must contain at least the 32-byte rho suffix
+    if ek.len() < 32 {
+        return false;
+    }
+
     // Check t bytes only (exclude 32-byte rho suffix)
-    let t_bytes = &ek[..ek.len() - 32];
+    let t_len = ek.len() - 32;
+
+    // t portion must be a sequence of 3-byte encodings (pairs of 12-bit coefficients)
+    if t_len % 3 != 0 {
+        return false;
+    }
+
+    let t_bytes = &ek[..t_len];
     for chunk in t_bytes.chunks_exact(3) {
         let b0 = chunk[0] as u16;
         let b1 = chunk[1] as u16;

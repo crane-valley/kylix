@@ -518,8 +518,10 @@ mod tests {
         let z = [0x43u8; 32];
         let m = [0x55u8; 32];
 
-        let (_, mut ek) = ml_kem_keygen::<K768, ETA1_768>(&d, &z);
+        let (_, original_ek) = ml_kem_keygen::<K768, ETA1_768>(&d, &z);
 
+        // Test with coefficient = Q (3329)
+        let mut ek = original_ek.clone();
         // Set a 12-bit coefficient to Q (3329) — invalid
         // Bytes [0..3] encode two 12-bit coefficients:
         //   c0 = b0 | ((b1 & 0x0F) << 8)
@@ -533,7 +535,7 @@ mod tests {
         assert!(matches!(result, Err(Error::EncodingError)));
 
         // Also test with coefficient = 0xFFF (4095)
-        let (_, mut ek2) = ml_kem_keygen::<K768, ETA1_768>(&d, &z);
+        let mut ek2 = original_ek;
         // Set c0 = 0xFFF: b0 = 0xFF, b1 low nibble = 0x0F
         let b1_high = ek2[1] & 0xF0;
         ek2[0] = 0xFF;
