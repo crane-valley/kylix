@@ -65,11 +65,7 @@ pub fn poly_from_bytes(bytes: &[u8]) -> Poly {
         let c0 = b0 | ((b1 & 0x0F) << 8);
         let c1 = (b1 >> 4) | (b2 << 4);
 
-        // Reduce mod q (mask to 12 bits for valid input)
-        debug_assert!(
-            c0 < Q && c1 < Q,
-            "12-bit coefficient >= Q in poly_from_bytes"
-        );
+        // Reduce mod q (accepting potentially non-canonical 12-bit inputs)
         poly.coeffs[2 * i] = (c0 % Q) as i16;
         poly.coeffs[2 * i + 1] = (c1 % Q) as i16;
     }

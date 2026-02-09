@@ -153,7 +153,7 @@ pub fn ml_kem_encaps<
 /// # Errors
 /// - [`Error::InvalidKeyLength`] if `dk` length is not `K * 768 + 96`
 /// - [`Error::InvalidCiphertextLength`] if `c` length is not `32 * (K * DU + DV)`
-/// - [`Error::EncodingError`] if any decoded 12-bit coefficient in the embedded `ek` is `>= q` (FIPS 203 §7.3 modulus check).
+/// - [`Error::EncodingError`] if any decoded 12-bit coefficient in the embedded `ek` is `>= q` (defense-in-depth check on stored key).
 ///
 /// # Algorithm (with implicit rejection)
 /// 1. Parse dk as (dk_pke || ek || h || z)
@@ -205,7 +205,9 @@ pub fn ml_kem_decaps<
         .try_into()
         .expect("infallible: z_bytes is 32 bytes after dk length check");
 
-    // FIPS 203 §7.3: Modulus check on embedded ek
+    // Defense-in-depth: validate embedded ek coefficients are in [0, q-1].
+    // Not mandated by FIPS 203 Algorithm 18 (ek in dk is internally generated),
+    // but guards against corrupted or tampered decapsulation keys.
     if !check_ek_modulus(ek) {
         return Err(Error::EncodingError);
     }
