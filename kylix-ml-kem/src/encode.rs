@@ -321,7 +321,7 @@ fn byte_encode_11(poly: &Poly, out: &mut [u8]) {
 /// t portion of ek (excluding the 32-byte rho suffix) and checked against Q.
 ///
 /// # Arguments
-/// * `ek` - Full encapsulation key bytes (K*384 + 32)
+/// * `ek` - Full encapsulation key bytes (must be 32 + a multiple of 384)
 ///
 /// # Returns
 /// `true` if all coefficients are valid (< Q), `false` otherwise
@@ -594,7 +594,7 @@ mod tests {
         assert!(!check_ek_modulus(&[0u8; 31]));
         assert!(!check_ek_modulus(&[0u8; 32])); // rho-only, no t portion
         assert!(!check_ek_modulus(&[0u8; 35])); // t_len=3, not a multiple of 384
-        assert!(!check_ek_modulus(&[0u8; 32 + 3])); // single coefficient pair, not whole polynomial
         assert!(!check_ek_modulus(&[0u8; 32 + 383])); // one byte short of a polynomial
+        assert!(!check_ek_modulus(&[0u8; 32 + 384 + 1])); // one byte over one polynomial
     }
 }
