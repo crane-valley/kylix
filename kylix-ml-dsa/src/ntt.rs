@@ -194,8 +194,7 @@ mod tests {
             eprintln!("a_orig = [1, 0, 0, ...]");
             eprintln!("b_orig = [1, 0, 0, ...]");
             eprintln!("Expected a*b = [1, 0, 0, ...]");
-            eprintln!("Actual c[0..4] = {:?}", &c[0..4]);
-            eprintln!("After caddq, c[0..4] = {:?}", &c[0..4]);
+            eprintln!("c[0..4] after caddq = {:?}", &c[0..4]);
         }
 
         // Check if c[0] = 1
