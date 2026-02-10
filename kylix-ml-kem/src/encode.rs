@@ -68,11 +68,14 @@ pub fn poly_to_bytes(poly: &Poly) -> [u8; 384] {
 /// # Returns
 /// Decoded polynomial with coefficients in [0, q-1]
 pub fn poly_from_bytes(bytes: &[u8]) -> Poly {
+    debug_assert!(
+        bytes.len() >= 384,
+        "poly_from_bytes requires at least 384 bytes"
+    );
     let mut poly = Poly::new();
 
-    // Decode exactly 128 coefficient pairs (256 coefficients) from 384 bytes.
-    // Use .take(128) to bound the iteration to one polynomial even if the
-    // input slice is longer than 384 bytes.
+    // Decode exactly 128 coefficient pairs (256 coefficients) from the first
+    // 384 bytes. The .take(128) bound prevents OOB writes if bytes > 384.
     for (i, chunk) in bytes.chunks_exact(3).take(128).enumerate() {
         let (c0, c1) = unpack_12bit_coeffs(chunk);
 
