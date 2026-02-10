@@ -1,3 +1,7 @@
+// Skip compilation entirely when no variant features are enabled
+// (e.g., --no-default-features), since all test functions are feature-gated.
+#![cfg(any(feature = "ml-dsa-44", feature = "ml-dsa-65", feature = "ml-dsa-87"))]
+
 //! NIST ACVP (Automated Cryptographic Validation Protocol) tests for ML-DSA.
 //!
 //! These tests use official NIST test vectors from:

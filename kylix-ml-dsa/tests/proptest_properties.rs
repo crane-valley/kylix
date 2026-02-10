@@ -1,3 +1,7 @@
+// Skip compilation entirely when no variant features are enabled
+// (e.g., --no-default-features), since all test functions are feature-gated.
+#![cfg(any(feature = "ml-dsa-44", feature = "ml-dsa-65", feature = "ml-dsa-87"))]
+
 //! Property-based tests for ML-DSA using proptest.
 //!
 //! These tests verify fundamental cryptographic properties:

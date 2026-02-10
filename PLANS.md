@@ -10,7 +10,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 
 - **Algorithms**: ML-KEM-512/768/1024 (FIPS 203), ML-DSA-44/65/87 (FIPS 204), SLH-DSA-SHAKE/SHA2 all variants (FIPS 205)
 - **Performance**: SIMD (AVX2/NEON) for NTT, basemul, Barrett reduction, pointwise mul; ML-DSA expanded verification; SLH-DSA parallel feature; benchmark stability (kylix-cli)
-- **Quality**: ACVP tests, fuzz testing, no_std, constant-time (`subtle`/dudect), zeroization, proptest, clippy clean
+- **Quality**: ACVP tests, fuzz testing, no_std, constant-time (`subtle`/dudect), zeroization, proptest, clippy clean (`--all-features` and `--no-default-features`)
 - **Infrastructure**: Core shared macros (kylix-core), key type wrapper macros, buffer-write API (`_to` variants), dudect CI
 - **Security fixes**: Constant-time hypertree verify (`ct_eq`), constant-time polyvec `check_norm` (`Choice`), SHA-512 for SHA2 category 3/5 (FIPS 205 §10.2), FIPS 203 §7.2 ek modulus check in `ml_kem_encaps`/`ml_kem_decaps`
 
@@ -32,7 +32,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | Poly API Consistency | MEDIUM | Ergonomics | ML-KEM uses module functions (`poly_add()`), ML-DSA uses methods (`.add()`). Standardize to methods |
 | k_pke Internal Validation | LOW | Defense-in-depth | `k_pke_encrypt`/`k_pke_decrypt` accept `&[u8]` with no length validation; panics on short input via `try_into().unwrap()`. Currently protected by ML-KEM layer validation (PR #132), but direct `pub(crate)` callers are unguarded. |
 | SLH-DSA: MGF1 Deduplication | LOW | Code quality | `mgf1_sha256` and `mgf1_sha512` in `hash_sha2.rs` share identical structure. Extract a generic MGF1 helper parameterized by hash function. |
-| `no_std` Clippy Clean (`--no-default-features`) | MEDIUM | CI parity | `cargo clippy --all-targets --no-default-features` fails: (1) lib: `define_slh_dsa_variant` unused in SLH-DSA when no variant feature is enabled, (2) tests: `vec!`/`Vec`/`eprintln!` unavailable under `no_std` (need `#[cfg(feature = "std")]` or `use alloc`), (3) ACVP test structs flagged as dead code. CI only runs `--all-features` clippy; `--no-default-features` only runs `cargo build` on `thumbv7em-none-eabi` (lib only). |
+| SLH-DSA: `any-variant` Meta-Feature | LOW | Maintainability | The 12-variant `#[cfg(any(feature = "slh-dsa-shake-128s", ...))]` list is duplicated in 4 places (`lib.rs`, `params.rs`, `acvp_tests.rs`, `proptest_properties.rs`). Add an internal `any-variant` feature activated by each variant feature to reduce duplication and prevent sync errors when adding new variants. |
 
 #### API Consistency Note
 

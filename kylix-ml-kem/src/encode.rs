@@ -397,6 +397,8 @@ pub(crate) fn check_ek_modulus(ek: &[u8]) -> bool {
 mod tests {
     use super::*;
     use crate::params::common::N;
+    #[cfg(not(feature = "std"))]
+    use alloc::vec;
 
     #[test]
     fn test_poly_to_bytes_from_bytes_roundtrip() {

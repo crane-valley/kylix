@@ -96,6 +96,20 @@ pub mod hash_sha2;
 pub mod hash_shake;
 /// SLH-DSA parameter constants for all variants.
 pub mod params;
+#[cfg(any(
+    feature = "slh-dsa-shake-128s",
+    feature = "slh-dsa-shake-128f",
+    feature = "slh-dsa-shake-192s",
+    feature = "slh-dsa-shake-192f",
+    feature = "slh-dsa-shake-256s",
+    feature = "slh-dsa-shake-256f",
+    feature = "slh-dsa-sha2-128s",
+    feature = "slh-dsa-sha2-128f",
+    feature = "slh-dsa-sha2-192s",
+    feature = "slh-dsa-sha2-192f",
+    feature = "slh-dsa-sha2-256s",
+    feature = "slh-dsa-sha2-256f"
+))]
 mod types;
 mod utils;
 

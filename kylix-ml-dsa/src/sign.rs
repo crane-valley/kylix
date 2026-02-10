@@ -512,7 +512,7 @@ pub fn ml_dsa_sign<
             y.polys[i] = sample_mask(&rho_prime, nonce as u16, gamma1_bits);
         }
 
-        #[cfg(test)]
+        #[cfg(all(test, feature = "std"))]
         if kappa == 0 {
             let max_y = y.polys.iter().map(|p| p.norm_inf()).max().unwrap_or(0);
             eprintln!("SIGN: max ||y||_inf = {}, gamma1 = {}", max_y, GAMMA1);
@@ -522,7 +522,7 @@ pub fn ml_dsa_sign<
         let mut y_hat = y.clone();
         y_hat.ntt();
 
-        #[cfg(test)]
+        #[cfg(all(test, feature = "std"))]
         {
             eprintln!(
                 "SIGN: A[0][0].coeffs[0..4] = {:?}",
@@ -536,7 +536,7 @@ pub fn ml_dsa_sign<
 
         let ay_ntt = a.mul_vec(&y_hat); // A*y in NTT domain (before reduce)
 
-        #[cfg(test)]
+        #[cfg(all(test, feature = "std"))]
         {
             eprintln!(
                 "SIGN: (A*y)_ntt[0].coeffs[0..4] = {:?}",
@@ -545,7 +545,7 @@ pub fn ml_dsa_sign<
         }
 
         // Clone for later use in debugging
-        #[cfg(test)]
+        #[cfg(all(test, feature = "std"))]
         let ay_ntt_copy = ay_ntt.clone();
 
         let mut w = ay_ntt;
@@ -561,7 +561,7 @@ pub fn ml_dsa_sign<
             }
         }
 
-        #[cfg(test)]
+        #[cfg(all(test, feature = "std"))]
         {
             eprintln!("SIGN: w[0][12..20] = {:?}", &w.polys[0].coeffs[12..20]);
             eprintln!("SIGN: w1[0][12..20] = {:?}", &w1.polys[0].coeffs[12..20]);
@@ -579,7 +579,7 @@ pub fn ml_dsa_sign<
         }
 
         // Store w1 for comparison with verify
-        #[cfg(test)]
+        #[cfg(all(test, feature = "std"))]
         {
             // Print per-polynomial checksums
             let w1_bytes = if GAMMA2 == 261888 { 128 } else { 192 };
@@ -612,7 +612,7 @@ pub fn ml_dsa_sign<
             crate::ntt::inv_ntt(&mut cs1_poly.coeffs);
             cs1_poly.caddq();
 
-            #[cfg(test)]
+            #[cfg(all(test, feature = "std"))]
             if kappa == 0 && i == 0 {
                 let max_cs1 = cs1_poly.norm_inf();
                 eprintln!(
@@ -628,7 +628,7 @@ pub fn ml_dsa_sign<
         z.reduce();
 
         // Check ||z||_inf < gamma1 - beta
-        #[cfg(test)]
+        #[cfg(all(test, feature = "std"))]
         if kappa < 5 || kappa % 1000 == 0 {
             let max_z = z.polys.iter().map(|p| p.norm_inf()).max().unwrap_or(0);
             eprintln!(
@@ -681,7 +681,7 @@ pub fn ml_dsa_sign<
         let mut hint_count = 0;
 
         // Store wcs2ct0 for debugging
-        #[cfg(test)]
+        #[cfg(all(test, feature = "std"))]
         let mut wcs2ct0_vec = PolyVecK::<K>::zero();
 
         let mut hint_overflow = false;
@@ -691,7 +691,7 @@ pub fn ml_dsa_sign<
                 let w_prime =
                     w.polys[i].coeffs[j] - cs2.polys[i].coeffs[j] + ct0.polys[i].coeffs[j];
 
-                #[cfg(test)]
+                #[cfg(all(test, feature = "std"))]
                 {
                     wcs2ct0_vec.polys[i].coeffs[j] = freeze(w_prime);
                 }
@@ -721,7 +721,7 @@ pub fn ml_dsa_sign<
 
         // Compute what verify would see in NTT domain: (A*y - c*s2 + c*t0) in NTT
         // We need to compute: NTT(w - cs2 + ct0) = A*y_hat - c_hat⊙s2_hat + c_hat⊙t0_hat
-        #[cfg(test)]
+        #[cfg(all(test, feature = "std"))]
         let expected_w_prime_ntt = {
             // A*y is in ay_ntt_copy (before reduce)
             // c*s2 = c_hat ⊙ s2_hat
@@ -739,7 +739,7 @@ pub fn ml_dsa_sign<
             result
         };
 
-        #[cfg(test)]
+        #[cfg(all(test, feature = "std"))]
         {
             eprintln!(
                 "SIGN: expected_w'_ntt[0][0..4] = {:?}",
@@ -809,7 +809,7 @@ pub fn ml_dsa_sign<
             }
         }
 
-        #[cfg(test)]
+        #[cfg(all(test, feature = "std"))]
         {
             eprintln!(
                 "SIGN: z_centered[0][0..4] = {:?}",
@@ -1012,7 +1012,7 @@ pub fn ml_dsa_verify<
         }
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "std"))]
     {
         eprintln!("VERIFY: z[0][0..4] = {:?}", &z.polys[0].coeffs[0..4]);
         eprintln!("VERIFY: t1[0][0..4] = {:?}", &t1.polys[0].coeffs[0..4]);
@@ -1024,7 +1024,7 @@ pub fn ml_dsa_verify<
 
     t1_scaled.ntt();
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "std"))]
     {
         eprintln!(
             "VERIFY: A[0][0].coeffs[0..4] = {:?}",
@@ -1040,7 +1040,7 @@ pub fn ml_dsa_verify<
     let mut az = a.mul_vec(&z_hat);
     az.reduce(); // Reduce immediately after accumulation, like in sign
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "std"))]
     {
         eprintln!(
             "VERIFY: az[0].coeffs[0..4] = {:?}",
@@ -1054,7 +1054,7 @@ pub fn ml_dsa_verify<
     }
     ct1_2d.reduce(); // Reduce after pointwise multiplication
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "std"))]
     {
         eprintln!(
             "VERIFY: ct1_2d[0].coeffs[0..4] = {:?}",
@@ -1070,7 +1070,7 @@ pub fn ml_dsa_verify<
         }
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "std"))]
     {
         eprintln!(
             "VERIFY: w'_hat[0].coeffs[0..4] (before reduce) = {:?}",
@@ -1080,7 +1080,7 @@ pub fn ml_dsa_verify<
 
     w_prime_hat.reduce();
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "std"))]
     {
         eprintln!(
             "VERIFY: w'_hat[0].coeffs[0..4] (after reduce) = {:?}",
@@ -1094,7 +1094,7 @@ pub fn ml_dsa_verify<
 
     let w_prime = w_prime_hat;
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "std"))]
     {
         eprintln!("VERIFY: hint_counts = {:?}", &h[OMEGA..]);
         eprintln!(
@@ -1120,7 +1120,7 @@ pub fn ml_dsa_verify<
         hint_idx = end;
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "std"))]
     {
         eprintln!(
             "VERIFY: w_prime[0][0..8] = {:?}",
@@ -1147,7 +1147,7 @@ pub fn ml_dsa_verify<
         );
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "std"))]
     {
         // Print per-polynomial checksums
         for i in 0..K {
@@ -1165,7 +1165,7 @@ pub fn ml_dsa_verify<
     h2(&mu, &w1_encoded, &mut c_tilde_prime);
 
     // Verify c_tilde == c_tilde'
-    #[cfg(test)]
+    #[cfg(all(test, feature = "std"))]
     {
         eprintln!("c_tilde:       {:?}", &c_tilde[..8]);
         eprintln!("c_tilde_prime: {:?}", &c_tilde_prime[..8]);

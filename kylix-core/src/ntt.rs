@@ -243,7 +243,7 @@ mod tests {
             for (i, c) in coeffs.iter_mut().enumerate() {
                 *c = (i as i16) % Q;
             }
-            let original: Vec<i16> = coeffs.to_vec();
+            let original: [i16; 256] = coeffs; // by-value copy before mutation
 
             ntt_scalar(&mut coeffs);
             inv_ntt_scalar(&mut coeffs);

@@ -1,3 +1,20 @@
+// Skip compilation entirely when no variant features are enabled
+// (e.g., --no-default-features), since all test functions are feature-gated.
+#![cfg(any(
+    feature = "slh-dsa-shake-128s",
+    feature = "slh-dsa-shake-128f",
+    feature = "slh-dsa-shake-192s",
+    feature = "slh-dsa-shake-192f",
+    feature = "slh-dsa-shake-256s",
+    feature = "slh-dsa-shake-256f",
+    feature = "slh-dsa-sha2-128s",
+    feature = "slh-dsa-sha2-128f",
+    feature = "slh-dsa-sha2-192s",
+    feature = "slh-dsa-sha2-192f",
+    feature = "slh-dsa-sha2-256s",
+    feature = "slh-dsa-sha2-256f",
+))]
+
 //! Property-based tests for SLH-DSA using proptest.
 //!
 //! These tests verify fundamental cryptographic properties:

@@ -13,6 +13,9 @@ use zeroize::Zeroize;
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 
+#[cfg(all(test, not(feature = "std")))]
+use alloc::vec;
+
 /// Compute a node in the XMSS Merkle tree.
 ///
 /// FIPS 205, Algorithm 9: xmss_node(SK.seed, i, z, PK.seed, ADRS)

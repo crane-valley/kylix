@@ -1,3 +1,11 @@
+// Skip compilation entirely when no variant features are enabled
+// (e.g., --no-default-features), since all test functions are feature-gated.
+#![cfg(any(
+    feature = "ml-kem-512",
+    feature = "ml-kem-768",
+    feature = "ml-kem-1024"
+))]
+
 //! Property-based tests for ML-KEM using proptest.
 //!
 //! These tests verify fundamental cryptographic properties:
