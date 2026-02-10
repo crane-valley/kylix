@@ -39,7 +39,7 @@ Benchmarks for SLH-DSA "fast" variants only. The "small" variants are significan
 
 ## ML-DSA Performance
 
-Benchmarks run with `cargo bench -p kylix-bench --bench ml_dsa` using Criterion with SIMD enabled (default).
+Benchmarks run with `cargo bench -p kylix-bench --bench ml_dsa` (in the [kylix-cli](https://github.com/crane-valley/kylix-cli) repo) using Criterion with SIMD enabled (default).
 
 ### Summary
 
@@ -98,7 +98,7 @@ Break-even: 2 verifications with the same key.
 
 ## ML-KEM Performance
 
-Benchmarks run with `cargo bench -p kylix-bench` using Criterion with SIMD enabled (default).
+Benchmarks run with `cargo bench -p kylix-bench` (in the [kylix-cli](https://github.com/crane-valley/kylix-cli) repo) using Criterion with SIMD enabled (default).
 
 ### Summary
 
@@ -192,6 +192,8 @@ cargo bench -p kylix-bench --features compare-all --bench comparison
 ---
 
 ## Running Benchmarks
+
+Benchmarks are located in the [kylix-cli](https://github.com/crane-valley/kylix-cli) repository (`kylix-bench` crate).
 
 ```bash
 # Run all benchmarks
