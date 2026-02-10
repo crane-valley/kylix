@@ -349,19 +349,23 @@ fn byte_decode_11(bytes: &[u8]) -> Poly {
 
 // --- Validation ---
 
-/// Check that all 12-bit coefficients in an encapsulation key are in [0, q-1].
+/// Check that all 12-bit ByteDecode12-decoded coefficients in an encapsulation key are `< Q`.
 ///
 /// FIPS 203 §7.2 (Algorithm 17) requires this type check on the encapsulation key
-/// before encapsulation. Each pair of 12-bit coefficients is unpacked from the
-/// t portion of ek (excluding the 32-byte rho suffix) and checked against Q.
-/// Uses the same ByteDecode12 unpacking as [`poly_from_bytes`].
+/// before encapsulation. The `t` portion of `ek` (excluding the 32-byte `rho`
+/// suffix) is interpreted using the same ByteDecode12 unpacking as
+/// [`poly_from_bytes`], yielding 12-bit decoded coefficients in the range
+/// `[0, 2^12 - 1]`. This function enforces that each such decoded coefficient
+/// satisfies `decoded < Q`. Values outside `[0, 2^12 - 1]` are not representable
+/// via the encoding.
 ///
 /// # Arguments
 /// * `ek` - Full encapsulation key bytes: one or more 384-byte polynomials
 ///   followed by a 32-byte rho suffix (i.e., `n*384 + 32` with `n >= 1`)
 ///
 /// # Returns
-/// `true` if all coefficients are valid (< Q), `false` otherwise
+/// `true` if every 12-bit decoded coefficient in the `t` portion satisfies
+/// `decoded < Q`, `false` otherwise.
 pub(crate) fn check_ek_modulus(ek: &[u8]) -> bool {
     // ek must contain the 32-byte rho suffix plus at least one polynomial
     if ek.len() <= 32 {
