@@ -69,8 +69,8 @@ pub fn poly_to_bytes(poly: &Poly) -> [u8; 384] {
 pub fn poly_from_bytes(bytes: &[u8]) -> Poly {
     let mut poly = Poly::new();
 
-    for i in 0..128 {
-        let (c0, c1) = unpack_12bit_coeffs(bytes[3 * i..3 * i + 3].try_into().unwrap());
+    for (i, chunk) in bytes.chunks_exact(3).enumerate() {
+        let (c0, c1) = unpack_12bit_coeffs(chunk.try_into().unwrap());
 
         // Reduce mod q — redundant for ek inputs pre-validated by check_ek_modulus,
         // but necessary for other callers (e.g., secret key deserialization in k_pke_decrypt).
