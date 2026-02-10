@@ -70,7 +70,10 @@ pub fn poly_to_bytes(poly: &Poly) -> [u8; 384] {
 pub fn poly_from_bytes(bytes: &[u8]) -> Poly {
     let mut poly = Poly::new();
 
-    for (i, chunk) in bytes.chunks_exact(3).enumerate() {
+    // Decode exactly 128 coefficient pairs (256 coefficients) from 384 bytes.
+    // Use .take(128) to bound the iteration to one polynomial even if the
+    // input slice is longer than 384 bytes.
+    for (i, chunk) in bytes.chunks_exact(3).take(128).enumerate() {
         let (c0, c1) = unpack_12bit_coeffs(chunk);
 
         // Reduce mod q — redundant for ek inputs pre-validated by check_ek_modulus,
