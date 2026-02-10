@@ -1,9 +1,6 @@
-// Helpers and structs are used by feature-gated test functions; allow dead_code
-// when compiling without variant features (e.g., --no-default-features).
-#![cfg_attr(
-    not(any(feature = "ml-dsa-44", feature = "ml-dsa-65", feature = "ml-dsa-87")),
-    allow(dead_code, unused_macros, unused_imports)
-)]
+// Skip compilation entirely when no variant features are enabled
+// (e.g., --no-default-features), since all test functions are feature-gated.
+#![cfg(any(feature = "ml-dsa-44", feature = "ml-dsa-65", feature = "ml-dsa-87"))]
 
 //! NIST ACVP (Automated Cryptographic Validation Protocol) tests for ML-DSA.
 //!

@@ -1,13 +1,10 @@
-// Helpers and structs are used by feature-gated test functions; allow dead_code
-// when compiling without variant features (e.g., --no-default-features).
-#![cfg_attr(
-    not(any(
-        feature = "ml-kem-512",
-        feature = "ml-kem-768",
-        feature = "ml-kem-1024"
-    )),
-    allow(dead_code, unused_macros, unused_imports)
-)]
+// Skip compilation entirely when no variant features are enabled
+// (e.g., --no-default-features), since all test functions are feature-gated.
+#![cfg(any(
+    feature = "ml-kem-512",
+    feature = "ml-kem-768",
+    feature = "ml-kem-1024"
+))]
 
 //! NIST ACVP (Automated Cryptographic Validation Protocol) tests for ML-KEM.
 //!

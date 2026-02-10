@@ -184,20 +184,19 @@ mod tests {
 
         // The result should be: inv_ntt(a_hat ⊙ b_hat) = (a * b) where the R's cancel
         // Let's check
+        // With caddq for normalization
+        for i in 0..N {
+            c[i] = caddq(c[i]);
+        }
+
         #[cfg(feature = "std")]
         {
             eprintln!("a_orig = [1, 0, 0, ...]");
             eprintln!("b_orig = [1, 0, 0, ...]");
             eprintln!("Expected a*b = [1, 0, 0, ...]");
             eprintln!("Actual c[0..4] = {:?}", &c[0..4]);
+            eprintln!("After caddq, c[0..4] = {:?}", &c[0..4]);
         }
-
-        // With caddq for normalization
-        for i in 0..N {
-            c[i] = caddq(c[i]);
-        }
-        #[cfg(feature = "std")]
-        eprintln!("After caddq, c[0..4] = {:?}", &c[0..4]);
 
         // Check if c[0] = 1
         assert_eq!(c[0], 1, "inv_ntt of pointwise product of unit should be 1");
