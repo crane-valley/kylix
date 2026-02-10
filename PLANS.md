@@ -31,8 +31,8 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | SLH-DSA: wots_pk_gen_to / wots_pk_from_sig_to | LOW | Performance | Add `_to` buffer-write variants for `wots_pk_gen` and `wots_pk_from_sig` to eliminate their single Vec return allocation. Low priority since these are called once per WOTS+ operation (not in hot loops). |
 | Poly API Consistency | MEDIUM | Ergonomics | ML-KEM uses module functions (`poly_add()`), ML-DSA uses methods (`.add()`). Standardize to methods |
 | k_pke Internal Validation | LOW | Defense-in-depth | `k_pke_encrypt`/`k_pke_decrypt` accept `&[u8]` with no length validation; panics on short input via `try_into().unwrap()`. Currently protected by ML-KEM layer validation (PR #132), but direct `pub(crate)` callers are unguarded. |
-| SLH-DSA: MGF1 Deduplication | LOW | Code quality | `mgf1_sha256` and `mgf1_sha512` in `hash_sha2.rs` share identical structure. Extract a generic MGF1 helper parameterized by hash function. |
-| SLH-DSA: `any-variant` Meta-Feature | LOW | Maintainability | The 12-variant `#[cfg(any(feature = "slh-dsa-shake-128s", ...))]` list is duplicated in 4 places (`lib.rs`, `params.rs`, `acvp_tests.rs`, `proptest_properties.rs`). Add an internal `any-variant` feature activated by each variant feature to reduce duplication and prevent sync errors when adding new variants. |
+| ML-DSA: sign.rs Function Splitting | HIGH | Maintainability | `ml_dsa_sign()` is ~475 lines and `ml_dsa_verify()` is ~287 lines with 38 debug `eprintln!` blocks scattered throughout. Extract hint computation, signature encoding, and debug logging into separate functions. Requires careful data flow analysis of cryptographic signing core. |
+| SLH-DSA: parallel/sequential Sign Dedup | MEDIUM | Code quality | `slh_sign_impl()` has parallel and sequential versions (~90 lines each) that differ only in trait bounds (`Send + Sync`), FORS sign function call, and address mutability semantics. Unification is non-trivial due to Rust's inability to conditionally apply trait bounds. |
 
 #### API Consistency Note
 
