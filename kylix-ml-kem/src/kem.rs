@@ -10,6 +10,7 @@
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 
+use crate::encode::check_ek_modulus;
 use crate::hash::{hash_g, hash_h, hash_j};
 use crate::k_pke::{k_pke_decrypt, k_pke_encrypt, k_pke_keygen};
 use kylix_core::{Error, Result};
@@ -79,7 +80,8 @@ pub fn ml_kem_keygen<const K: usize, const ETA1: usize>(
 /// * `shared_secret` - 32-byte shared secret
 ///
 /// # Errors
-/// Returns [`Error::InvalidKeyLength`] if `ek` length is not `K * 384 + 32`.
+/// - [`Error::InvalidKeyLength`] if `ek` length is not `K * 384 + 32`.
+/// - [`Error::EncodingError`] if any decoded 12-bit coefficient in `ek` is `>= q` (FIPS 203 §7.2 modulus check).
 ///
 /// # Algorithm
 /// 1. h = H(ek)
@@ -102,6 +104,11 @@ pub fn ml_kem_encaps<
             expected: expected_ek_size,
             actual: ek.len(),
         });
+    }
+
+    // FIPS 203 §7.2: Modulus check — verify all ek coefficients are in [0, q-1]
+    if !check_ek_modulus(ek) {
+        return Err(Error::EncodingError);
     }
 
     // 1. h = H(ek)
@@ -146,6 +153,7 @@ pub fn ml_kem_encaps<
 /// # Errors
 /// - [`Error::InvalidKeyLength`] if `dk` length is not `K * 768 + 96`
 /// - [`Error::InvalidCiphertextLength`] if `c` length is not `32 * (K * DU + DV)`
+/// - [`Error::EncodingError`] if any decoded 12-bit coefficient in the embedded `ek` is `>= q` (defense-in-depth check on stored key).
 ///
 /// # Algorithm (with implicit rejection)
 /// 1. Parse dk as (dk_pke || ek || h || z)
@@ -196,6 +204,13 @@ pub fn ml_kem_decaps<
     let z: &[u8; 32] = z_bytes
         .try_into()
         .expect("infallible: z_bytes is 32 bytes after dk length check");
+
+    // Defense-in-depth: validate embedded ek coefficients are in [0, q-1].
+    // Not mandated by FIPS 203 Algorithm 18 (ek in dk is internally generated),
+    // but guards against corrupted or tampered decapsulation keys.
+    if !check_ek_modulus(ek) {
+        return Err(Error::EncodingError);
+    }
 
     // 1. m' = K-PKE.Decrypt(dk_pke, c)
     let m_prime = k_pke_decrypt::<K, DU, DV>(dk_pke, c);
@@ -506,6 +521,78 @@ mod tests {
     }
 
     #[test]
+    fn test_ml_kem_encaps_invalid_ek_coefficient() {
+        let d = [0x42u8; 32];
+        let z = [0x43u8; 32];
+        let m = [0x55u8; 32];
+
+        let (_, original_ek) = ml_kem_keygen::<K768, ETA1_768>(&d, &z);
+
+        // Test with coefficient = Q (3329)
+        let mut ek = original_ek.clone();
+        // Set a 12-bit coefficient to Q (3329) — invalid
+        // Bytes [0..3] encode two 12-bit coefficients:
+        //   c0 = b0 | ((b1 & 0x0F) << 8)
+        //   c1 = (b1 >> 4) | (b2 << 4)
+        // Set c0 = 3329 = 0xD01: b0 = 0x01, b1 low nibble = 0x0D
+        let b1_high = ek[1] & 0xF0;
+        ek[0] = 0x01;
+        ek[1] = b1_high | 0x0D;
+
+        let result = ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &m);
+        assert!(matches!(result, Err(Error::EncodingError)));
+
+        // Also test with coefficient = 0xFFF (4095)
+        let mut ek2 = original_ek.clone();
+        // Set c0 = 0xFFF: b0 = 0xFF, b1 low nibble = 0x0F
+        let b1_high = ek2[1] & 0xF0;
+        ek2[0] = 0xFF;
+        ek2[1] = b1_high | 0x0F;
+
+        let result = ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek2, &m);
+        assert!(matches!(result, Err(Error::EncodingError)));
+
+        // Test with c1 invalid (second coefficient in the 3-byte group)
+        // c1 = (b1 >> 4) | (b2 << 4) = 0xD01 = Q = 3329
+        // b1 high nibble = 0x10 (>> 4 = 0x01), b2 = 0xD0 (<< 4 = 0xD00)
+        let mut ek3 = original_ek.clone();
+        let b1_low = ek3[1] & 0x0F;
+        ek3[1] = b1_low | 0x10;
+        ek3[2] = 0xD0;
+
+        let result = ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek3, &m);
+        assert!(matches!(result, Err(Error::EncodingError)));
+    }
+
+    #[test]
+    fn test_ml_kem_encaps_valid_ek_max_coefficient() {
+        let m = [0x55u8; 32];
+        let ek_size = K768 * 384 + 32;
+        let t_size = K768 * 384;
+
+        // Craft an ek where all polynomial coefficients are Q-1 (3328 = 0xD00).
+        // Each 3-byte chunk [b0, b1, b2] encodes two 12-bit coefficients c0 and c1.
+        // For c0 = c1 = 0xD00 we choose [b0, b1, b2] = [0x00, 0x0D, 0xD0], so that:
+        //   c0 = b0 | ((b1 & 0x0F) << 8) = 0x00 | (0x0D << 8) = 0xD00
+        //   c1 = (b1 >> 4) | (b2 << 4)   = 0x00 | (0xD0 << 4) = 0xD00
+        // Thus every encoded coefficient equals Q-1 and still satisfies c < Q.
+        let mut ek = vec![0u8; ek_size];
+        for chunk in ek[..t_size].chunks_exact_mut(3) {
+            chunk[0] = 0x00;
+            chunk[1] = 0x0D;
+            chunk[2] = 0xD0;
+        }
+        // rho can be anything
+        for b in &mut ek[t_size..] {
+            *b = 0xAA;
+        }
+
+        // Should pass the modulus check (all coefficients = Q-1 = 3328 < Q)
+        let result = ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &m);
+        assert!(result.is_ok());
+    }
+
+    #[test]
     fn test_ml_kem_validation_all_variants() {
         let m = [0x55u8; 32];
 
@@ -565,5 +652,30 @@ mod tests {
             Err(Error::InvalidCiphertextLength { expected, actual })
                 if expected == expected_ct_1024 && actual == 1
         ));
+    }
+
+    #[test]
+    fn test_ml_kem_decaps_invalid_ek_in_dk() {
+        // Construct a dk with a corrupted ek (coefficient >= Q)
+        let dk_pke_size = K768 * 384;
+        let ek_size = K768 * 384 + 32;
+        let dk_size = dk_pke_size + ek_size + 32 + 32; // dk_pke || ek || h || z
+        let ct_size = 32 * (K768 * DU_768 + DV_768);
+
+        let ct = vec![0u8; ct_size];
+
+        // c0 invalid: coefficient = Q (3329 = 0xD01)
+        let mut dk = vec![0u8; dk_size];
+        dk[dk_pke_size] = 0x01; // b0 of first ek chunk
+        dk[dk_pke_size + 1] = 0x0D; // b1 low nibble => c0 = 0xD01 = 3329
+        let result = ml_kem_decaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&dk, &ct);
+        assert!(matches!(result, Err(Error::EncodingError)));
+
+        // c1 invalid: coefficient = Q (3329 = 0xD01) in second position
+        let mut dk2 = vec![0u8; dk_size];
+        dk2[dk_pke_size + 1] = 0x10; // b1 high nibble => c1 high bits
+        dk2[dk_pke_size + 2] = 0xD0; // b2 => c1 = (0x10>>4) | (0xD0<<4) = 0xD01
+        let result = ml_kem_decaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&dk2, &ct);
+        assert!(matches!(result, Err(Error::EncodingError)));
     }
 }

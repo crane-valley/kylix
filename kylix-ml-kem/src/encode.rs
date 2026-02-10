@@ -12,6 +12,21 @@
 
 use crate::params::common::Q;
 use crate::poly::Poly;
+use subtle::{Choice, ConstantTimeLess};
+
+/// Unpack two 12-bit coefficients from a 3-byte chunk (ByteDecode12).
+///
+/// Layout: `c0 = b0 | ((b1 & 0x0F) << 8)`, `c1 = (b1 >> 4) | (b2 << 4)`
+#[inline]
+fn unpack_12bit_coeffs(chunk: &[u8]) -> (u16, u16) {
+    debug_assert_eq!(chunk.len(), 3);
+    let b0 = chunk[0] as u16;
+    let b1 = chunk[1] as u16;
+    let b2 = chunk[2] as u16;
+    let c0 = b0 | ((b1 & 0x0F) << 8);
+    let c1 = (b1 >> 4) | (b2 << 4);
+    (c0, c1)
+}
 
 /// Encode a polynomial to bytes using 12-bit coefficients.
 ///
@@ -53,19 +68,19 @@ pub fn poly_to_bytes(poly: &Poly) -> [u8; 384] {
 /// # Returns
 /// Decoded polynomial with coefficients in [0, q-1]
 pub fn poly_from_bytes(bytes: &[u8]) -> Poly {
+    debug_assert!(
+        bytes.len() >= 384,
+        "poly_from_bytes requires at least 384 bytes"
+    );
     let mut poly = Poly::new();
 
-    for i in 0..128 {
-        // Three bytes -> two coefficients
-        let b0 = bytes[3 * i] as u16;
-        let b1 = bytes[3 * i + 1] as u16;
-        let b2 = bytes[3 * i + 2] as u16;
+    // Decode exactly 128 coefficient pairs (256 coefficients) from the first
+    // 384 bytes. The .take(128) bound prevents OOB writes if bytes > 384.
+    for (i, chunk) in bytes.chunks_exact(3).take(128).enumerate() {
+        let (c0, c1) = unpack_12bit_coeffs(chunk);
 
-        // Unpack two 12-bit values from 3 bytes
-        let c0 = b0 | ((b1 & 0x0F) << 8);
-        let c1 = (b1 >> 4) | (b2 << 4);
-
-        // Reduce mod q (mask to 12 bits for valid input)
+        // Reduce mod q — redundant for ek inputs pre-validated by check_ek_modulus,
+        // but necessary for other callers (e.g., secret key deserialization in k_pke_decrypt).
         poly.coeffs[2 * i] = (c0 % Q) as i16;
         poly.coeffs[2 * i + 1] = (c1 % Q) as i16;
     }
@@ -332,6 +347,52 @@ fn byte_decode_11(bytes: &[u8]) -> Poly {
     poly
 }
 
+// --- Validation ---
+
+/// Check that all 12-bit ByteDecode12-decoded coefficients in an encapsulation key are `< Q`.
+///
+/// FIPS 203 §7.2 (Algorithm 17) requires this type check on the encapsulation key
+/// before encapsulation. The `t` portion of `ek` (excluding the 32-byte `rho`
+/// suffix) is interpreted using the same ByteDecode12 unpacking as
+/// [`poly_from_bytes`], yielding 12-bit decoded coefficients in the range
+/// `[0, 2^12 - 1]`. This function enforces that each such decoded coefficient
+/// satisfies `decoded < Q`. Values outside `[0, 2^12 - 1]` are not representable
+/// via the encoding.
+///
+/// # Arguments
+/// * `ek` - Full encapsulation key bytes: one or more 384-byte polynomials
+///   followed by a 32-byte rho suffix (i.e., `n*384 + 32` with `n >= 1`)
+///
+/// # Returns
+/// `true` if every 12-bit decoded coefficient in the `t` portion satisfies
+/// `decoded < Q`, `false` otherwise.
+pub(crate) fn check_ek_modulus(ek: &[u8]) -> bool {
+    // ek must contain the 32-byte rho suffix plus at least one polynomial
+    if ek.len() <= 32 {
+        return false;
+    }
+
+    // Check t bytes only (exclude 32-byte rho suffix)
+    let t_len = ek.len() - 32;
+
+    // t portion must consist of whole 384-byte polynomials (K * 384 bytes)
+    if t_len % 384 != 0 {
+        return false;
+    }
+
+    let t_bytes = &ek[..t_len];
+    // Constant-time coefficient scan: accumulate validity using subtle::Choice
+    // to avoid leaking the position of any invalid coefficient via timing.
+    // The early returns above on length/alignment are not secret-dependent.
+    let mut all_valid = Choice::from(1u8);
+    for chunk in t_bytes.chunks_exact(3) {
+        let (c0, c1) = unpack_12bit_coeffs(chunk);
+        all_valid &= c0.ct_lt(&Q);
+        all_valid &= c1.ct_lt(&Q);
+    }
+    all_valid.into()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -490,5 +551,81 @@ mod tests {
         for i in 0..N {
             assert_eq!(poly.coeffs[i], recovered.coeffs[i], "Mismatch at {}", i);
         }
+    }
+
+    #[test]
+    fn test_check_ek_modulus_valid() {
+        // Build a valid ek: K=3 polynomials (3*384 bytes) + 32-byte rho
+        let ek_size = 3 * 384 + 32;
+        let t_size = 3 * 384;
+
+        // All coefficients = 0 (valid)
+        let ek_zeros = vec![0u8; ek_size];
+        assert!(check_ek_modulus(&ek_zeros));
+
+        // All coefficients = Q-1 = 3328 = 0xD00
+        // c0 = b0 | ((b1 & 0x0F) << 8) = 0x00 | (0x0D << 8) = 0xD00
+        // c1 = (b1 >> 4) | (b2 << 4) = 0x00 | (0xD0 << 4) = 0xD00
+        let mut ek_max = vec![0u8; ek_size];
+        for chunk in ek_max[..t_size].chunks_exact_mut(3) {
+            chunk[0] = 0x00;
+            chunk[1] = 0x0D;
+            chunk[2] = 0xD0;
+        }
+        assert!(check_ek_modulus(&ek_max));
+    }
+
+    #[test]
+    fn test_check_ek_modulus_invalid() {
+        let ek_size = 3 * 384 + 32;
+        let t_size = 3 * 384;
+
+        // c0 = Q = 3329 = 0xD01
+        // b0 = 0x01, b1 low nibble = 0x0D
+        let mut ek = vec![0u8; ek_size];
+        ek[0] = 0x01;
+        ek[1] = 0x0D;
+        assert!(!check_ek_modulus(&ek));
+
+        // c1 = Q = 3329 = 0xD01
+        // c1 = (b1 >> 4) | (b2 << 4)
+        // Need (b1 >> 4) | (b2 << 4) = 0xD01
+        // b1 high nibble = 0x10 (>> 4 = 0x01), b2 = 0xD0 (<< 4 = 0xD00)
+        // 0x01 | 0xD00 = 0xD01 = 3329
+        let mut ek2 = vec![0u8; ek_size];
+        ek2[1] = 0x10;
+        ek2[2] = 0xD0;
+        assert!(!check_ek_modulus(&ek2));
+
+        // c0 = 0xFFF = 4095 (max 12-bit value, well above Q)
+        let mut ek3 = vec![0u8; ek_size];
+        ek3[0] = 0xFF;
+        ek3[1] = 0x0F;
+        assert!(!check_ek_modulus(&ek3));
+
+        // c1 = 0xFFF = 4095 (max 12-bit value in second coefficient position)
+        // c1 = (b1 >> 4) | (b2 << 4) = 0xFFF
+        // b1 high nibble = 0xF0 (>> 4 = 0x0F), b2 = 0xFF (<< 4 = 0xFF0)
+        // 0x0F | 0xFF0 = 0xFFF = 4095
+        let mut ek3b = vec![0u8; ek_size];
+        ek3b[1] = 0xF0;
+        ek3b[2] = 0xFF;
+        assert!(!check_ek_modulus(&ek3b));
+
+        // Invalid coefficient in the middle of the ek
+        let mut ek4 = vec![0u8; ek_size];
+        let mid = t_size / 2;
+        let mid_aligned = mid - (mid % 3); // align to chunk boundary
+        ek4[mid_aligned] = 0x01;
+        ek4[mid_aligned + 1] = 0x0D;
+        assert!(!check_ek_modulus(&ek4));
+
+        // Degenerate inputs: too short, rho-only, or non-polynomial-aligned
+        assert!(!check_ek_modulus(&[]));
+        assert!(!check_ek_modulus(&[0u8; 31]));
+        assert!(!check_ek_modulus(&[0u8; 32])); // rho-only, no t portion
+        assert!(!check_ek_modulus(&[0u8; 35])); // t_len=3, not a multiple of 384
+        assert!(!check_ek_modulus(&[0u8; 32 + 383])); // one byte short of a polynomial
+        assert!(!check_ek_modulus(&[0u8; 32 + 384 + 1])); // one byte over one polynomial
     }
 }
