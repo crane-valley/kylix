@@ -3,6 +3,9 @@
 //! This module contains test vectors derived from NIST ACVP and reference implementations
 //! to verify correctness of the ML-KEM implementation.
 
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
+
 use crate::kem::{ml_kem_decaps, ml_kem_encaps, ml_kem_keygen};
 
 /// Helper to decode hex string to bytes

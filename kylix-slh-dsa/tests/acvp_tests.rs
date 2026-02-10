@@ -1,3 +1,7 @@
+// Helpers and structs are used by feature-gated test functions; allow dead_code
+// when compiling without variant features (e.g., --no-default-features).
+#![allow(dead_code, unused_macros, unused_imports)]
+
 //! NIST ACVP (Automated Cryptographic Validation Protocol) tests for SLH-DSA.
 //!
 //! These tests use official NIST test vectors from:

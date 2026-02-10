@@ -703,6 +703,7 @@ pub mod slh_dsa_sha2_256f {
 
 #[cfg(test)]
 mod tests {
+    #[allow(unused_imports)]
     use super::*;
 
     #[cfg(feature = "slh-dsa-shake-128s")]

@@ -248,6 +248,8 @@ pub fn ml_kem_decaps<
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(not(feature = "std"))]
+    use alloc::vec;
 
     // ML-KEM-512 parameters
     const K512: usize = 2;

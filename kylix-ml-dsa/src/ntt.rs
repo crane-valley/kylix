@@ -184,15 +184,19 @@ mod tests {
 
         // The result should be: inv_ntt(a_hat ⊙ b_hat) = (a * b) where the R's cancel
         // Let's check
-        eprintln!("a_orig = [1, 0, 0, ...]");
-        eprintln!("b_orig = [1, 0, 0, ...]");
-        eprintln!("Expected a*b = [1, 0, 0, ...]");
-        eprintln!("Actual c[0..4] = {:?}", &c[0..4]);
+        #[cfg(feature = "std")]
+        {
+            eprintln!("a_orig = [1, 0, 0, ...]");
+            eprintln!("b_orig = [1, 0, 0, ...]");
+            eprintln!("Expected a*b = [1, 0, 0, ...]");
+            eprintln!("Actual c[0..4] = {:?}", &c[0..4]);
+        }
 
         // With caddq for normalization
         for i in 0..N {
             c[i] = caddq(c[i]);
         }
+        #[cfg(feature = "std")]
         eprintln!("After caddq, c[0..4] = {:?}", &c[0..4]);
 
         // Check if c[0] = 1

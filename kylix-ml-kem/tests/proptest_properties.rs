@@ -1,3 +1,7 @@
+// Helpers are used by feature-gated test modules; allow dead_code
+// when compiling without variant features (e.g., --no-default-features).
+#![allow(dead_code)]
+
 //! Property-based tests for ML-KEM using proptest.
 //!
 //! These tests verify fundamental cryptographic properties:
