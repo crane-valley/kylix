@@ -32,6 +32,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | Poly API Consistency | MEDIUM | Ergonomics | ML-KEM uses module functions (`poly_add()`), ML-DSA uses methods (`.add()`). Standardize to methods |
 | k_pke Internal Validation | LOW | Defense-in-depth | `k_pke_encrypt`/`k_pke_decrypt` accept `&[u8]` with no length validation; panics on short input via `try_into().unwrap()`. Currently protected by ML-KEM layer validation (PR #132), but direct `pub(crate)` callers are unguarded. |
 | SLH-DSA: MGF1 Deduplication | LOW | Code quality | `mgf1_sha256` and `mgf1_sha512` in `hash_sha2.rs` share identical structure. Extract a generic MGF1 helper parameterized by hash function. |
+| SLH-DSA: `any-variant` Meta-Feature | LOW | Maintainability | The 12-variant `#[cfg(any(feature = "slh-dsa-shake-128s", ...))]` list is duplicated in 4 places (`lib.rs`, `params.rs`, `acvp_tests.rs`, `proptest_properties.rs`). Add an internal `any-variant` feature activated by each variant feature to reduce duplication and prevent sync errors when adding new variants. |
 
 #### API Consistency Note
 
