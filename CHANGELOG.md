@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-02-11
+
+### Security
+
+- **Constant-time hypertree verify**: Replace `==` with `ct_eq` in `ht_verify` to prevent timing side-channel attacks during SLH-DSA signature verification (#131)
+- **Constant-time polyvec norm check**: Replace early-return pattern in ML-DSA `check_norm` with constant-time accumulation using `subtle::Choice` (#131)
+- **SHA-512 for SHA2 category 3/5**: Implement SHA-512 for H, T_l, PRFmsg, and Hmsg in SLH-DSA 192/256-bit SHA2 parameter sets per FIPS 205 §10.2 (#131)
+- **ML-KEM input validation**: `ml_kem_encaps` and `ml_kem_decaps` now validate key lengths upfront, returning `Error::InvalidKeyLength` instead of panicking (#132)
+- **FIPS 203 §7.2 ek modulus check**: Validate that all encapsulation key coefficients are in `[0, q-1]` using constant-time accumulation in `ml_kem_encaps` and `ml_kem_decaps` (#138)
+
+### Refactored
+
+- **SLH-DSA cfg deduplication**: Introduce `any-variant` and `any-sha2-variant` internal meta-features, replacing 12-variant `#[cfg(any(...))]` lists across 5 files (#141)
+- **SLH-DSA MGF1 genericization**: Unify `mgf1_sha256`/`mgf1_sha512` into a single `mgf1<D: Digest + Clone>` generic function (#141)
+- **Clippy clean**: Fix `--no-default-features` clippy warnings across all crates with proper `#[cfg]` gating (#129, #139)
+
+### Docs
+
+- **docs.rs metadata**: Add `all-features = true` to all crates for complete documentation on docs.rs (#140)
+- **README**: Add Changelog section and SLH-DSA-SHA2 feature documentation (#132, #140)
+
+### Dependencies
+
+- Bump `proptest` from 1.9.0 to 1.10.0 (#136)
+
 ## [0.4.4] - 2026-02-02
 
 ### Added
@@ -187,7 +212,8 @@ CLI-only release with security improvements and new features.
 - Constant-time operations using `subtle` crate
 - Zeroization of sensitive data using `zeroize` crate
 
-[Unreleased]: https://github.com/crane-valley/kylix/compare/v0.4.4...HEAD
+[Unreleased]: https://github.com/crane-valley/kylix/compare/v0.4.5...HEAD
+[0.4.5]: https://github.com/crane-valley/kylix/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/crane-valley/kylix/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/crane-valley/kylix/compare/v0.4.2-cli...v0.4.3
 [0.4.2-cli]: https://github.com/crane-valley/kylix/compare/v0.4.2...v0.4.2-cli
