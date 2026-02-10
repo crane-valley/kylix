@@ -1,5 +1,6 @@
-// Skip compilation entirely when no variant features are enabled
-// (e.g., --no-default-features), since all test functions are feature-gated.
+// Skip compilation when no SLH-DSA variant feature is enabled
+// (e.g., --no-default-features). The `any-variant` meta-feature is activated
+// by each concrete variant feature (slh-dsa-shake-*, slh-dsa-sha2-*).
 #![cfg(feature = "any-variant")]
 
 //! NIST ACVP (Automated Cryptographic Validation Protocol) tests for SLH-DSA.
