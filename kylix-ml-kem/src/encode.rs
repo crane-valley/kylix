@@ -14,7 +14,7 @@ use crate::params::common::Q;
 use crate::poly::Poly;
 use subtle::{Choice, ConstantTimeLess};
 
-/// Unpack two 12-bit coefficients from a 3-byte chunk (ByteDecode₁₂).
+/// Unpack two 12-bit coefficients from a 3-byte chunk (ByteDecode12).
 ///
 /// Layout: `c0 = b0 | ((b1 & 0x0F) << 8)`, `c1 = (b1 >> 4) | (b2 << 4)`
 #[inline]
