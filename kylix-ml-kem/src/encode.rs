@@ -18,7 +18,7 @@ use subtle::{Choice, ConstantTimeLess};
 ///
 /// Layout: `c0 = b0 | ((b1 & 0x0F) << 8)`, `c1 = (b1 >> 4) | (b2 << 4)`
 #[inline]
-fn unpack_12bit_coeffs(chunk: &[u8]) -> (u16, u16) {
+fn unpack_12bit_coeffs(chunk: &[u8; 3]) -> (u16, u16) {
     let b0 = chunk[0] as u16;
     let b1 = chunk[1] as u16;
     let b2 = chunk[2] as u16;
@@ -70,7 +70,7 @@ pub fn poly_from_bytes(bytes: &[u8]) -> Poly {
     let mut poly = Poly::new();
 
     for i in 0..128 {
-        let (c0, c1) = unpack_12bit_coeffs(&bytes[3 * i..3 * i + 3]);
+        let (c0, c1) = unpack_12bit_coeffs(bytes[3 * i..3 * i + 3].try_into().unwrap());
 
         // Reduce mod q — redundant for ek inputs pre-validated by check_ek_modulus,
         // but necessary for other callers (e.g., secret key deserialization in k_pke_decrypt).
@@ -347,11 +347,11 @@ fn byte_decode_11(bytes: &[u8]) -> Poly {
 /// FIPS 203 §7.2 (Algorithm 17) requires this type check on the encapsulation key
 /// before encapsulation. Each pair of 12-bit coefficients is unpacked from the
 /// t portion of ek (excluding the 32-byte rho suffix) and checked against Q.
-/// Uses the same ByteDecode₁₂ unpacking as [`poly_from_bytes`].
+/// Uses the same ByteDecode12 unpacking as [`poly_from_bytes`].
 ///
 /// # Arguments
-/// * `ek` - Full encapsulation key bytes (32-byte rho suffix plus one or more
-///   384-byte polynomials, i.e., `32 + n*384` with `n >= 1`)
+/// * `ek` - Full encapsulation key bytes: one or more 384-byte polynomials
+///   followed by a 32-byte rho suffix (i.e., `n*384 + 32` with `n >= 1`)
 ///
 /// # Returns
 /// `true` if all coefficients are valid (< Q), `false` otherwise
@@ -375,7 +375,7 @@ pub(crate) fn check_ek_modulus(ek: &[u8]) -> bool {
     // The early returns above on length/alignment are not secret-dependent.
     let mut all_valid = Choice::from(1u8);
     for chunk in t_bytes.chunks_exact(3) {
-        let (c0, c1) = unpack_12bit_coeffs(chunk);
+        let (c0, c1) = unpack_12bit_coeffs(chunk.try_into().unwrap());
         all_valid &= c0.ct_lt(&Q);
         all_valid &= c1.ct_lt(&Q);
     }
