@@ -42,5 +42,9 @@ kylix-ml-kem = { workspace = true, optional = true }
 kylix-ml-dsa = { workspace = true, optional = true }
 kylix-slh-dsa = { workspace = true, optional = true }
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [dev-dependencies]
 rand = "0.9"

@@ -158,6 +158,10 @@ See the [kylix-cli repository](https://github.com/crane-valley/kylix-cli) for fu
 | `kylix-ml-dsa` | ML-DSA (FIPS 204) implementation |
 | `kylix-slh-dsa` | SLH-DSA (FIPS 205) implementation |
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release history.
+
 ## Minimum Supported Rust Version
 
 This crate requires Rust 1.75 or later.
