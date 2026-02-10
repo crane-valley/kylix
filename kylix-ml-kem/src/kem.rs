@@ -555,7 +555,7 @@ mod tests {
         // Test with c1 invalid (second coefficient in the 3-byte group)
         // c1 = (b1 >> 4) | (b2 << 4) = 0xD01 = Q = 3329
         // b1 high nibble = 0x10 (>> 4 = 0x01), b2 = 0xD0 (<< 4 = 0xD00)
-        let mut ek3 = original_ek;
+        let mut ek3 = original_ek.clone();
         let b1_low = ek3[1] & 0x0F;
         ek3[1] = b1_low | 0x10;
         ek3[2] = 0xD0;
@@ -570,13 +570,12 @@ mod tests {
         let ek_size = K768 * 384 + 32;
         let t_size = K768 * 384;
 
-        // Craft an ek where all coefficients are Q-1 (3328 = 0xD00)
-        // c0 = 0xD00: b0 = 0x00, b1 low = 0x0D
-        // c1 = 0xD00: b1 high = 0x00, b2 = 0x0D0 >> 4... let's compute:
-        // c1 = (b1 >> 4) | (b2 << 4) = 0xD00
-        // b1 >> 4 = 0x00 (since b1 = 0x0D, b1 >> 4 = 0x00)
-        // b2 << 4 must give remaining: 0xD00 = (0x00) | (b2 << 4) => b2 = 0xD0
-        // Wait, recalc: b1 = 0x0D, b1 >> 4 = 0, b2 << 4 = 0xD00 => b2 = 0xD0
+        // Craft an ek where all polynomial coefficients are Q-1 (3328 = 0xD00).
+        // Each 3-byte chunk [b0, b1, b2] encodes two 12-bit coefficients c0 and c1.
+        // For c0 = c1 = 0xD00 we choose [b0, b1, b2] = [0x00, 0x0D, 0xD0], so that:
+        //   c0 = b0 | ((b1 & 0x0F) << 8) = 0x00 | (0x0D << 8) = 0xD00
+        //   c1 = (b1 >> 4) | (b2 << 4)   = 0x00 | (0xD0 << 4) = 0xD00
+        // Thus every encoded coefficient equals Q-1 and still satisfies c < Q.
         let mut ek = vec![0u8; ek_size];
         for chunk in ek[..t_size].chunks_exact_mut(3) {
             chunk[0] = 0x00;
