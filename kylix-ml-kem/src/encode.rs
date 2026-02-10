@@ -18,7 +18,8 @@ use subtle::{Choice, ConstantTimeLess};
 ///
 /// Layout: `c0 = b0 | ((b1 & 0x0F) << 8)`, `c1 = (b1 >> 4) | (b2 << 4)`
 #[inline]
-fn unpack_12bit_coeffs(chunk: &[u8; 3]) -> (u16, u16) {
+fn unpack_12bit_coeffs(chunk: &[u8]) -> (u16, u16) {
+    debug_assert_eq!(chunk.len(), 3);
     let b0 = chunk[0] as u16;
     let b1 = chunk[1] as u16;
     let b2 = chunk[2] as u16;
@@ -70,7 +71,7 @@ pub fn poly_from_bytes(bytes: &[u8]) -> Poly {
     let mut poly = Poly::new();
 
     for (i, chunk) in bytes.chunks_exact(3).enumerate() {
-        let (c0, c1) = unpack_12bit_coeffs(chunk.try_into().unwrap());
+        let (c0, c1) = unpack_12bit_coeffs(chunk);
 
         // Reduce mod q — redundant for ek inputs pre-validated by check_ek_modulus,
         // but necessary for other callers (e.g., secret key deserialization in k_pke_decrypt).
@@ -375,7 +376,7 @@ pub(crate) fn check_ek_modulus(ek: &[u8]) -> bool {
     // The early returns above on length/alignment are not secret-dependent.
     let mut all_valid = Choice::from(1u8);
     for chunk in t_bytes.chunks_exact(3) {
-        let (c0, c1) = unpack_12bit_coeffs(chunk.try_into().unwrap());
+        let (c0, c1) = unpack_12bit_coeffs(chunk);
         all_valid &= c0.ct_lt(&Q);
         all_valid &= c1.ct_lt(&Q);
     }
