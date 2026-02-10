@@ -1,6 +1,9 @@
 // Helpers are used by feature-gated test modules; allow dead_code
 // when compiling without variant features (e.g., --no-default-features).
-#![allow(dead_code)]
+#![cfg_attr(
+    not(any(feature = "ml-dsa-44", feature = "ml-dsa-65", feature = "ml-dsa-87")),
+    allow(dead_code)
+)]
 
 //! Property-based tests for ML-DSA using proptest.
 //!

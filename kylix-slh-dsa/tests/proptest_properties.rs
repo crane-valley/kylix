@@ -1,6 +1,22 @@
 // Helpers are used by feature-gated test modules; allow dead_code
 // when compiling without variant features (e.g., --no-default-features).
-#![allow(dead_code)]
+#![cfg_attr(
+    not(any(
+        feature = "slh-dsa-shake-128s",
+        feature = "slh-dsa-shake-128f",
+        feature = "slh-dsa-shake-192s",
+        feature = "slh-dsa-shake-192f",
+        feature = "slh-dsa-shake-256s",
+        feature = "slh-dsa-shake-256f",
+        feature = "slh-dsa-sha2-128s",
+        feature = "slh-dsa-sha2-128f",
+        feature = "slh-dsa-sha2-192s",
+        feature = "slh-dsa-sha2-192f",
+        feature = "slh-dsa-sha2-256s",
+        feature = "slh-dsa-sha2-256f",
+    )),
+    allow(dead_code)
+)]
 
 //! Property-based tests for SLH-DSA using proptest.
 //!

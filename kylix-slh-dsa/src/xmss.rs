@@ -11,8 +11,10 @@ use crate::wots::{wots_pk_from_sig, wots_pk_gen, wots_sign_to};
 use zeroize::Zeroize;
 
 #[cfg(not(feature = "std"))]
-#[allow(unused_imports)]
-use alloc::{vec, vec::Vec};
+use alloc::vec::Vec;
+
+#[cfg(all(test, not(feature = "std")))]
+use alloc::vec;
 
 /// Compute a node in the XMSS Merkle tree.
 ///

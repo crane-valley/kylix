@@ -701,9 +701,24 @@ pub mod slh_dsa_sha2_256f {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(
+    test,
+    any(
+        feature = "slh-dsa-shake-128s",
+        feature = "slh-dsa-shake-128f",
+        feature = "slh-dsa-shake-192s",
+        feature = "slh-dsa-shake-192f",
+        feature = "slh-dsa-shake-256s",
+        feature = "slh-dsa-shake-256f",
+        feature = "slh-dsa-sha2-128s",
+        feature = "slh-dsa-sha2-128f",
+        feature = "slh-dsa-sha2-192s",
+        feature = "slh-dsa-sha2-192f",
+        feature = "slh-dsa-sha2-256s",
+        feature = "slh-dsa-sha2-256f",
+    )
+))]
 mod tests {
-    #[allow(unused_imports)]
     use super::*;
 
     #[cfg(feature = "slh-dsa-shake-128s")]
