@@ -58,6 +58,7 @@ Dudect-based timing tests in `timing/` directory.
 - ML-DSA sign: expected variance (rejection sampling)
 
 **Future work:**
+- ML-KEM `check_ek_modulus` dudect test (LOW — verify CT property of coefficient scan under release LTO)
 - ML-DSA subroutine-level timing tests (NTT, poly ops, secret vector operations)
 - SLH-DSA timing tests (LOW — inherently constant-time hash-based design)
 - Formal verification (ct-verif / ctgrind) for critical paths
