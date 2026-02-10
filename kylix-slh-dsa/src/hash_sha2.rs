@@ -77,18 +77,20 @@ fn adrs_compress(adrs: &Address) -> [u8; 22] {
     compressed
 }
 
-/// MGF1 mask generation function using SHA-256.
+/// MGF1 mask generation function, generic over hash algorithm.
 ///
-/// FIPS 205, Section 10.2: MGF1-SHA-256 for 128-bit security.
-fn mgf1_sha256(seed_parts: &[&[u8]], mask_len: usize) -> Vec<u8> {
-    const HASH_LEN: usize = 32; // SHA-256 output size
-    let num_blocks = mask_len.div_ceil(HASH_LEN);
+/// FIPS 205, Section 10.2:
+/// - MGF1-SHA-256 for 128-bit security (`mgf1::<Sha256>`)
+/// - MGF1-SHA-512 for 192/256-bit security (`mgf1::<Sha512>`)
+fn mgf1<D: Digest + Clone>(seed_parts: &[&[u8]], mask_len: usize) -> Vec<u8> {
+    let hash_len = <D as Digest>::output_size();
+    let num_blocks = mask_len.div_ceil(hash_len);
     let num_blocks_u32 =
         u32::try_from(num_blocks).expect("MGF1 counter overflow: mask_len too large");
     let mut output = Vec::with_capacity(mask_len);
 
     // Pre-hash all seed parts once, then clone for each block
-    let mut base_hasher = Sha256::new();
+    let mut base_hasher = D::new();
     for part in seed_parts {
         base_hasher.update(part);
     }
@@ -98,33 +100,7 @@ fn mgf1_sha256(seed_parts: &[&[u8]], mask_len: usize) -> Vec<u8> {
         hasher.update(i.to_be_bytes());
         let block = hasher.finalize();
         let remaining = mask_len - output.len();
-        output.extend_from_slice(&block[..remaining.min(HASH_LEN)]);
-    }
-
-    output
-}
-
-/// MGF1 mask generation function using SHA-512.
-///
-/// FIPS 205, Section 10.2: MGF1-SHA-512 for 192/256-bit security.
-fn mgf1_sha512(seed_parts: &[&[u8]], mask_len: usize) -> Vec<u8> {
-    const HASH_LEN: usize = 64; // SHA-512 output size
-    let num_blocks = mask_len.div_ceil(HASH_LEN);
-    let num_blocks_u32 =
-        u32::try_from(num_blocks).expect("MGF1 counter overflow: mask_len too large");
-    let mut output = Vec::with_capacity(mask_len);
-
-    let mut base_hasher = Sha512::new();
-    for part in seed_parts {
-        base_hasher.update(part);
-    }
-
-    for i in 0..num_blocks_u32 {
-        let mut hasher = base_hasher.clone();
-        hasher.update(i.to_be_bytes());
-        let block = hasher.finalize();
-        let remaining = mask_len - output.len();
-        output.extend_from_slice(&block[..remaining.min(HASH_LEN)]);
+        output.extend_from_slice(&block[..remaining.min(hash_len)]);
     }
 
     output
@@ -206,7 +182,7 @@ impl HashSuite for Sha2_128Hash {
             .chain(pk_root)
             .chain(message)
             .finalize();
-        let out = mgf1_sha256(&[r, pk_seed, &inner_hash], out_len);
+        let out = mgf1::<Sha256>(&[r, pk_seed, &inner_hash], out_len);
         inner_hash.zeroize();
         out
     }
@@ -365,7 +341,7 @@ macro_rules! impl_sha2_cat35_hash_suite {
                     .chain(pk_root)
                     .chain(message)
                     .finalize();
-                let out = mgf1_sha512(&[r, pk_seed, &inner_hash], out_len);
+                let out = mgf1::<Sha512>(&[r, pk_seed, &inner_hash], out_len);
                 inner_hash.zeroize();
                 out
             }
@@ -513,34 +489,34 @@ mod tests {
     #[test]
     fn test_mgf1_sha256() {
         let seed = b"test seed";
-        let output = mgf1_sha256(&[seed.as_slice()], 64);
+        let output = mgf1::<Sha256>(&[seed.as_slice()], 64);
         assert_eq!(output.len(), 64);
 
         // Verify determinism
-        assert_eq!(output, mgf1_sha256(&[seed.as_slice()], 64));
+        assert_eq!(output, mgf1::<Sha256>(&[seed.as_slice()], 64));
 
         // Verify prefix property (longer output starts with shorter output)
-        let output_32 = mgf1_sha256(&[seed.as_slice()], 32);
+        let output_32 = mgf1::<Sha256>(&[seed.as_slice()], 32);
         assert_eq!(&output[..32], &output_32[..]);
 
         // Verify multi-part seed produces correct concatenation
         let part1 = b"test ";
         let part2 = b"seed";
-        let output_multi = mgf1_sha256(&[part1.as_slice(), part2.as_slice()], 64);
+        let output_multi = mgf1::<Sha256>(&[part1.as_slice(), part2.as_slice()], 64);
         assert_eq!(output, output_multi);
     }
 
     #[test]
     fn test_mgf1_sha512() {
         let seed = b"test seed";
-        let output = mgf1_sha512(&[seed.as_slice()], 128);
+        let output = mgf1::<Sha512>(&[seed.as_slice()], 128);
         assert_eq!(output.len(), 128);
 
         // Verify determinism
-        assert_eq!(output, mgf1_sha512(&[seed.as_slice()], 128));
+        assert_eq!(output, mgf1::<Sha512>(&[seed.as_slice()], 128));
 
         // Verify prefix property
-        let output_64 = mgf1_sha512(&[seed.as_slice()], 64);
+        let output_64 = mgf1::<Sha512>(&[seed.as_slice()], 64);
         assert_eq!(&output[..64], &output_64[..]);
     }
 
