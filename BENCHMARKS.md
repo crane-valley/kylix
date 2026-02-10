@@ -196,6 +196,8 @@ cargo bench -p kylix-bench --features compare-all --bench comparison
 Benchmarks are located in the [kylix-cli](https://github.com/crane-valley/kylix-cli) repository (`kylix-bench` crate).
 
 ```bash
+# From the kylix-cli repo root:
+
 # Run all benchmarks
 cargo bench -p kylix-bench
 
