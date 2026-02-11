@@ -25,7 +25,7 @@ use zeroize::Zeroize;
 /// polynomial, and unused slots are zero. Returns total hint count if valid,
 /// `None` if invalid.
 fn validate_hints<const K: usize, const OMEGA: usize>(h: &[u8]) -> Option<usize> {
-    if h.len() < OMEGA + K {
+    if h.len() != OMEGA + K {
         return None;
     }
 
@@ -191,6 +191,7 @@ fn encode_signature<
     h: &[u8],
     gamma1_bits: u32,
 ) -> Vec<u8> {
+    debug_assert_eq!(c_tilde.len(), C_TILDE_BYTES, "c_tilde length mismatch");
     let z_bytes = match gamma1_bits {
         17 => 576,
         19 => 640,
