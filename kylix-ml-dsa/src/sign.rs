@@ -15,6 +15,197 @@ use crate::sample::{sample_eta, sample_in_ball, sample_mask, sample_ntt};
 
 use zeroize::Zeroize;
 
+// ---------------------------------------------------------------------------
+// Helper functions
+// ---------------------------------------------------------------------------
+
+/// Validate hint encoding per FIPS 204 canonical requirements.
+///
+/// Checks that hint positions are within bounds, strictly increasing per
+/// polynomial, and unused slots are zero. Returns total hint count if valid,
+/// `None` if invalid.
+fn validate_hints<const K: usize, const OMEGA: usize>(h: &[u8]) -> Option<usize> {
+    let mut hint_count = 0;
+    for i in 0..K {
+        let start = if i == 0 { 0 } else { h[OMEGA + i - 1] as usize };
+        let end = h[OMEGA + i] as usize;
+
+        if end > OMEGA || end < start {
+            return None;
+        }
+
+        let mut prev_pos: Option<u8> = None;
+        for idx in start..end {
+            let pos = h[idx];
+            if pos as usize >= N {
+                return None;
+            }
+            if let Some(p) = prev_pos {
+                if pos <= p {
+                    return None;
+                }
+            }
+            prev_pos = Some(pos);
+        }
+
+        hint_count = end;
+    }
+    if hint_count > OMEGA {
+        return None;
+    }
+
+    // Verify unused hint slots are zero (canonical encoding per FIPS 204).
+    // This prevents signature malleability where non-zero padding would be ignored.
+    for i in hint_count..OMEGA {
+        if h[i] != 0 {
+            return None;
+        }
+    }
+
+    Some(hint_count)
+}
+
+/// Apply hint vector to w' to recover w'1 = UseHint(h, w').
+fn apply_hints<const K: usize, const OMEGA: usize>(
+    w_prime: &PolyVecK<K>,
+    h: &[u8],
+    gamma2: i32,
+) -> PolyVecK<K> {
+    let mut w1_prime = PolyVecK::<K>::zero();
+    let mut hint_idx = 0;
+    for i in 0..K {
+        let end = h[OMEGA + i] as usize;
+        for j in 0..N {
+            let mut hint_val = 0;
+            while hint_idx < end && h[hint_idx] as usize == j {
+                hint_val = 1;
+                hint_idx += 1;
+            }
+            w1_prime.polys[i].coeffs[j] =
+                use_hint(hint_val, freeze(w_prime.polys[i].coeffs[j]), gamma2);
+        }
+        hint_idx = end;
+    }
+    w1_prime
+}
+
+/// Encode w1 polynomial vector for hashing.
+fn encode_w1<const K: usize>(w1: &PolyVecK<K>, gamma2: i32) -> Vec<u8> {
+    let w1_bytes = if gamma2 == 261888 { 128 } else { 192 };
+    let mut w1_encoded = vec![0u8; K * w1_bytes];
+    for i in 0..K {
+        pack_w1(
+            &w1.polys[i],
+            gamma2,
+            &mut w1_encoded[i * w1_bytes..(i + 1) * w1_bytes],
+        );
+    }
+    w1_encoded
+}
+
+/// Parse z vector from signature bytes.
+fn parse_z<const L: usize>(
+    sig: &[u8],
+    c_tilde_bytes: usize,
+    gamma1_bits: u32,
+    z_bytes: usize,
+) -> PolyVecL<L> {
+    let mut z = PolyVecL::<L>::zero();
+    for i in 0..L {
+        let offset = c_tilde_bytes + i * z_bytes;
+        if gamma1_bits == 17 {
+            unpack_z_17(&sig[offset..offset + z_bytes], &mut z.polys[i]);
+        } else {
+            unpack_z_19(&sig[offset..offset + z_bytes], &mut z.polys[i]);
+        }
+    }
+    z
+}
+
+/// Compute MakeHint vector for the signature.
+///
+/// Returns hint bytes (length OMEGA + K) or `None` if too many hints
+/// (caller should retry with a new mask).
+fn compute_hints<const K: usize, const OMEGA: usize>(
+    w: &PolyVecK<K>,
+    cs2: &PolyVecK<K>,
+    ct0: &PolyVecK<K>,
+    gamma2: i32,
+) -> Option<Vec<u8>> {
+    let mut h = vec![0u8; OMEGA + K];
+    let mut hint_count = 0;
+
+    for i in 0..K {
+        for j in 0..N {
+            // w' = w - cs2 + ct0 (what verify will compute)
+            let w_prime = w.polys[i].coeffs[j] - cs2.polys[i].coeffs[j] + ct0.polys[i].coeffs[j];
+
+            // FIPS 204: MakeHint(z, r) returns 1 if HighBits(r) ≠ HighBits(r+z)
+            // We want hint=1 when HighBits(w') ≠ HighBits(w)
+            // With r = w', r + z = w, so z = w - w' = cs2 - ct0
+            let hint_z = cs2.polys[i].coeffs[j] - ct0.polys[i].coeffs[j];
+            let hint = make_hint(freeze(hint_z), freeze(w_prime), gamma2);
+            if hint != 0 {
+                if hint_count >= OMEGA {
+                    return None;
+                }
+                h[hint_count] = j as u8;
+                hint_count += 1;
+            }
+        }
+        h[OMEGA + i] = hint_count as u8;
+    }
+
+    Some(h)
+}
+
+/// Center z coefficients and encode signature: c\_tilde || z || h.
+fn encode_signature<
+    const L: usize,
+    const OMEGA: usize,
+    const K: usize,
+    const C_TILDE_BYTES: usize,
+>(
+    c_tilde: &[u8],
+    z: &PolyVecL<L>,
+    h: &[u8],
+    gamma1_bits: u32,
+) -> Vec<u8> {
+    let z_bytes = if gamma1_bits == 17 { 576 } else { 640 };
+    let sig_size = C_TILDE_BYTES + L * z_bytes + OMEGA + K;
+    let mut sig = Vec::with_capacity(sig_size);
+
+    sig.extend_from_slice(c_tilde);
+
+    // Center z coefficients: pack_z expects [-gamma1, gamma1].
+    // z.reduce() puts values in [0, Q-1].
+    let mut z_centered = z.clone();
+    for poly in &mut z_centered.polys {
+        for c in &mut poly.coeffs {
+            if *c > (Q - 1) / 2 {
+                *c -= Q;
+            }
+        }
+    }
+
+    let mut z_buf = vec![0u8; z_bytes];
+    for i in 0..L {
+        if gamma1_bits == 17 {
+            pack_z_17(&z_centered.polys[i], &mut z_buf);
+        } else {
+            pack_z_19(&z_centered.polys[i], &mut z_buf);
+        }
+        sig.extend_from_slice(&z_buf);
+    }
+
+    sig.extend_from_slice(&h[..OMEGA + K]);
+    sig
+}
+
+// ---------------------------------------------------------------------------
+// Expanded verification
+// ---------------------------------------------------------------------------
+
 /// Expanded verification key with pre-computed values for fast repeated verification.
 ///
 /// This structure stores pre-computed values that would otherwise be
@@ -126,63 +317,19 @@ pub fn ml_dsa_verify_expanded<
         return false;
     }
 
-    // Parse signature - c_tilde has variable length based on security level
+    // Parse signature
     let c_tilde = &sig[0..C_TILDE_BYTES];
+    let z = parse_z::<L>(sig, C_TILDE_BYTES, gamma1_bits, z_bytes);
 
-    let mut z = PolyVecL::<L>::zero();
-    for i in 0..L {
-        let offset = C_TILDE_BYTES + i * z_bytes;
-        if gamma1_bits == 17 {
-            unpack_z_17(&sig[offset..offset + z_bytes], &mut z.polys[i]);
-        } else {
-            unpack_z_19(&sig[offset..offset + z_bytes], &mut z.polys[i]);
-        }
-    }
-
-    // Parse hints
     let h_start = C_TILDE_BYTES + L * z_bytes;
     let h = &sig[h_start..];
 
-    // Check z norm
     if !z.check_norm(GAMMA1 - BETA) {
         return false;
     }
 
-    // Check hint count and validate hint positions are strictly increasing
-    let mut hint_count = 0;
-    for i in 0..K {
-        let start = if i == 0 { 0 } else { h[OMEGA + i - 1] as usize };
-        let end = h[OMEGA + i] as usize;
-
-        if end > OMEGA || end < start {
-            return false;
-        }
-
-        let mut prev_pos: Option<u8> = None;
-        for idx in start..end {
-            let pos = h[idx];
-            if pos as usize >= N {
-                return false;
-            }
-            if let Some(p) = prev_pos {
-                if pos <= p {
-                    return false;
-                }
-            }
-            prev_pos = Some(pos);
-        }
-
-        hint_count = end;
-    }
-    if hint_count > OMEGA {
+    if validate_hints::<K, OMEGA>(h).is_none() {
         return false;
-    }
-
-    // Verify unused hint slots are zero
-    for i in hint_count..OMEGA {
-        if h[i] != 0 {
-            return false;
-        }
     }
 
     // Use pre-computed tr
@@ -209,41 +356,14 @@ pub fn ml_dsa_verify_expanded<
     }
     ct1_2d.reduce();
 
-    let mut w_prime_hat = az.sub(&ct1_2d);
-
-    w_prime_hat.reduce();
-    w_prime_hat.inv_ntt();
-    w_prime_hat.caddq();
-
-    let w_prime = w_prime_hat;
+    let mut w_prime = az.sub(&ct1_2d);
+    w_prime.reduce();
+    w_prime.inv_ntt();
+    w_prime.caddq();
 
     // Apply hints to get w'1
-    let mut w1_prime = PolyVecK::<K>::zero();
-    let mut hint_idx = 0;
-    for i in 0..K {
-        let end = h[OMEGA + i] as usize;
-        for j in 0..N {
-            let mut hint_val = 0;
-            while hint_idx < end && h[hint_idx] as usize == j {
-                hint_val = 1;
-                hint_idx += 1;
-            }
-            w1_prime.polys[i].coeffs[j] =
-                use_hint(hint_val, freeze(w_prime.polys[i].coeffs[j]), GAMMA2);
-        }
-        hint_idx = end;
-    }
-
-    // Encode w'1
-    let w1_bytes = if GAMMA2 == 261888 { 128 } else { 192 };
-    let mut w1_encoded = vec![0u8; K * w1_bytes];
-    for i in 0..K {
-        pack_w1(
-            &w1_prime.polys[i],
-            GAMMA2,
-            &mut w1_encoded[i * w1_bytes..(i + 1) * w1_bytes],
-        );
-    }
+    let w1_prime = apply_hints::<K, OMEGA>(&w_prime, h, GAMMA2);
+    let w1_encoded = encode_w1::<K>(&w1_prime, GAMMA2);
 
     // c_tilde' = H(mu || w1Encode(w'1))
     let mut c_tilde_prime = [0u8; 64];
@@ -252,6 +372,10 @@ pub fn ml_dsa_verify_expanded<
     // Verify c_tilde == c_tilde'
     c_tilde == &c_tilde_prime[..C_TILDE_BYTES]
 }
+
+// ---------------------------------------------------------------------------
+// Key generation helpers
+// ---------------------------------------------------------------------------
 
 /// Expand matrix A from seed rho.
 pub fn expand_a<const K: usize, const L: usize>(rho: &[u8; 32]) -> Matrix<K, L> {
@@ -284,6 +408,10 @@ pub fn expand_s<const K: usize, const L: usize, const ETA: usize>(
 
     (s1, s2)
 }
+
+// ---------------------------------------------------------------------------
+// ML-DSA.KeyGen (Algorithm 1)
+// ---------------------------------------------------------------------------
 
 /// ML-DSA Key Generation (Algorithm 1 - ML-DSA.KeyGen_internal)
 ///
@@ -402,6 +530,10 @@ pub fn ml_dsa_keygen<const K: usize, const L: usize, const ETA: usize>(
     (sk, pk)
 }
 
+// ---------------------------------------------------------------------------
+// ML-DSA.Sign (Algorithm 2)
+// ---------------------------------------------------------------------------
+
 /// ML-DSA Sign (Algorithm 2)
 ///
 /// Signs message with secret key, optionally using randomness rnd.
@@ -422,7 +554,6 @@ pub fn ml_dsa_sign<
 ) -> Option<Vec<u8>> {
     let eta_bytes = if ETA == 2 { 96 } else { 128 };
     let gamma1_bits = if GAMMA1 == (1 << 17) { 17 } else { 19 };
-    let z_bytes = if gamma1_bits == 17 { 576 } else { 640 };
 
     // Parse secret key
     let rho = &sk[0..32];
@@ -512,43 +643,11 @@ pub fn ml_dsa_sign<
             y.polys[i] = sample_mask(&rho_prime, nonce as u16, gamma1_bits);
         }
 
-        #[cfg(all(test, feature = "std"))]
-        if kappa == 0 {
-            let max_y = y.polys.iter().map(|p| p.norm_inf()).max().unwrap_or(0);
-            eprintln!("SIGN: max ||y||_inf = {}, gamma1 = {}", max_y, GAMMA1);
-        }
-
         // w = A * NTT(y)
         let mut y_hat = y.clone();
         y_hat.ntt();
 
-        #[cfg(all(test, feature = "std"))]
-        {
-            eprintln!(
-                "SIGN: A[0][0].coeffs[0..4] = {:?}",
-                &a.rows[0].polys[0].coeffs[0..4]
-            );
-            eprintln!(
-                "SIGN: y_hat[0].coeffs[0..4] = {:?}",
-                &y_hat.polys[0].coeffs[0..4]
-            );
-        }
-
-        let ay_ntt = a.mul_vec(&y_hat); // A*y in NTT domain (before reduce)
-
-        #[cfg(all(test, feature = "std"))]
-        {
-            eprintln!(
-                "SIGN: (A*y)_ntt[0].coeffs[0..4] = {:?}",
-                &ay_ntt.polys[0].coeffs[0..4]
-            );
-        }
-
-        // Clone for later use in debugging
-        #[cfg(all(test, feature = "std"))]
-        let ay_ntt_copy = ay_ntt.clone();
-
-        let mut w = ay_ntt;
+        let mut w = a.mul_vec(&y_hat);
         w.reduce();
         w.inv_ntt();
         w.caddq();
@@ -561,44 +660,15 @@ pub fn ml_dsa_sign<
             }
         }
 
-        #[cfg(all(test, feature = "std"))]
-        {
-            eprintln!("SIGN: w[0][12..20] = {:?}", &w.polys[0].coeffs[12..20]);
-            eprintln!("SIGN: w1[0][12..20] = {:?}", &w1.polys[0].coeffs[12..20]);
-        }
-
         // c_tilde = H(mu || w1Encode(w1))
-        let w1_bytes = if GAMMA2 == 261888 { 128 } else { 192 };
-        let mut w1_encoded = vec![0u8; K * w1_bytes];
-        for i in 0..K {
-            pack_w1(
-                &w1.polys[i],
-                GAMMA2,
-                &mut w1_encoded[i * w1_bytes..(i + 1) * w1_bytes],
-            );
-        }
-
-        // Store w1 for comparison with verify
-        #[cfg(all(test, feature = "std"))]
-        {
-            // Print per-polynomial checksums
-            let w1_bytes = if GAMMA2 == 261888 { 128 } else { 192 };
-            for i in 0..K {
-                let start = i * w1_bytes;
-                let poly_checksum: u64 = w1_encoded[start..start + w1_bytes]
-                    .iter()
-                    .map(|&b| b as u64)
-                    .sum();
-                eprintln!("SIGN: w1[{}] checksum = {}", i, poly_checksum);
-            }
-        }
+        let w1_encoded = encode_w1::<K>(&w1, GAMMA2);
 
         let mut c_tilde_full = [0u8; 64]; // Full hash output
         h2(&mu, &w1_encoded, &mut c_tilde_full);
         let c_tilde = &c_tilde_full[..C_TILDE_BYTES];
 
         // c = SampleInBall(c_tilde)
-        let c = sample_in_ball(&c_tilde, TAU);
+        let c = sample_in_ball(c_tilde, TAU);
 
         // z = y + c * s1
         let mut c_hat = c.clone();
@@ -606,38 +676,16 @@ pub fn ml_dsa_sign<
 
         let mut z = PolyVecL::<L>::zero();
         for i in 0..L {
-            let cs1 = c_hat.pointwise_mul(&s1_hat.polys[i]);
-            let mut cs1_poly = cs1;
+            let mut cs1_poly = c_hat.pointwise_mul(&s1_hat.polys[i]);
             cs1_poly.reduce();
             crate::ntt::inv_ntt(&mut cs1_poly.coeffs);
             cs1_poly.caddq();
-
-            #[cfg(all(test, feature = "std"))]
-            if kappa == 0 && i == 0 {
-                let max_cs1 = cs1_poly.norm_inf();
-                eprintln!(
-                    "SIGN: max ||c*s1[0]||_inf = {}, expected <= tau*eta = {}",
-                    max_cs1,
-                    TAU * (ETA as usize)
-                );
-            }
-
             z.polys[i] = y.polys[i].add(&cs1_poly);
         }
 
         z.reduce();
 
         // Check ||z||_inf < gamma1 - beta
-        #[cfg(all(test, feature = "std"))]
-        if kappa < 5 || kappa % 1000 == 0 {
-            let max_z = z.polys.iter().map(|p| p.norm_inf()).max().unwrap_or(0);
-            eprintln!(
-                "SIGN: kappa={}, max ||z||_inf = {}, bound = {}",
-                kappa,
-                max_z,
-                GAMMA1 - BETA
-            );
-        }
         if !z.check_norm(GAMMA1 - BETA) {
             kappa += 1;
             continue;
@@ -646,8 +694,7 @@ pub fn ml_dsa_sign<
         // r0 = LowBits(w - c*s2)
         let mut cs2 = PolyVecK::<K>::zero();
         for i in 0..K {
-            let p = c_hat.pointwise_mul(&s2_hat.polys[i]);
-            cs2.polys[i] = p;
+            cs2.polys[i] = c_hat.pointwise_mul(&s2_hat.polys[i]);
         }
         cs2.reduce();
         cs2.inv_ntt();
@@ -667,207 +714,23 @@ pub fn ml_dsa_sign<
             continue;
         }
 
-        // Compute hints
+        // Compute c*t0
         let mut ct0 = PolyVecK::<K>::zero();
         for i in 0..K {
-            let p = c_hat.pointwise_mul(&t0_hat.polys[i]);
-            ct0.polys[i] = p;
+            ct0.polys[i] = c_hat.pointwise_mul(&t0_hat.polys[i]);
         }
         ct0.reduce();
         ct0.inv_ntt();
         ct0.caddq();
 
-        let mut h = vec![0u8; OMEGA + K];
-        let mut hint_count = 0;
-
-        // Store wcs2ct0 for debugging
-        #[cfg(all(test, feature = "std"))]
-        let mut wcs2ct0_vec = PolyVecK::<K>::zero();
-
-        let mut hint_overflow = false;
-        'hint_loop: for i in 0..K {
-            for j in 0..N {
-                // w' = w - cs2 + ct0 (what verify will compute)
-                let w_prime =
-                    w.polys[i].coeffs[j] - cs2.polys[i].coeffs[j] + ct0.polys[i].coeffs[j];
-
-                #[cfg(all(test, feature = "std"))]
-                {
-                    wcs2ct0_vec.polys[i].coeffs[j] = freeze(w_prime);
-                }
-
-                // FIPS 204: MakeHint(z, r) returns 1 if HighBits(r) ≠ HighBits(r+z)
-                // We want hint=1 when HighBits(w') ≠ HighBits(w)
-                // With r = w', r + z = w, so z = w - w' = cs2 - ct0
-                let hint_z = cs2.polys[i].coeffs[j] - ct0.polys[i].coeffs[j];
-                let hint = make_hint(freeze(hint_z), freeze(w_prime), GAMMA2);
-                if hint != 0 {
-                    if hint_count >= OMEGA {
-                        // Too many hints - need to restart rejection sampling
-                        hint_overflow = true;
-                        break 'hint_loop;
-                    }
-                    h[hint_count] = j as u8;
-                    hint_count += 1;
-                }
-            }
-            h[OMEGA + i] = hint_count as u8;
-        }
-
-        if hint_overflow {
+        // Compute hints
+        let Some(h) = compute_hints::<K, OMEGA>(&w, &cs2, &ct0, GAMMA2) else {
             kappa += 1;
             continue;
-        }
-
-        // Compute what verify would see in NTT domain: (A*y - c*s2 + c*t0) in NTT
-        // We need to compute: NTT(w - cs2 + ct0) = A*y_hat - c_hat⊙s2_hat + c_hat⊙t0_hat
-        #[cfg(all(test, feature = "std"))]
-        let expected_w_prime_ntt = {
-            // A*y is in ay_ntt_copy (before reduce)
-            // c*s2 = c_hat ⊙ s2_hat
-            // c*t0 = c_hat ⊙ t0_hat
-            let mut result = PolyVecK::<K>::zero();
-            for i in 0..K {
-                let cs2_ntt = c_hat.pointwise_mul(&s2_hat.polys[i]);
-                let ct0_ntt = c_hat.pointwise_mul(&t0_hat.polys[i]);
-                for j in 0..N {
-                    result.polys[i].coeffs[j] =
-                        ay_ntt_copy.polys[i].coeffs[j] - cs2_ntt.coeffs[j] + ct0_ntt.coeffs[j];
-                }
-            }
-            result.reduce();
-            result
         };
 
-        #[cfg(all(test, feature = "std"))]
-        {
-            eprintln!(
-                "SIGN: expected_w'_ntt[0][0..4] = {:?}",
-                &expected_w_prime_ntt.polys[0].coeffs[0..4]
-            );
-
-            // This is w' that verify will compute: w - c*s2 + c*t0
-            eprintln!(
-                "SIGN: wcs2ct0[0][0..8] = {:?}",
-                &wcs2ct0_vec.polys[0].coeffs[0..8]
-            );
-
-            // Compute what UseHint would return and compare with w1
-            let mut recovered_w1 = PolyVecK::<K>::zero();
-            let mut hint_idx_dbg = 0;
-            for i in 0..K {
-                let end = h[OMEGA + i] as usize;
-                for j in 0..N {
-                    let mut hint_val = 0;
-                    while hint_idx_dbg < end && h[hint_idx_dbg] as usize == j {
-                        hint_val = 1;
-                        hint_idx_dbg += 1;
-                    }
-                    recovered_w1.polys[i].coeffs[j] =
-                        use_hint(hint_val, wcs2ct0_vec.polys[i].coeffs[j], GAMMA2);
-                }
-                hint_idx_dbg = end;
-            }
-
-            // Count differences between w1 and recovered_w1
-            let mut diff_count = 0;
-            for i in 0..K {
-                for j in 0..N {
-                    if w1.polys[i].coeffs[j] != recovered_w1.polys[i].coeffs[j] {
-                        diff_count += 1;
-                        if diff_count <= 5 {
-                            eprintln!("SIGN: MISMATCH at poly {} coeff {}: w1={}, recovered={}, wcs2ct0={}",
-                                i, j, w1.polys[i].coeffs[j], recovered_w1.polys[i].coeffs[j],
-                                wcs2ct0_vec.polys[i].coeffs[j]);
-                        }
-                    }
-                }
-            }
-            if diff_count > 0 {
-                eprintln!(
-                    "SIGN: Total mismatches between w1 and UseHint(h, wcs2ct0): {}",
-                    diff_count
-                );
-            }
-        }
-
-        if hint_count > OMEGA {
-            kappa += 1;
-            continue;
-        }
-
-        // Convert z to centered form for packing
-        // z.reduce() puts values in [0, Q-1], but pack_z expects [-gamma1, gamma1]
-        let mut z_centered = z.clone();
-        for i in 0..L {
-            for j in 0..N {
-                let mut c = z_centered.polys[i].coeffs[j];
-                if c > (Q - 1) / 2 {
-                    c -= Q;
-                }
-                z_centered.polys[i].coeffs[j] = c;
-            }
-        }
-
-        #[cfg(all(test, feature = "std"))]
-        {
-            eprintln!(
-                "SIGN: z_centered[0][0..4] = {:?}",
-                &z_centered.polys[0].coeffs[0..4]
-            );
-
-            // Compute NTT(z) to compare with verify
-            let mut z_for_ntt = z_centered.clone();
-            z_for_ntt.ntt();
-            eprintln!(
-                "SIGN: NTT(z)[0].coeffs[0..4] = {:?}",
-                &z_for_ntt.polys[0].coeffs[0..4]
-            );
-
-            // Verify z_hat = y_hat + c_hat ⊙ s1_hat
-            let mut expected_z_hat = PolyVecL::<L>::zero();
-            for i in 0..L {
-                let cs1 = c_hat.pointwise_mul(&s1_hat.polys[i]);
-                for j in 0..N {
-                    expected_z_hat.polys[i].coeffs[j] = y_hat.polys[i].coeffs[j] + cs1.coeffs[j];
-                }
-            }
-            expected_z_hat.reduce();
-            eprintln!(
-                "SIGN: expected z_hat = y_hat + c_hat⊙s1_hat: [0][0..4] = {:?}",
-                &expected_z_hat.polys[0].coeffs[0..4]
-            );
-
-            // Check if they match
-            let match_first4 = (0..4).all(|j| {
-                freeze(z_for_ntt.polys[0].coeffs[j]) == freeze(expected_z_hat.polys[0].coeffs[j])
-            });
-            eprintln!("SIGN: z_hat matches expected? (first 4): {}", match_first4);
-
-            eprintln!("SIGN: hint_counts = {:?}", &h[OMEGA..OMEGA + K]);
-            eprintln!(
-                "SIGN: first 10 hint positions = {:?}",
-                &h[0..10.min(hint_count)]
-            );
-        }
-
         // Encode signature: c_tilde || z || h
-        let sig_size = C_TILDE_BYTES + L * z_bytes + OMEGA + K;
-        let mut sig = Vec::with_capacity(sig_size);
-
-        sig.extend_from_slice(c_tilde);
-
-        let mut z_buf = vec![0u8; z_bytes];
-        for i in 0..L {
-            if gamma1_bits == 17 {
-                pack_z_17(&z_centered.polys[i], &mut z_buf);
-            } else {
-                pack_z_19(&z_centered.polys[i], &mut z_buf);
-            }
-            sig.extend_from_slice(&z_buf);
-        }
-
-        sig.extend_from_slice(&h[..OMEGA + K]);
+        let sig = encode_signature::<L, OMEGA, K, C_TILDE_BYTES>(c_tilde, &z, &h, gamma1_bits);
 
         // Zeroize sensitive intermediate values before returning
         rho_prime.zeroize();
@@ -881,6 +744,10 @@ pub fn ml_dsa_sign<
         return Some(sig);
     }
 }
+
+// ---------------------------------------------------------------------------
+// ML-DSA.Verify (Algorithm 3)
+// ---------------------------------------------------------------------------
 
 /// ML-DSA Verify (Algorithm 3)
 ///
@@ -919,20 +786,10 @@ pub fn ml_dsa_verify<
         unpack_t1(&pk[offset..offset + 320], &mut t1.polys[i]);
     }
 
-    // Parse signature - c_tilde has variable length based on security level
+    // Parse signature
     let c_tilde = &sig[0..C_TILDE_BYTES];
+    let z = parse_z::<L>(sig, C_TILDE_BYTES, gamma1_bits, z_bytes);
 
-    let mut z = PolyVecL::<L>::zero();
-    for i in 0..L {
-        let offset = C_TILDE_BYTES + i * z_bytes;
-        if gamma1_bits == 17 {
-            unpack_z_17(&sig[offset..offset + z_bytes], &mut z.polys[i]);
-        } else {
-            unpack_z_19(&sig[offset..offset + z_bytes], &mut z.polys[i]);
-        }
-    }
-
-    // Parse hints
     let h_start = C_TILDE_BYTES + L * z_bytes;
     let h = &sig[h_start..];
 
@@ -941,47 +798,9 @@ pub fn ml_dsa_verify<
         return false;
     }
 
-    // Check hint count and validate hint positions are strictly increasing
-    // per FIPS 204 canonical encoding requirements
-    let mut hint_count = 0;
-    for i in 0..K {
-        let start = if i == 0 { 0 } else { h[OMEGA + i - 1] as usize };
-        let end = h[OMEGA + i] as usize;
-
-        // End must be within bounds and monotonically increasing
-        if end > OMEGA || end < start {
-            return false;
-        }
-
-        // Validate hint positions are strictly increasing within this polynomial
-        let mut prev_pos: Option<u8> = None;
-        for idx in start..end {
-            let pos = h[idx];
-            // Position must be < N (256)
-            if pos as usize >= N {
-                return false;
-            }
-            // Positions must be strictly increasing (canonical encoding)
-            if let Some(p) = prev_pos {
-                if pos <= p {
-                    return false;
-                }
-            }
-            prev_pos = Some(pos);
-        }
-
-        hint_count = end;
-    }
-    if hint_count > OMEGA {
+    // Validate hint encoding per FIPS 204 canonical requirements
+    if validate_hints::<K, OMEGA>(h).is_none() {
         return false;
-    }
-
-    // Verify unused hint slots are zero (canonical encoding per FIPS 204)
-    // This prevents signature malleability where non-zero padding would be ignored
-    for i in hint_count..OMEGA {
-        if h[i] != 0 {
-            return false;
-        }
     }
 
     // Compute tr = H(pk)
@@ -1011,166 +830,38 @@ pub fn ml_dsa_verify<
             t1_scaled.polys[i].coeffs[j] = t1.polys[i].coeffs[j] << D;
         }
     }
-
-    #[cfg(all(test, feature = "std"))]
-    {
-        eprintln!("VERIFY: z[0][0..4] = {:?}", &z.polys[0].coeffs[0..4]);
-        eprintln!("VERIFY: t1[0][0..4] = {:?}", &t1.polys[0].coeffs[0..4]);
-        eprintln!(
-            "VERIFY: t1_scaled[0][0..4] = {:?}",
-            &t1_scaled.polys[0].coeffs[0..4]
-        );
-    }
-
     t1_scaled.ntt();
-
-    #[cfg(all(test, feature = "std"))]
-    {
-        eprintln!(
-            "VERIFY: A[0][0].coeffs[0..4] = {:?}",
-            &a.rows[0].polys[0].coeffs[0..4]
-        );
-        eprintln!(
-            "VERIFY: z_hat[0].coeffs[0..4] = {:?}",
-            &z_hat.polys[0].coeffs[0..4]
-        );
-    }
 
     // Compute A*z - c*(t1*2^d) in NTT domain
     let mut az = a.mul_vec(&z_hat);
-    az.reduce(); // Reduce immediately after accumulation, like in sign
-
-    #[cfg(all(test, feature = "std"))]
-    {
-        eprintln!(
-            "VERIFY: az[0].coeffs[0..4] = {:?}",
-            &az.polys[0].coeffs[0..4]
-        );
-    }
+    az.reduce();
 
     let mut ct1_2d = PolyVecK::<K>::zero();
     for i in 0..K {
         ct1_2d.polys[i] = c_hat.pointwise_mul(&t1_scaled.polys[i]);
     }
-    ct1_2d.reduce(); // Reduce after pointwise multiplication
-
-    #[cfg(all(test, feature = "std"))]
-    {
-        eprintln!(
-            "VERIFY: ct1_2d[0].coeffs[0..4] = {:?}",
-            &ct1_2d.polys[0].coeffs[0..4]
-        );
-    }
+    ct1_2d.reduce();
 
     // w' = A*z - c*t1*2^d (in NTT domain)
-    let mut w_prime_hat = PolyVecK::<K>::zero();
+    let mut w_prime = PolyVecK::<K>::zero();
     for i in 0..K {
         for j in 0..N {
-            w_prime_hat.polys[i].coeffs[j] = az.polys[i].coeffs[j] - ct1_2d.polys[i].coeffs[j];
+            w_prime.polys[i].coeffs[j] = az.polys[i].coeffs[j] - ct1_2d.polys[i].coeffs[j];
         }
     }
-
-    #[cfg(all(test, feature = "std"))]
-    {
-        eprintln!(
-            "VERIFY: w'_hat[0].coeffs[0..4] (before reduce) = {:?}",
-            &w_prime_hat.polys[0].coeffs[0..4]
-        );
-    }
-
-    w_prime_hat.reduce();
-
-    #[cfg(all(test, feature = "std"))]
-    {
-        eprintln!(
-            "VERIFY: w'_hat[0].coeffs[0..4] (after reduce) = {:?}",
-            &w_prime_hat.polys[0].coeffs[0..4]
-        );
-        eprintln!("VERIFY: compare with SIGN expected_w'_ntt values above");
-    }
-
-    w_prime_hat.inv_ntt();
-    w_prime_hat.caddq();
-
-    let w_prime = w_prime_hat;
-
-    #[cfg(all(test, feature = "std"))]
-    {
-        eprintln!("VERIFY: hint_counts = {:?}", &h[OMEGA..]);
-        eprintln!(
-            "VERIFY: first 10 hint positions = {:?}",
-            &h[0..10.min(h[OMEGA + K - 1] as usize)]
-        );
-    }
+    w_prime.reduce();
+    w_prime.inv_ntt();
+    w_prime.caddq();
 
     // Apply hints to get w'1
-    let mut w1_prime = PolyVecK::<K>::zero();
-    let mut hint_idx = 0;
-    for i in 0..K {
-        let end = h[OMEGA + i] as usize;
-        for j in 0..N {
-            let mut hint_val = 0;
-            while hint_idx < end && h[hint_idx] as usize == j {
-                hint_val = 1;
-                hint_idx += 1;
-            }
-            w1_prime.polys[i].coeffs[j] =
-                use_hint(hint_val, freeze(w_prime.polys[i].coeffs[j]), GAMMA2);
-        }
-        hint_idx = end;
-    }
-
-    #[cfg(all(test, feature = "std"))]
-    {
-        eprintln!(
-            "VERIFY: w_prime[0][0..8] = {:?}",
-            &w_prime.polys[0].coeffs[0..8]
-        );
-        eprintln!(
-            "VERIFY: w_prime[0][12..20] = {:?}",
-            &w_prime.polys[0].coeffs[12..20]
-        );
-        eprintln!(
-            "VERIFY: w1_prime[0][12..20] = {:?}",
-            &w1_prime.polys[0].coeffs[12..20]
-        );
-    }
-
-    // Encode w'1
-    let w1_bytes = if GAMMA2 == 261888 { 128 } else { 192 };
-    let mut w1_encoded = vec![0u8; K * w1_bytes];
-    for i in 0..K {
-        pack_w1(
-            &w1_prime.polys[i],
-            GAMMA2,
-            &mut w1_encoded[i * w1_bytes..(i + 1) * w1_bytes],
-        );
-    }
-
-    #[cfg(all(test, feature = "std"))]
-    {
-        // Print per-polynomial checksums
-        for i in 0..K {
-            let start = i * w1_bytes;
-            let poly_checksum: u64 = w1_encoded[start..start + w1_bytes]
-                .iter()
-                .map(|&b| b as u64)
-                .sum();
-            eprintln!("VERIFY: w1_prime[{}] checksum = {}", i, poly_checksum);
-        }
-    }
+    let w1_prime = apply_hints::<K, OMEGA>(&w_prime, h, GAMMA2);
+    let w1_encoded = encode_w1::<K>(&w1_prime, GAMMA2);
 
     // c_tilde' = H(mu || w1Encode(w'1))
     let mut c_tilde_prime = [0u8; 64];
     h2(&mu, &w1_encoded, &mut c_tilde_prime);
 
     // Verify c_tilde == c_tilde'
-    #[cfg(all(test, feature = "std"))]
-    {
-        eprintln!("c_tilde:       {:?}", &c_tilde[..8]);
-        eprintln!("c_tilde_prime: {:?}", &c_tilde_prime[..8]);
-        eprintln!("Match: {}", c_tilde == &c_tilde_prime[..C_TILDE_BYTES]);
-    }
     c_tilde == &c_tilde_prime[..C_TILDE_BYTES]
 }
 

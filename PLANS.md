@@ -31,7 +31,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | SLH-DSA: wots_pk_gen_to / wots_pk_from_sig_to | LOW | Performance | Add `_to` buffer-write variants for `wots_pk_gen` and `wots_pk_from_sig` to eliminate their single Vec return allocation. Low priority since these are called once per WOTS+ operation (not in hot loops). |
 | Poly API Consistency | MEDIUM | Ergonomics | ML-KEM uses module functions (`poly_add()`), ML-DSA uses methods (`.add()`). Standardize to methods |
 | k_pke Internal Validation | LOW | Defense-in-depth | `k_pke_encrypt`/`k_pke_decrypt` accept `&[u8]` with no length validation; panics on short input via `try_into().unwrap()`. Currently protected by ML-KEM layer validation (PR #132), but direct `pub(crate)` callers are unguarded. |
-| ML-DSA: sign.rs Function Splitting | HIGH | Maintainability | `ml_dsa_sign()` is ~475 lines and `ml_dsa_verify()` is ~287 lines with 38 debug `eprintln!` blocks scattered throughout. Extract hint computation, signature encoding, and debug logging into separate functions. Requires careful data flow analysis of cryptographic signing core. |
+| ~~ML-DSA: sign.rs Function Splitting~~ | ~~HIGH~~ | ~~Maintainability~~ | Done — extracted `validate_hints`, `apply_hints`, `encode_w1`, `parse_z`, `compute_hints`, `encode_signature` helpers; removed 38 debug `eprintln!` blocks (1289→985 lines) |
 | SLH-DSA: parallel/sequential Sign Dedup | MEDIUM | Code quality | `slh_sign_impl()` has parallel and sequential versions (~90 lines each) that differ only in trait bounds (`Send + Sync`), FORS sign function call, and address mutability semantics. Unification is non-trivial due to Rust's inability to conditionally apply trait bounds. |
 
 #### API Consistency Note
