@@ -85,6 +85,7 @@ fn apply_hints<const K: usize, const OMEGA: usize>(
             w1_prime.polys[i].coeffs[j] =
                 use_hint(hint_val, freeze(w_prime.polys[i].coeffs[j]), gamma2);
         }
+        debug_assert_eq!(hint_idx, end, "apply_hints: hint_idx drift at poly {i}");
     }
     w1_prime
 }
@@ -132,10 +133,10 @@ fn parse_z<const L: usize>(
     let mut z = PolyVecL::<L>::zero();
     for i in 0..L {
         let offset = c_tilde_bytes + i * z_bytes;
-        if gamma1_bits == 17 {
-            unpack_z_17(&sig[offset..offset + z_bytes], &mut z.polys[i]);
-        } else {
-            unpack_z_19(&sig[offset..offset + z_bytes], &mut z.polys[i]);
+        match gamma1_bits {
+            17 => unpack_z_17(&sig[offset..offset + z_bytes], &mut z.polys[i]),
+            19 => unpack_z_19(&sig[offset..offset + z_bytes], &mut z.polys[i]),
+            _ => unreachable!("parse_z: unsupported gamma1_bits {gamma1_bits}"),
         }
     }
     z
@@ -178,7 +179,7 @@ fn compute_hints<const K: usize, const OMEGA: usize>(
     Some(h)
 }
 
-/// Center z coefficients and encode signature: c\_tilde || z || h.
+/// Center z coefficients and encode signature: `c_tilde || z || h`.
 fn encode_signature<
     const L: usize,
     const OMEGA: usize,
