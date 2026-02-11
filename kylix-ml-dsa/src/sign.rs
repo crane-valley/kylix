@@ -25,6 +25,10 @@ use zeroize::Zeroize;
 /// polynomial, and unused slots are zero. Returns total hint count if valid,
 /// `None` if invalid.
 fn validate_hints<const K: usize, const OMEGA: usize>(h: &[u8]) -> Option<usize> {
+    if h.len() < OMEGA + K {
+        return None;
+    }
+
     let mut hint_count = 0;
     for i in 0..K {
         let start = if i == 0 { 0 } else { h[OMEGA + i - 1] as usize };
@@ -49,9 +53,6 @@ fn validate_hints<const K: usize, const OMEGA: usize>(h: &[u8]) -> Option<usize>
         }
 
         hint_count = end;
-    }
-    if hint_count > OMEGA {
-        return None;
     }
 
     // Verify unused hint slots are zero (canonical encoding per FIPS 204).
@@ -84,14 +85,21 @@ fn apply_hints<const K: usize, const OMEGA: usize>(
             w1_prime.polys[i].coeffs[j] =
                 use_hint(hint_val, freeze(w_prime.polys[i].coeffs[j]), gamma2);
         }
-        hint_idx = end;
     }
     w1_prime
 }
 
 /// Encode w1 polynomial vector for hashing.
+///
+/// The encoding length depends on the ML-DSA parameter set via `gamma2`:
+/// - `(Q - 1) / 32 = 261_888` → 128 bytes per polynomial (ML-DSA-87)
+/// - `(Q - 1) / 88 =  95_232` → 192 bytes per polynomial (ML-DSA-44/65)
 fn encode_w1<const K: usize>(w1: &PolyVecK<K>, gamma2: i32) -> Vec<u8> {
-    let w1_bytes = if gamma2 == 261888 { 128 } else { 192 };
+    let w1_bytes = match gamma2 {
+        261_888 => 128,
+        95_232 => 192,
+        _ => unreachable!("encode_w1: unsupported gamma2 value {gamma2}"),
+    };
     let mut w1_encoded = vec![0u8; K * w1_bytes];
     for i in 0..K {
         pack_w1(
@@ -104,12 +112,23 @@ fn encode_w1<const K: usize>(w1: &PolyVecK<K>, gamma2: i32) -> Vec<u8> {
 }
 
 /// Parse z vector from signature bytes.
+///
+/// # Panics
+///
+/// Panics if `sig` is shorter than `c_tilde_bytes + L * z_bytes`.
+/// Callers must validate signature length before calling this function.
 fn parse_z<const L: usize>(
     sig: &[u8],
     c_tilde_bytes: usize,
     gamma1_bits: u32,
     z_bytes: usize,
 ) -> PolyVecL<L> {
+    debug_assert!(
+        sig.len() >= c_tilde_bytes + L * z_bytes,
+        "parse_z: sig too short ({} < {})",
+        sig.len(),
+        c_tilde_bytes + L * z_bytes
+    );
     let mut z = PolyVecL::<L>::zero();
     for i in 0..L {
         let offset = c_tilde_bytes + i * z_bytes;
@@ -171,7 +190,11 @@ fn encode_signature<
     h: &[u8],
     gamma1_bits: u32,
 ) -> Vec<u8> {
-    let z_bytes = if gamma1_bits == 17 { 576 } else { 640 };
+    let z_bytes = match gamma1_bits {
+        17 => 576,
+        19 => 640,
+        _ => unreachable!("encode_signature: unsupported gamma1_bits {gamma1_bits}"),
+    };
     let sig_size = C_TILDE_BYTES + L * z_bytes + OMEGA + K;
     let mut sig = Vec::with_capacity(sig_size);
 
@@ -190,10 +213,10 @@ fn encode_signature<
 
     let mut z_buf = vec![0u8; z_bytes];
     for i in 0..L {
-        if gamma1_bits == 17 {
-            pack_z_17(&z_centered.polys[i], &mut z_buf);
-        } else {
-            pack_z_19(&z_centered.polys[i], &mut z_buf);
+        match gamma1_bits {
+            17 => pack_z_17(&z_centered.polys[i], &mut z_buf),
+            19 => pack_z_19(&z_centered.polys[i], &mut z_buf),
+            _ => unreachable!(),
         }
         sig.extend_from_slice(&z_buf);
     }
