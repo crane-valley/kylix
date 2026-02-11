@@ -67,6 +67,12 @@ fn validate_hints<const K: usize, const OMEGA: usize>(h: &[u8]) -> Option<usize>
 }
 
 /// Apply hint vector to w' to recover w'1 = UseHint(h, w').
+///
+/// # Preconditions
+///
+/// `h` must be a validated, canonically encoded hint slice of length `OMEGA + K`
+/// (as verified by [`validate_hints`]). Hint positions must be strictly increasing
+/// within each polynomial partition.
 fn apply_hints<const K: usize, const OMEGA: usize>(
     w_prime: &PolyVecK<K>,
     h: &[u8],
@@ -77,11 +83,14 @@ fn apply_hints<const K: usize, const OMEGA: usize>(
     for i in 0..K {
         let end = h[OMEGA + i] as usize;
         for j in 0..N {
-            let mut hint_val = 0;
-            while hint_idx < end && h[hint_idx] as usize == j {
-                hint_val = 1;
+            // Hint positions are strictly increasing (guaranteed by validate_hints),
+            // so each position j matches at most once — `if` suffices over `while`.
+            let hint_val = if hint_idx < end && h[hint_idx] as usize == j {
                 hint_idx += 1;
-            }
+                1
+            } else {
+                0
+            };
             w1_prime.polys[i].coeffs[j] =
                 use_hint(hint_val, freeze(w_prime.polys[i].coeffs[j]), gamma2);
         }
@@ -191,7 +200,7 @@ fn encode_signature<
     h: &[u8],
     gamma1_bits: u32,
 ) -> Vec<u8> {
-    debug_assert_eq!(c_tilde.len(), C_TILDE_BYTES, "c_tilde length mismatch");
+    assert_eq!(c_tilde.len(), C_TILDE_BYTES, "c_tilde length mismatch");
     let z_bytes = match gamma1_bits {
         17 => 576,
         19 => 640,
@@ -218,7 +227,7 @@ fn encode_signature<
         match gamma1_bits {
             17 => pack_z_17(&z_centered.polys[i], &mut z_buf),
             19 => pack_z_19(&z_centered.polys[i], &mut z_buf),
-            _ => unreachable!(),
+            _ => unreachable!("encode_signature: unsupported gamma1_bits {gamma1_bits}"),
         }
         sig.extend_from_slice(&z_buf);
     }
@@ -868,12 +877,7 @@ pub fn ml_dsa_verify<
     ct1_2d.reduce();
 
     // w' = A*z - c*t1*2^d (in NTT domain)
-    let mut w_prime = PolyVecK::<K>::zero();
-    for i in 0..K {
-        for j in 0..N {
-            w_prime.polys[i].coeffs[j] = az.polys[i].coeffs[j] - ct1_2d.polys[i].coeffs[j];
-        }
-    }
+    let mut w_prime = az.sub(&ct1_2d);
     w_prime.reduce();
     w_prime.inv_ntt();
     w_prime.caddq();
