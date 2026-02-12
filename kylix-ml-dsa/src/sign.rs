@@ -203,6 +203,7 @@ fn encode_signature<
     gamma1_bits: u32,
 ) -> Vec<u8> {
     assert_eq!(c_tilde.len(), C_TILDE_BYTES, "c_tilde length mismatch");
+    debug_assert_eq!(h.len(), OMEGA + K, "hint length mismatch");
     let z_bytes = match gamma1_bits {
         17 => 576,
         19 => 640,
@@ -215,7 +216,7 @@ fn encode_signature<
 
     // Center and pack z one polynomial at a time to avoid cloning the entire
     // PolyVecL (up to 7KB for ML-DSA-87). Only a single Poly (1KB) is needed.
-    let mut z_buf = vec![0u8; z_bytes];
+    let mut z_buf = [0u8; 640]; // max(576, 640)
     let mut centered = Poly::zero();
     for i in 0..L {
         for j in 0..N {
@@ -226,11 +227,11 @@ fn encode_signature<
             centered.coeffs[j] = c;
         }
         match gamma1_bits {
-            17 => pack_z_17(&centered, &mut z_buf),
-            19 => pack_z_19(&centered, &mut z_buf),
+            17 => pack_z_17(&centered, &mut z_buf[..z_bytes]),
+            19 => pack_z_19(&centered, &mut z_buf[..z_bytes]),
             _ => unreachable!("encode_signature: unsupported gamma1_bits {gamma1_bits}"),
         }
-        sig.extend_from_slice(&z_buf);
+        sig.extend_from_slice(&z_buf[..z_bytes]);
     }
 
     sig.extend_from_slice(&h[..OMEGA + K]);
@@ -668,7 +669,15 @@ pub fn ml_dsa_sign<
     let mut h = vec![0u8; OMEGA + K];
     loop {
         if kappa >= MAX_ATTEMPTS {
-            return None; // Signing failed after too many attempts
+            // Zeroize sensitive values before returning on failure path
+            rho_prime.zeroize();
+            s1.zeroize();
+            s2.zeroize();
+            t0.zeroize();
+            s1_hat.zeroize();
+            s2_hat.zeroize();
+            t0_hat.zeroize();
+            return None;
         }
 
         // Sample y
