@@ -7,7 +7,7 @@ use alloc::{vec, vec::Vec};
 
 use crate::hash::{h, h2, hash_message, hash_pk, Shake128Xof};
 use crate::packing::*;
-use crate::poly::N;
+use crate::poly::{Poly, N};
 use crate::polyvec::{Matrix, PolyVecK, PolyVecL};
 use crate::reduce::{freeze, Q};
 use crate::rounding::{highbits, lowbits, make_hint, power2round, use_hint, D};
@@ -211,22 +211,21 @@ fn encode_signature<
 
     sig.extend_from_slice(c_tilde);
 
-    // Center z coefficients: pack_z expects [-gamma1, gamma1].
-    // z.reduce() puts values in [0, Q-1].
-    let mut z_centered = z.clone();
-    for poly in &mut z_centered.polys {
-        for c in &mut poly.coeffs {
-            if *c > (Q - 1) / 2 {
-                *c -= Q;
-            }
-        }
-    }
-
+    // Center and pack z one polynomial at a time to avoid cloning the entire
+    // PolyVecL (up to 7KB for ML-DSA-87). Only a single Poly (1KB) is needed.
     let mut z_buf = vec![0u8; z_bytes];
+    let mut centered = Poly::zero();
     for i in 0..L {
+        for j in 0..N {
+            let mut c = z.polys[i].coeffs[j];
+            if c > (Q - 1) / 2 {
+                c -= Q;
+            }
+            centered.coeffs[j] = c;
+        }
         match gamma1_bits {
-            17 => pack_z_17(&z_centered.polys[i], &mut z_buf),
-            19 => pack_z_19(&z_centered.polys[i], &mut z_buf),
+            17 => pack_z_17(&centered, &mut z_buf),
+            19 => pack_z_19(&centered, &mut z_buf),
             _ => unreachable!("encode_signature: unsupported gamma1_bits {gamma1_bits}"),
         }
         sig.extend_from_slice(&z_buf);
