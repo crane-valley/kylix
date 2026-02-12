@@ -102,8 +102,8 @@ fn apply_hints<const K: usize, const OMEGA: usize>(
 /// Encode w1 polynomial vector for hashing.
 ///
 /// The encoding length depends on the ML-DSA parameter set via `gamma2`:
-/// - `(Q - 1) / 32 = 261_888` → 128 bytes per polynomial (ML-DSA-87)
-/// - `(Q - 1) / 88 =  95_232` → 192 bytes per polynomial (ML-DSA-44/65)
+/// - `(Q - 1) / 32 = 261_888` → 128 bytes per polynomial (ML-DSA-65/87)
+/// - `(Q - 1) / 88 =  95_232` → 192 bytes per polynomial (ML-DSA-44)
 fn encode_w1<const K: usize>(w1: &PolyVecK<K>, gamma2: i32) -> Vec<u8> {
     let w1_bytes = match gamma2 {
         261_888 => 128,
@@ -190,9 +190,9 @@ fn compute_hints<const K: usize, const OMEGA: usize>(
 
 /// Center z coefficients and encode signature: `c_tilde || z || h`.
 fn encode_signature<
+    const K: usize,
     const L: usize,
     const OMEGA: usize,
-    const K: usize,
     const C_TILDE_BYTES: usize,
 >(
     c_tilde: &[u8],
@@ -763,7 +763,7 @@ pub fn ml_dsa_sign<
         };
 
         // Encode signature: c_tilde || z || h
-        let sig = encode_signature::<L, OMEGA, K, C_TILDE_BYTES>(c_tilde, &z, &h, gamma1_bits);
+        let sig = encode_signature::<K, L, OMEGA, C_TILDE_BYTES>(c_tilde, &z, &h, gamma1_bits);
 
         // Zeroize sensitive intermediate values before returning
         rho_prime.zeroize();
