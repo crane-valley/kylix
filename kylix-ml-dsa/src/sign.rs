@@ -133,7 +133,7 @@ fn parse_z<const L: usize>(
     gamma1_bits: u32,
     z_bytes: usize,
 ) -> PolyVecL<L> {
-    debug_assert!(
+    assert!(
         sig.len() >= c_tilde_bytes + L * z_bytes,
         "parse_z: sig too short ({} < {})",
         sig.len(),
@@ -203,7 +203,7 @@ fn encode_signature<
     gamma1_bits: u32,
 ) -> Vec<u8> {
     assert_eq!(c_tilde.len(), C_TILDE_BYTES, "c_tilde length mismatch");
-    debug_assert_eq!(h.len(), OMEGA + K, "hint length mismatch");
+    assert_eq!(h.len(), OMEGA + K, "hint length mismatch");
     let z_bytes = match gamma1_bits {
         17 => 576,
         19 => 640,
@@ -233,6 +233,10 @@ fn encode_signature<
         }
         sig.extend_from_slice(&z_buf[..z_bytes]);
     }
+
+    // Zeroize intermediate buffers that held sensitive z data
+    centered.zeroize();
+    z_buf.zeroize();
 
     sig.extend_from_slice(&h[..OMEGA + K]);
     sig
