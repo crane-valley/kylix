@@ -153,15 +153,17 @@ fn parse_z<const L: usize>(
 
 /// Compute MakeHint vector for the signature.
 ///
-/// Returns hint bytes (length OMEGA + K) or `None` if too many hints
-/// (caller should retry with a new mask).
+/// Writes hint encoding into `h` (length `OMEGA + K`). Returns `Some(())`
+/// on success, or `None` if too many hints (caller should retry with a new mask).
 fn compute_hints<const K: usize, const OMEGA: usize>(
     w: &PolyVecK<K>,
     cs2: &PolyVecK<K>,
     ct0: &PolyVecK<K>,
     gamma2: i32,
-) -> Option<Vec<u8>> {
-    let mut h = vec![0u8; OMEGA + K];
+    h: &mut [u8],
+) -> Option<()> {
+    debug_assert_eq!(h.len(), OMEGA + K);
+    h.fill(0);
     let mut hint_count = 0;
 
     for i in 0..K {
@@ -185,7 +187,7 @@ fn compute_hints<const K: usize, const OMEGA: usize>(
         h[OMEGA + i] = hint_count as u8;
     }
 
-    Some(h)
+    Some(())
 }
 
 /// Center z coefficients and encode signature: `c_tilde || z || h`.
@@ -663,6 +665,7 @@ pub fn ml_dsa_sign<
     // attempts, making the probability of hitting this limit negligibly
     // small while retaining a clear safety guard.
     const MAX_ATTEMPTS: u32 = 10000;
+    let mut h = vec![0u8; OMEGA + K];
     loop {
         if kappa >= MAX_ATTEMPTS {
             return None; // Signing failed after too many attempts
@@ -757,10 +760,10 @@ pub fn ml_dsa_sign<
         ct0.caddq();
 
         // Compute hints
-        let Some(h) = compute_hints::<K, OMEGA>(&w, &cs2, &ct0, GAMMA2) else {
+        if compute_hints::<K, OMEGA>(&w, &cs2, &ct0, GAMMA2, &mut h).is_none() {
             kappa += 1;
             continue;
-        };
+        }
 
         // Encode signature: c_tilde || z || h
         let sig = encode_signature::<K, L, OMEGA, C_TILDE_BYTES>(c_tilde, &z, &h, gamma1_bits);
@@ -1004,5 +1007,140 @@ mod tests {
                 );
             }
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // validate_hints tests
+    // -----------------------------------------------------------------------
+
+    /// Use ML-DSA-44 parameters for hint tests: K=4, OMEGA=80.
+    const TEST_K: usize = 4;
+    const TEST_OMEGA: usize = 80;
+    const TEST_H_LEN: usize = TEST_OMEGA + TEST_K; // 84
+
+    /// Valid encoding with zero hints.
+    #[test]
+    fn test_validate_hints_empty() {
+        let h = [0u8; TEST_H_LEN];
+        assert_eq!(validate_hints::<TEST_K, TEST_OMEGA>(&h), Some(0));
+    }
+
+    /// Valid encoding with one hint in the first polynomial.
+    #[test]
+    fn test_validate_hints_single_hint() {
+        let mut h = [0u8; TEST_H_LEN];
+        h[0] = 42; // hint at position 42 in poly 0
+        h[TEST_OMEGA] = 1; // poly 0 has 1 hint
+        h[TEST_OMEGA + 1] = 1;
+        h[TEST_OMEGA + 2] = 1;
+        h[TEST_OMEGA + 3] = 1;
+        assert_eq!(validate_hints::<TEST_K, TEST_OMEGA>(&h), Some(1));
+    }
+
+    /// Valid encoding with hints across multiple polynomials.
+    #[test]
+    fn test_validate_hints_multi_poly() {
+        let mut h = [0u8; TEST_H_LEN];
+        // Poly 0: hints at positions 10, 20
+        h[0] = 10;
+        h[1] = 20;
+        h[TEST_OMEGA] = 2;
+        // Poly 1: hint at position 5
+        h[2] = 5;
+        h[TEST_OMEGA + 1] = 3;
+        // Poly 2: no hints
+        h[TEST_OMEGA + 2] = 3;
+        // Poly 3: hint at position 100
+        h[3] = 100;
+        h[TEST_OMEGA + 3] = 4;
+        assert_eq!(validate_hints::<TEST_K, TEST_OMEGA>(&h), Some(4));
+    }
+
+    /// Wrong length (too short).
+    #[test]
+    fn test_validate_hints_wrong_length_short() {
+        let h = [0u8; TEST_H_LEN - 1];
+        assert_eq!(validate_hints::<TEST_K, TEST_OMEGA>(&h), None);
+    }
+
+    /// Wrong length (too long).
+    #[test]
+    fn test_validate_hints_wrong_length_long() {
+        let h = [0u8; TEST_H_LEN + 1];
+        assert_eq!(validate_hints::<TEST_K, TEST_OMEGA>(&h), None);
+    }
+
+    /// Hint position at maximum valid value (N-1 = 255).
+    #[test]
+    fn test_validate_hints_max_valid_position() {
+        let mut h = [0u8; TEST_H_LEN];
+        h[0] = 255; // N-1, valid
+        h[TEST_OMEGA] = 1;
+        h[TEST_OMEGA + 1] = 1;
+        h[TEST_OMEGA + 2] = 1;
+        h[TEST_OMEGA + 3] = 1;
+        assert_eq!(validate_hints::<TEST_K, TEST_OMEGA>(&h), Some(1));
+    }
+
+    /// Non-strictly-increasing positions within a polynomial.
+    #[test]
+    fn test_validate_hints_non_increasing() {
+        let mut h = [0u8; TEST_H_LEN];
+        h[0] = 20;
+        h[1] = 10; // out of order
+        h[TEST_OMEGA] = 2;
+        h[TEST_OMEGA + 1] = 2;
+        h[TEST_OMEGA + 2] = 2;
+        h[TEST_OMEGA + 3] = 2;
+        assert_eq!(validate_hints::<TEST_K, TEST_OMEGA>(&h), None);
+    }
+
+    /// Duplicate positions (equal, not strictly increasing).
+    #[test]
+    fn test_validate_hints_duplicate_positions() {
+        let mut h = [0u8; TEST_H_LEN];
+        h[0] = 10;
+        h[1] = 10; // duplicate
+        h[TEST_OMEGA] = 2;
+        h[TEST_OMEGA + 1] = 2;
+        h[TEST_OMEGA + 2] = 2;
+        h[TEST_OMEGA + 3] = 2;
+        assert_eq!(validate_hints::<TEST_K, TEST_OMEGA>(&h), None);
+    }
+
+    /// end > OMEGA is invalid.
+    #[test]
+    fn test_validate_hints_end_exceeds_omega() {
+        let mut h = [0u8; TEST_H_LEN];
+        h[TEST_OMEGA] = (TEST_OMEGA + 1) as u8; // end > OMEGA
+        h[TEST_OMEGA + 1] = (TEST_OMEGA + 1) as u8;
+        h[TEST_OMEGA + 2] = (TEST_OMEGA + 1) as u8;
+        h[TEST_OMEGA + 3] = (TEST_OMEGA + 1) as u8;
+        assert_eq!(validate_hints::<TEST_K, TEST_OMEGA>(&h), None);
+    }
+
+    /// end < start (non-monotonic cumulative counts).
+    #[test]
+    fn test_validate_hints_end_less_than_start() {
+        let mut h = [0u8; TEST_H_LEN];
+        h[0] = 5;
+        h[TEST_OMEGA] = 2; // poly 0 ends at 2
+        h[TEST_OMEGA + 1] = 1; // poly 1 ends at 1, but start = 2 → invalid
+        h[TEST_OMEGA + 2] = 1;
+        h[TEST_OMEGA + 3] = 1;
+        assert_eq!(validate_hints::<TEST_K, TEST_OMEGA>(&h), None);
+    }
+
+    /// Non-zero bytes in unused hint slots (malleability).
+    #[test]
+    fn test_validate_hints_nonzero_unused_slots() {
+        let mut h = [0u8; TEST_H_LEN];
+        h[0] = 10;
+        h[TEST_OMEGA] = 1;
+        h[TEST_OMEGA + 1] = 1;
+        h[TEST_OMEGA + 2] = 1;
+        h[TEST_OMEGA + 3] = 1;
+        h[1] = 0xFF; // non-zero in unused slot
+        assert_eq!(validate_hints::<TEST_K, TEST_OMEGA>(&h), None);
     }
 }
