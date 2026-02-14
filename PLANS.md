@@ -77,7 +77,7 @@ Dudect-based timing tests in `timing/` directory.
 
 ### ML-KEM
 
-SHA3/SHAKE is now the bottleneck (40-50% of total time). NTT/basemul SIMD complete. No Rust SHA3 crate offers SIMD-optimized Keccak permutation as of 2026-02 — implementing AVX2 Keccak could yield ~2x overall speedup.
+SHA3/SHAKE is now the bottleneck (40-50% of total time). NTT/basemul SIMD complete. No Rust SHA3 crate offers SIMD-optimized Keccak permutation as of 2026-02 — implementing AVX2 Keccak (e.g., 2-3x faster SHA3/SHAKE) could yield roughly 1.3-1.6x overall speedup.
 
 ### ML-DSA
 
@@ -87,7 +87,7 @@ SIMD complete for AVX2/NEON. WASM-SIMD128 done for pointwise mul; NTT not yet WA
 
 Benchmarks (ML-KEM-768 Encaps, Intel i5-13500 AVX2):
 - libcrux (formally verified + ASM): ~11 µs
-- **Kylix**: ~23 µs — **1.5x faster than RustCrypto**
+- **Kylix**: ~23 µs — **~1.4x faster than RustCrypto**
 - RustCrypto ml-kem: ~33 µs
 - pqcrypto (C FFI): ~42 µs
 
