@@ -13,7 +13,7 @@ use crate::reduce::{freeze, Q};
 use crate::rounding::{highbits, lowbits, make_hint, power2round, use_hint, D};
 use crate::sample::{sample_eta, sample_in_ball, sample_mask, sample_ntt};
 
-use zeroize::Zeroize;
+use zeroize::Zeroizing;
 
 // ---------------------------------------------------------------------------
 // Helper functions
@@ -216,8 +216,8 @@ fn encode_signature<
 
     // Center and pack z one polynomial at a time to avoid cloning the entire
     // PolyVecL (up to 7KB for ML-DSA-87). Only a single Poly (1KB) is needed.
-    let mut z_buf = [0u8; 640]; // max(576, 640)
-    let mut centered = Poly::zero();
+    let mut z_buf = Zeroizing::new([0u8; 640]); // max(576, 640)
+    let mut centered = Zeroizing::new(Poly::zero());
     for i in 0..L {
         for j in 0..N {
             let mut c = z.polys[i].coeffs[j];
@@ -233,10 +233,6 @@ fn encode_signature<
         }
         sig.extend_from_slice(&z_buf[..z_bytes]);
     }
-
-    // Zeroize intermediate buffers that held sensitive z data
-    centered.zeroize();
-    z_buf.zeroize();
 
     sig.extend_from_slice(&h[..OMEGA + K]);
     sig
@@ -463,17 +459,17 @@ pub fn ml_dsa_keygen<const K: usize, const L: usize, const ETA: usize>(
 ) -> (Vec<u8>, Vec<u8>) {
     // 1. Expand seed with domain separation: (rho, rho', K) = H(xi || k || l, 128)
     // Per FIPS 204 Algorithm 1, step 1
-    let mut seed_input = [0u8; 34];
+    let mut seed_input = Zeroizing::new([0u8; 34]);
     seed_input[..32].copy_from_slice(xi);
     seed_input[32] = K as u8;
     seed_input[33] = L as u8;
 
-    let mut expanded = [0u8; 128];
-    h(&seed_input, &mut expanded);
+    let mut expanded = Zeroizing::new([0u8; 128]);
+    h(&*seed_input, &mut *expanded);
 
     let mut rho = [0u8; 32];
-    let mut rho_prime = [0u8; 64];
-    let mut key_k = [0u8; 32];
+    let mut rho_prime = Zeroizing::new([0u8; 64]);
+    let mut key_k = Zeroizing::new([0u8; 32]);
 
     rho.copy_from_slice(&expanded[0..32]);
     rho_prime.copy_from_slice(&expanded[32..96]);
@@ -483,13 +479,15 @@ pub fn ml_dsa_keygen<const K: usize, const L: usize, const ETA: usize>(
     let a = expand_a::<K, L>(&rho);
 
     // 3. Sample secret vectors s1, s2
-    let (mut s1, mut s2) = expand_s::<K, L, ETA>(&rho_prime);
+    let (s1_raw, s2_raw) = expand_s::<K, L, ETA>(&*rho_prime);
+    let s1 = Zeroizing::new(s1_raw);
+    let s2 = Zeroizing::new(s2_raw);
 
     // 4. Compute t = A * s1 + s2
     let mut s1_ntt = s1.clone();
     s1_ntt.ntt();
 
-    let mut t = a.mul_vec(&s1_ntt);
+    let mut t = Zeroizing::new(a.mul_vec(&s1_ntt));
     t.reduce();
     t.inv_ntt();
     t.caddq();
@@ -498,7 +496,7 @@ pub fn ml_dsa_keygen<const K: usize, const L: usize, const ETA: usize>(
 
     // 5. Power2Round: (t1, t0) = Power2Round(t)
     let mut t1 = PolyVecK::<K>::zero();
-    let mut t0 = PolyVecK::<K>::zero();
+    let mut t0 = Zeroizing::new(PolyVecK::<K>::zero());
 
     for i in 0..K {
         for j in 0..N {
@@ -526,11 +524,11 @@ pub fn ml_dsa_keygen<const K: usize, const L: usize, const ETA: usize>(
     let mut sk = Vec::with_capacity(sk_size);
 
     sk.extend_from_slice(&rho);
-    sk.extend_from_slice(&key_k);
+    sk.extend_from_slice(&*key_k);
     sk.extend_from_slice(&tr);
 
     // Pack s1 and s2 using a single reusable buffer
-    let mut eta_buf = vec![0u8; eta_bytes];
+    let mut eta_buf = Zeroizing::new(vec![0u8; eta_bytes]);
     for i in 0..L {
         if ETA == 2 {
             pack_eta2(&s1.polys[i], &mut eta_buf);
@@ -549,23 +547,13 @@ pub fn ml_dsa_keygen<const K: usize, const L: usize, const ETA: usize>(
         }
         sk.extend_from_slice(&eta_buf);
     }
-    eta_buf.zeroize(); // Zeroize buffer that held secret key material
 
     // Pack t0
     for i in 0..K {
-        let mut buf = [0u8; 416];
-        pack_t0(&t0.polys[i], &mut buf);
-        sk.extend_from_slice(&buf);
+        let mut buf = Zeroizing::new([0u8; 416]);
+        pack_t0(&t0.polys[i], &mut *buf);
+        sk.extend_from_slice(&*buf);
     }
-
-    // Zeroize sensitive data
-    seed_input.zeroize();
-    expanded.zeroize();
-    rho_prime.zeroize();
-    key_k.zeroize();
-    s1.zeroize();
-    s2.zeroize();
-    t0.zeroize();
 
     (sk, pk)
 }
@@ -605,7 +593,7 @@ pub fn ml_dsa_sign<
     let t0_start = s2_start + K * eta_bytes;
 
     // Unpack s1
-    let mut s1 = PolyVecL::<L>::zero();
+    let mut s1 = Zeroizing::new(PolyVecL::<L>::zero());
     for i in 0..L {
         let offset = s1_start + i * eta_bytes;
         if ETA == 2 {
@@ -616,7 +604,7 @@ pub fn ml_dsa_sign<
     }
 
     // Unpack s2
-    let mut s2 = PolyVecK::<K>::zero();
+    let mut s2 = Zeroizing::new(PolyVecK::<K>::zero());
     for i in 0..K {
         let offset = s2_start + i * eta_bytes;
         if ETA == 2 {
@@ -627,7 +615,7 @@ pub fn ml_dsa_sign<
     }
 
     // Unpack t0
-    let mut t0 = PolyVecK::<K>::zero();
+    let mut t0 = Zeroizing::new(PolyVecK::<K>::zero());
     for i in 0..K {
         let offset = t0_start + i * 416;
         unpack_t0(&sk[offset..offset + 416], &mut t0.polys[i]);
@@ -643,8 +631,8 @@ pub fn ml_dsa_sign<
 
     // Compute rho' = H(K || rnd || mu)
     // Use h3 directly to avoid heap allocation with secret key material
-    let mut rho_prime = [0u8; 64];
-    crate::hash::h3(key_k, rnd, &mu, &mut rho_prime);
+    let mut rho_prime = Zeroizing::new([0u8; 64]);
+    crate::hash::h3(key_k, rnd, &mu, &mut *rho_prime);
 
     // NTT of s1, s2, t0
     let mut s1_hat = s1.clone();
@@ -673,19 +661,11 @@ pub fn ml_dsa_sign<
     let mut h = vec![0u8; OMEGA + K];
     loop {
         if kappa >= MAX_ATTEMPTS {
-            // Zeroize sensitive values before returning on failure path
-            rho_prime.zeroize();
-            s1.zeroize();
-            s2.zeroize();
-            t0.zeroize();
-            s1_hat.zeroize();
-            s2_hat.zeroize();
-            t0_hat.zeroize();
             return None;
         }
 
         // Sample y
-        let mut y = PolyVecL::<L>::zero();
+        let mut y = Zeroizing::new(PolyVecL::<L>::zero());
         let base_nonce = kappa * (L as u32);
         for i in 0..L {
             let nonce = base_nonce + (i as u32);
@@ -696,13 +676,13 @@ pub fn ml_dsa_sign<
         let mut y_hat = y.clone();
         y_hat.ntt();
 
-        let mut w = a.mul_vec(&y_hat);
+        let mut w = Zeroizing::new(a.mul_vec(&y_hat));
         w.reduce();
         w.inv_ntt();
         w.caddq();
 
         // w1 = HighBits(w)
-        let mut w1 = PolyVecK::<K>::zero();
+        let mut w1 = Zeroizing::new(PolyVecK::<K>::zero());
         for i in 0..K {
             for j in 0..N {
                 w1.polys[i].coeffs[j] = highbits(w.polys[i].coeffs[j], GAMMA2);
@@ -710,27 +690,26 @@ pub fn ml_dsa_sign<
         }
 
         // c_tilde = H(mu || w1Encode(w1))
-        let mut w1_encoded = encode_w1::<K>(&w1, GAMMA2);
+        let w1_encoded = Zeroizing::new(encode_w1::<K>(&w1, GAMMA2));
 
-        let mut c_tilde_full = [0u8; 64]; // Full hash output
-        h2(&mu, &w1_encoded, &mut c_tilde_full);
+        let mut c_tilde_full = Zeroizing::new([0u8; 64]); // Full hash output
+        h2(&mu, &w1_encoded, &mut *c_tilde_full);
         let c_tilde = &c_tilde_full[..C_TILDE_BYTES];
 
         // c = SampleInBall(c_tilde)
         let c = sample_in_ball(c_tilde, TAU);
 
         // z = y + c * s1
-        let mut c_hat = c.clone();
+        let mut c_hat = Zeroizing::new(c.clone());
         c_hat.ntt();
 
-        let mut z = PolyVecL::<L>::zero();
+        let mut z = Zeroizing::new(PolyVecL::<L>::zero());
         for i in 0..L {
-            let mut cs1_poly = c_hat.pointwise_mul(&s1_hat.polys[i]);
+            let mut cs1_poly = Zeroizing::new(c_hat.pointwise_mul(&s1_hat.polys[i]));
             cs1_poly.reduce();
             crate::ntt::inv_ntt(&mut cs1_poly.coeffs);
             cs1_poly.caddq();
             z.polys[i] = y.polys[i].add(&cs1_poly);
-            cs1_poly.zeroize();
         }
 
         z.reduce();
@@ -738,19 +717,11 @@ pub fn ml_dsa_sign<
         // Check ||z||_inf < gamma1 - beta
         if !z.check_norm(GAMMA1 - BETA) {
             kappa += 1;
-            y.zeroize();
-            y_hat.zeroize();
-            w.zeroize();
-            w1.zeroize();
-            w1_encoded.zeroize();
-            c_tilde_full.zeroize();
-            c_hat.zeroize();
-            z.zeroize();
             continue;
         }
 
         // r0 = LowBits(w - c*s2)
-        let mut cs2 = PolyVecK::<K>::zero();
+        let mut cs2 = Zeroizing::new(PolyVecK::<K>::zero());
         for i in 0..K {
             cs2.polys[i] = c_hat.pointwise_mul(&s2_hat.polys[i]);
         }
@@ -758,7 +729,7 @@ pub fn ml_dsa_sign<
         cs2.inv_ntt();
         cs2.caddq();
 
-        let mut r0 = PolyVecK::<K>::zero();
+        let mut r0 = Zeroizing::new(PolyVecK::<K>::zero());
         for i in 0..K {
             for j in 0..N {
                 let wcs2 = w.polys[i].coeffs[j] - cs2.polys[i].coeffs[j];
@@ -769,21 +740,11 @@ pub fn ml_dsa_sign<
         // Check ||r0||_inf < gamma2 - beta
         if !r0.check_norm(GAMMA2 - BETA) {
             kappa += 1;
-            y.zeroize();
-            y_hat.zeroize();
-            w.zeroize();
-            w1.zeroize();
-            w1_encoded.zeroize();
-            c_tilde_full.zeroize();
-            c_hat.zeroize();
-            z.zeroize();
-            cs2.zeroize();
-            r0.zeroize();
             continue;
         }
 
         // Compute c*t0
-        let mut ct0 = PolyVecK::<K>::zero();
+        let mut ct0 = Zeroizing::new(PolyVecK::<K>::zero());
         for i in 0..K {
             ct0.polys[i] = c_hat.pointwise_mul(&t0_hat.polys[i]);
         }
@@ -794,62 +755,17 @@ pub fn ml_dsa_sign<
         // Check ||ct0||_inf < gamma2 (FIPS 204 Algorithm 2, step 25)
         if !ct0.check_norm(GAMMA2) {
             kappa += 1;
-            y.zeroize();
-            y_hat.zeroize();
-            w.zeroize();
-            w1.zeroize();
-            w1_encoded.zeroize();
-            c_tilde_full.zeroize();
-            c_hat.zeroize();
-            z.zeroize();
-            cs2.zeroize();
-            r0.zeroize();
-            ct0.zeroize();
             continue;
         }
 
         // Compute hints
         if compute_hints::<K, OMEGA>(&w, &cs2, &ct0, GAMMA2, &mut h).is_none() {
             kappa += 1;
-            y.zeroize();
-            y_hat.zeroize();
-            w.zeroize();
-            w1.zeroize();
-            w1_encoded.zeroize();
-            c_tilde_full.zeroize();
-            c_hat.zeroize();
-            z.zeroize();
-            cs2.zeroize();
-            r0.zeroize();
-            ct0.zeroize();
             continue;
         }
 
         // Encode signature: c_tilde || z || h
         let sig = encode_signature::<K, L, OMEGA, C_TILDE_BYTES>(c_tilde, &z, &h, gamma1_bits);
-
-        // Zeroize loop-scoped sensitive values. y is critical: if leaked
-        // alongside the signature (c, z), s1 can be recovered via z = y + c*s1.
-        y.zeroize();
-        y_hat.zeroize();
-        w.zeroize();
-        w1.zeroize();
-        w1_encoded.zeroize();
-        c_tilde_full.zeroize();
-        c_hat.zeroize();
-        z.zeroize();
-        cs2.zeroize();
-        r0.zeroize();
-        ct0.zeroize();
-
-        // Zeroize long-lived sensitive intermediate values before returning
-        rho_prime.zeroize();
-        s1.zeroize();
-        s2.zeroize();
-        t0.zeroize();
-        s1_hat.zeroize();
-        s2_hat.zeroize();
-        t0_hat.zeroize();
 
         return Some(sig);
     }
