@@ -710,7 +710,7 @@ pub fn ml_dsa_sign<
         }
 
         // c_tilde = H(mu || w1Encode(w1))
-        let w1_encoded = encode_w1::<K>(&w1, GAMMA2);
+        let mut w1_encoded = encode_w1::<K>(&w1, GAMMA2);
 
         let mut c_tilde_full = [0u8; 64]; // Full hash output
         h2(&mu, &w1_encoded, &mut c_tilde_full);
@@ -730,6 +730,7 @@ pub fn ml_dsa_sign<
             crate::ntt::inv_ntt(&mut cs1_poly.coeffs);
             cs1_poly.caddq();
             z.polys[i] = y.polys[i].add(&cs1_poly);
+            cs1_poly.zeroize();
         }
 
         z.reduce();
@@ -737,6 +738,14 @@ pub fn ml_dsa_sign<
         // Check ||z||_inf < gamma1 - beta
         if !z.check_norm(GAMMA1 - BETA) {
             kappa += 1;
+            y.zeroize();
+            y_hat.zeroize();
+            w.zeroize();
+            w1.zeroize();
+            w1_encoded.zeroize();
+            c_tilde_full.zeroize();
+            c_hat.zeroize();
+            z.zeroize();
             continue;
         }
 
@@ -760,6 +769,16 @@ pub fn ml_dsa_sign<
         // Check ||r0||_inf < gamma2 - beta
         if !r0.check_norm(GAMMA2 - BETA) {
             kappa += 1;
+            y.zeroize();
+            y_hat.zeroize();
+            w.zeroize();
+            w1.zeroize();
+            w1_encoded.zeroize();
+            c_tilde_full.zeroize();
+            c_hat.zeroize();
+            z.zeroize();
+            cs2.zeroize();
+            r0.zeroize();
             continue;
         }
 
@@ -772,9 +791,37 @@ pub fn ml_dsa_sign<
         ct0.inv_ntt();
         ct0.caddq();
 
+        // Check ||ct0||_inf < gamma2 (FIPS 204 Algorithm 2, step 25)
+        if !ct0.check_norm(GAMMA2) {
+            kappa += 1;
+            y.zeroize();
+            y_hat.zeroize();
+            w.zeroize();
+            w1.zeroize();
+            w1_encoded.zeroize();
+            c_tilde_full.zeroize();
+            c_hat.zeroize();
+            z.zeroize();
+            cs2.zeroize();
+            r0.zeroize();
+            ct0.zeroize();
+            continue;
+        }
+
         // Compute hints
         if compute_hints::<K, OMEGA>(&w, &cs2, &ct0, GAMMA2, &mut h).is_none() {
             kappa += 1;
+            y.zeroize();
+            y_hat.zeroize();
+            w.zeroize();
+            w1.zeroize();
+            w1_encoded.zeroize();
+            c_tilde_full.zeroize();
+            c_hat.zeroize();
+            z.zeroize();
+            cs2.zeroize();
+            r0.zeroize();
+            ct0.zeroize();
             continue;
         }
 
@@ -785,7 +832,14 @@ pub fn ml_dsa_sign<
         // alongside the signature (c, z), s1 can be recovered via z = y + c*s1.
         y.zeroize();
         y_hat.zeroize();
+        w.zeroize();
+        w1.zeroize();
+        w1_encoded.zeroize();
+        c_tilde_full.zeroize();
+        c_hat.zeroize();
+        z.zeroize();
         cs2.zeroize();
+        r0.zeroize();
         ct0.zeroize();
 
         // Zeroize long-lived sensitive intermediate values before returning
