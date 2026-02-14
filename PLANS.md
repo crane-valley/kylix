@@ -85,11 +85,11 @@ SIMD complete for AVX2/NEON. WASM-SIMD128 done for pointwise mul; NTT not yet WA
 
 ### Competitive Positioning
 
-Benchmarks (ML-KEM-768, Intel i5-13500 AVX2):
-- libcrux (formally verified + ASM): ~12 µs — 2.5x faster than Kylix
-- **Kylix**: ~28 µs — **1.2-1.7x faster than RustCrypto**
-- RustCrypto ml-kem: ~36-48 µs
-- pqcrypto (C FFI): ~41 µs
+Benchmarks (ML-KEM-768 Encaps, Intel i5-13500 AVX2):
+- libcrux (formally verified + ASM): ~11 µs
+- **Kylix**: ~23 µs — **1.5x faster than RustCrypto**
+- RustCrypto ml-kem: ~33 µs
+- pqcrypto (C FFI): ~42 µs
 
 Primary optimization opportunity: SHA3/SHAKE SIMD (HIGH priority, biggest single improvement possible).
 
