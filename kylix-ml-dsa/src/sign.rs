@@ -781,7 +781,14 @@ pub fn ml_dsa_sign<
         // Encode signature: c_tilde || z || h
         let sig = encode_signature::<K, L, OMEGA, C_TILDE_BYTES>(c_tilde, &z, &h, gamma1_bits);
 
-        // Zeroize sensitive intermediate values before returning
+        // Zeroize loop-scoped sensitive values. y is critical: if leaked
+        // alongside the signature (c, z), s1 can be recovered via z = y + c*s1.
+        y.zeroize();
+        y_hat.zeroize();
+        cs2.zeroize();
+        ct0.zeroize();
+
+        // Zeroize long-lived sensitive intermediate values before returning
         rho_prime.zeroize();
         s1.zeroize();
         s2.zeroize();
