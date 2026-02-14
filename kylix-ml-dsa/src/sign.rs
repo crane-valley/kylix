@@ -730,6 +730,7 @@ pub fn ml_dsa_sign<
             crate::ntt::inv_ntt(&mut cs1_poly.coeffs);
             cs1_poly.caddq();
             z.polys[i] = y.polys[i].add(&cs1_poly);
+            cs1_poly.zeroize();
         }
 
         z.reduce();
