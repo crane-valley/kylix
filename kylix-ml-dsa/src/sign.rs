@@ -739,6 +739,7 @@ pub fn ml_dsa_sign<
             kappa += 1;
             y.zeroize();
             y_hat.zeroize();
+            w.zeroize();
             continue;
         }
 
@@ -764,7 +765,9 @@ pub fn ml_dsa_sign<
             kappa += 1;
             y.zeroize();
             y_hat.zeroize();
+            w.zeroize();
             cs2.zeroize();
+            r0.zeroize();
             continue;
         }
 
@@ -782,7 +785,9 @@ pub fn ml_dsa_sign<
             kappa += 1;
             y.zeroize();
             y_hat.zeroize();
+            w.zeroize();
             cs2.zeroize();
+            r0.zeroize();
             ct0.zeroize();
             continue;
         }
@@ -792,7 +797,9 @@ pub fn ml_dsa_sign<
             kappa += 1;
             y.zeroize();
             y_hat.zeroize();
+            w.zeroize();
             cs2.zeroize();
+            r0.zeroize();
             ct0.zeroize();
             continue;
         }
@@ -804,7 +811,9 @@ pub fn ml_dsa_sign<
         // alongside the signature (c, z), s1 can be recovered via z = y + c*s1.
         y.zeroize();
         y_hat.zeroize();
+        w.zeroize();
         cs2.zeroize();
+        r0.zeroize();
         ct0.zeroize();
 
         // Zeroize long-lived sensitive intermediate values before returning
