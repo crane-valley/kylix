@@ -32,7 +32,7 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 | Component | Priority | Impact | Notes |
 |-----------|----------|--------|-------|
 | Poly API Consistency | MEDIUM | Ergonomics | ML-KEM uses module functions (`poly_add()`), ML-DSA uses methods (`.add()`). Standardize to methods |
-| ~~ML-DSA: ct0 Norm Check (FIPS 204 Alg 2 Step 25)~~ | ~~MEDIUM~~ | ~~Correctness~~ | ~~Done (PR #147). Added `check_norm(GAMMA2)` rejection for ct0 per FIPS 204 Algorithm 2 step 25.~~ |
+| ~~ML-DSA: ct0 Norm Check (FIPS 204 Alg 2 Step 25)~~ | MEDIUM | Correctness | Done (PR #147). Added `check_norm(GAMMA2)` rejection for ct0 per FIPS 204 Algorithm 2 step 25. |
 | SLH-DSA: parallel/sequential Sign Dedup | MEDIUM | Code quality | `slh_sign_impl()` has parallel and sequential versions (~90 lines each) that differ only in trait bounds (`Send + Sync`), FORS sign function call, and address mutability semantics. Unification is non-trivial due to Rust's inability to conditionally apply trait bounds. |
 | k_pke Internal Validation | LOW | Defense-in-depth | `k_pke_encrypt`/`k_pke_decrypt` accept `&[u8]` with no length validation; panics on short input via `try_into().unwrap()`. Currently protected by ML-KEM layer validation (PR #132), but direct `pub(crate)` callers are unguarded. |
 | ML-DSA: `ml_dsa_verify` pk Length Check | LOW | Defense-in-depth | `ml_dsa_verify` accesses `pk[0..32]` and `pk[offset..offset+320]` without validating `pk.len()`. Currently safe because all public API callers pass pre-validated `VerificationKey`, but the function accepts `&[u8]` and would panic on short input. Add an early length check matching `expand_verification_key`. |

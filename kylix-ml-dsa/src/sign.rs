@@ -737,6 +737,8 @@ pub fn ml_dsa_sign<
         // Check ||z||_inf < gamma1 - beta
         if !z.check_norm(GAMMA1 - BETA) {
             kappa += 1;
+            y.zeroize();
+            y_hat.zeroize();
             continue;
         }
 
@@ -760,6 +762,9 @@ pub fn ml_dsa_sign<
         // Check ||r0||_inf < gamma2 - beta
         if !r0.check_norm(GAMMA2 - BETA) {
             kappa += 1;
+            y.zeroize();
+            y_hat.zeroize();
+            cs2.zeroize();
             continue;
         }
 
@@ -775,12 +780,20 @@ pub fn ml_dsa_sign<
         // Check ||ct0||_inf < gamma2 (FIPS 204 Algorithm 2, step 25)
         if !ct0.check_norm(GAMMA2) {
             kappa += 1;
+            y.zeroize();
+            y_hat.zeroize();
+            cs2.zeroize();
+            ct0.zeroize();
             continue;
         }
 
         // Compute hints
         if compute_hints::<K, OMEGA>(&w, &cs2, &ct0, GAMMA2, &mut h).is_none() {
             kappa += 1;
+            y.zeroize();
+            y_hat.zeroize();
+            cs2.zeroize();
+            ct0.zeroize();
             continue;
         }
 
