@@ -22,6 +22,7 @@ Part of the [Kylix](https://github.com/crane-valley/kylix) post-quantum cryptogr
 ```toml
 [dependencies]
 kylix-ml-kem = "0.4"
+rand = "0.9"
 ```
 
 ### Key Exchange

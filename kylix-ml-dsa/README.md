@@ -22,6 +22,7 @@ Part of the [Kylix](https://github.com/crane-valley/kylix) post-quantum cryptogr
 ```toml
 [dependencies]
 kylix-ml-dsa = "0.4"
+rand = "0.9"
 ```
 
 ### Sign and Verify
@@ -51,6 +52,7 @@ Pre-expand the verification key for faster repeated verification with the same p
 let expanded = pk.expand().unwrap();
 
 // Fast verification (~38 µs vs ~101 µs regular)
+// messages_and_signatures: your iterator of (message, signature) pairs
 for (msg, sig) in messages_and_signatures {
     MlDsa65::verify_expanded(&expanded, msg, &sig).unwrap();
 }

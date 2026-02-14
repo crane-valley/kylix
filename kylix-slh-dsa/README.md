@@ -21,13 +21,13 @@ Part of the [Kylix](https://github.com/crane-valley/kylix) post-quantum cryptogr
 ```toml
 [dependencies]
 kylix-slh-dsa = "0.4"
+rand = "0.9"
 ```
 
 ### Sign and Verify
 
 ```rust
-use kylix_slh_dsa::SlhDsaShake128f;
-use kylix_core::Signer;
+use kylix_slh_dsa::{SlhDsaShake128f, Signer};
 
 let mut rng = rand::rng();
 
@@ -78,7 +78,7 @@ let sig = Signature::from_bytes(sig_bytes).unwrap();
 
 ### SHA2-based (optional)
 
-Same sizes as SHAKE variants. Enable with `slh-dsa-sha2-*` features.
+Same sizes as SHAKE variants. Enable with `slh-dsa-sha2-{128s,128f,...}` features.
 
 **Trade-off**: "fast" variants have larger signatures but significantly faster signing; "small" variants minimize signature size at ~10x slower signing.
 
@@ -88,8 +88,8 @@ Same sizes as SHAKE variants. Enable with `slh-dsa-sha2-*` features.
 |------|---------|-------------|
 | `std` | Yes | Standard library support |
 | `slh-dsa-shake-128f` | Yes | Default variant |
-| `slh-dsa-shake-*` | No | Other SHAKE variants |
-| `slh-dsa-sha2-*` | No | SHA2-based variants |
+| `slh-dsa-shake-{128s,192s,192f,256s,256f}` | No | Other SHAKE variants |
+| `slh-dsa-sha2-{128s,128f,192s,192f,256s,256f}` | No | SHA2-based variants |
 | `parallel` | No | Multi-threaded signing (requires `std`) |
 
 ### no_std
