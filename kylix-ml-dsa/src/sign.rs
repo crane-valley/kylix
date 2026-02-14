@@ -772,6 +772,12 @@ pub fn ml_dsa_sign<
         ct0.inv_ntt();
         ct0.caddq();
 
+        // Check ||ct0||_inf < gamma2 (FIPS 204 Algorithm 2, step 25)
+        if !ct0.check_norm(GAMMA2) {
+            kappa += 1;
+            continue;
+        }
+
         // Compute hints
         if compute_hints::<K, OMEGA>(&w, &cs2, &ct0, GAMMA2, &mut h).is_none() {
             kappa += 1;
