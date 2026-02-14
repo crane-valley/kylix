@@ -710,7 +710,7 @@ pub fn ml_dsa_sign<
         }
 
         // c_tilde = H(mu || w1Encode(w1))
-        let w1_encoded = encode_w1::<K>(&w1, GAMMA2);
+        let mut w1_encoded = encode_w1::<K>(&w1, GAMMA2);
 
         let mut c_tilde_full = [0u8; 64]; // Full hash output
         h2(&mu, &w1_encoded, &mut c_tilde_full);
@@ -740,6 +740,11 @@ pub fn ml_dsa_sign<
             y.zeroize();
             y_hat.zeroize();
             w.zeroize();
+            w1.zeroize();
+            w1_encoded.zeroize();
+            c_tilde_full.zeroize();
+            c_hat.zeroize();
+            z.zeroize();
             continue;
         }
 
@@ -766,6 +771,11 @@ pub fn ml_dsa_sign<
             y.zeroize();
             y_hat.zeroize();
             w.zeroize();
+            w1.zeroize();
+            w1_encoded.zeroize();
+            c_tilde_full.zeroize();
+            c_hat.zeroize();
+            z.zeroize();
             cs2.zeroize();
             r0.zeroize();
             continue;
@@ -786,6 +796,11 @@ pub fn ml_dsa_sign<
             y.zeroize();
             y_hat.zeroize();
             w.zeroize();
+            w1.zeroize();
+            w1_encoded.zeroize();
+            c_tilde_full.zeroize();
+            c_hat.zeroize();
+            z.zeroize();
             cs2.zeroize();
             r0.zeroize();
             ct0.zeroize();
@@ -798,6 +813,11 @@ pub fn ml_dsa_sign<
             y.zeroize();
             y_hat.zeroize();
             w.zeroize();
+            w1.zeroize();
+            w1_encoded.zeroize();
+            c_tilde_full.zeroize();
+            c_hat.zeroize();
+            z.zeroize();
             cs2.zeroize();
             r0.zeroize();
             ct0.zeroize();
@@ -812,6 +832,11 @@ pub fn ml_dsa_sign<
         y.zeroize();
         y_hat.zeroize();
         w.zeroize();
+        w1.zeroize();
+        w1_encoded.zeroize();
+        c_tilde_full.zeroize();
+        c_hat.zeroize();
+        z.zeroize();
         cs2.zeroize();
         r0.zeroize();
         ct0.zeroize();
