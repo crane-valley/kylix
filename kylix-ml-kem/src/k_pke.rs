@@ -131,7 +131,7 @@ pub fn k_pke_keygen<const K: usize, const ETA1: usize>(d: &[u8; 32]) -> (Vec<u8>
 /// 5. Compute v = t^T * r_vec + e2 + encode(m)
 /// 6. c1 = Compress_du(u), c2 = Compress_dv(v)
 /// 7. return c1 || c2
-#[allow(clippy::unwrap_used)] // rho slice is exactly 32 bytes by ek_pke layout
+#[allow(clippy::expect_used)] // rho slice is exactly 32 bytes by ek_pke layout
 pub fn k_pke_encrypt<
     const K: usize,
     const ETA1: usize,
@@ -145,7 +145,9 @@ pub fn k_pke_encrypt<
 ) -> Vec<u8> {
     // 1. Parse ek_pke as (t, rho)
     let t_bytes = &ek_pke[..K * 384];
-    let rho: &[u8; 32] = ek_pke[K * 384..K * 384 + 32].try_into().unwrap();
+    let rho: &[u8; 32] = ek_pke[K * 384..K * 384 + 32]
+        .try_into()
+        .expect("infallible: ek_pke slice is exactly 32 bytes");
 
     let t: PolyVec<K> = PolyVec::from_bytes(t_bytes);
 

@@ -337,7 +337,7 @@ unsafe fn inv_butterfly_len8_avx2(a: &mut [i16; N], zetas: &[i16]) {
 /// Requires AVX2 support.
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
-#[allow(clippy::unwrap_used)] // ZETAS has 128 elements, k is bounded within NTT butterfly
+#[allow(clippy::expect_used)] // ZETAS has 128 elements, k is bounded within NTT butterfly
 pub unsafe fn ntt_avx2(a: &mut [i16; N]) {
     let mut k: usize = 1;
     let mut len: usize = 128;
@@ -356,7 +356,9 @@ pub unsafe fn ntt_avx2(a: &mut [i16; N]) {
 
     // len=8: use specialized half-vector operations
     {
-        let zetas_len8: [i16; 16] = ZETAS[k..k + 16].try_into().unwrap();
+        let zetas_len8: [i16; 16] = ZETAS[k..k + 16]
+            .try_into()
+            .expect("infallible: ZETAS slice is exactly 16 elements");
         k += 16;
         butterfly_len8_avx2(a, &zetas_len8);
     }
