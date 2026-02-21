@@ -337,6 +337,7 @@ unsafe fn inv_butterfly_len8_avx2(a: &mut [i16; N], zetas: &[i16]) {
 /// Requires AVX2 support.
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
+#[allow(clippy::unwrap_used)] // ZETAS has 128 elements, k is bounded within NTT butterfly
 pub unsafe fn ntt_avx2(a: &mut [i16; N]) {
     let mut k: usize = 1;
     let mut len: usize = 128;
@@ -686,6 +687,7 @@ pub unsafe fn poly_sub(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) {
 // ============================================================================
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
 

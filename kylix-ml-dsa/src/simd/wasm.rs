@@ -182,6 +182,7 @@ pub unsafe fn caddq_wasm(a: &mut [i32; N]) {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     // WASM tests need to be run with wasm-pack or similar
     // Skip for now as we can't run wasm32 tests in native environment

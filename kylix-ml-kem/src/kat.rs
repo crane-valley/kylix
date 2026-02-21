@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Known Answer Tests (KAT) for ML-KEM.
 //!
 //! This module contains test vectors derived from NIST ACVP and reference implementations
