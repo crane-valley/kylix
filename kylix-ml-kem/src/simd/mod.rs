@@ -20,6 +20,7 @@
 //! documentation.
 
 #![allow(unsafe_code)]
+#![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::params::common::N;
 use crate::poly::Poly;

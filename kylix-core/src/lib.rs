@@ -14,6 +14,8 @@
 #![warn(missing_docs)]
 #![warn(clippy::all)]
 #![deny(unsafe_code)]
+#![deny(unsafe_op_in_unsafe_fn)]
+#![deny(clippy::unwrap_used, clippy::expect_used)]
 
 mod error;
 mod ntt;
