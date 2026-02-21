@@ -193,6 +193,7 @@ macro_rules! define_slh_dsa_variant {
                 Ok((signing_key, verification_key))
             }
 
+            #[allow(clippy::expect_used)] // infallible: SigningKey has correct fixed size
             fn sign(sk: &Self::SigningKey, message: &[u8]) -> Result<Self::Signature> {
                 // Convert bytes back to SecretKey for signing
                 // This conversion is infallible since sk.bytes has the correct fixed size
@@ -209,6 +210,7 @@ macro_rules! define_slh_dsa_variant {
                 Ok(Signature(sig_vec))
             }
 
+            #[allow(clippy::expect_used)] // infallible: VerificationKey has correct fixed size
             fn verify(
                 pk: &Self::VerificationKey,
                 message: &[u8],
@@ -232,6 +234,7 @@ macro_rules! define_slh_dsa_variant {
         }
 
         #[cfg(test)]
+        #[allow(clippy::unwrap_used, clippy::expect_used)]
         mod tests {
             use super::*;
             use rand::SeedableRng;

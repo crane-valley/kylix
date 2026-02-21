@@ -107,6 +107,8 @@ Primary optimization opportunity: SHA3/SHAKE SIMD (HIGH priority, biggest single
 - [x] Dudect timing tests (ML-KEM passes, ML-DSA expected variance due to rejection sampling)
 - [x] Dudect CI integration (ML-KEM regression detection)
 - [x] cargo-audit in CI
+- [x] `unsafe_op_in_unsafe_fn` denied across workspace (SIMD modules explicitly allowed)
+- [x] `clippy::unwrap_used` / `clippy::expect_used` denied across workspace (justified uses annotated)
 - [x] Property-based tests (proptest: roundtrip, key/sig sizes, tampering detection)
 - [ ] Fuzz targets for error/validation paths (invalid-length inputs to encaps/decaps)
 - [ ] Constant-time formal verification

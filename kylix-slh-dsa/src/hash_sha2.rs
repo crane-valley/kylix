@@ -82,6 +82,7 @@ fn adrs_compress(adrs: &Address) -> [u8; 22] {
 /// FIPS 205, Section 10.2:
 /// - MGF1-SHA-256 for 128-bit security (`mgf1::<Sha256>`)
 /// - MGF1-SHA-512 for 192/256-bit security (`mgf1::<Sha512>`)
+#[allow(clippy::expect_used)] // MGF1 counter fits in u32 for all practical mask lengths
 fn mgf1<D: Digest + Clone>(seed_parts: &[&[u8]], mask_len: usize) -> Vec<u8> {
     let hash_len = <D as Digest>::output_size();
     let num_blocks = mask_len.div_ceil(hash_len);
@@ -162,6 +163,7 @@ impl HashSuite for Sha2_128Hash {
         Zeroizing::new(Self::sha256_hash_trunc_n(pk_seed, adrs, &[sk_seed]))
     }
 
+    #[allow(clippy::expect_used)] // HMAC accepts any key length
     fn prf_msg(sk_prf: &[u8], opt_rand: &[u8], message: &[u8]) -> Zeroizing<Vec<u8>> {
         // PRFmsg = Trunc_n(HMAC-SHA-256(SK.prf, OptRand || M))
         let mut mac = HmacSha256::new_from_slice(sk_prf).expect("HMAC accepts any key length");
@@ -314,6 +316,7 @@ macro_rules! impl_sha2_cat35_hash_suite {
                 Zeroizing::new(Self::sha256_hash_trunc_n(pk_seed, adrs, &[sk_seed]))
             }
 
+            #[allow(clippy::expect_used)] // HMAC accepts any key length
             fn prf_msg(sk_prf: &[u8], opt_rand: &[u8], message: &[u8]) -> Zeroizing<Vec<u8>> {
                 // PRFmsg = Trunc_n(HMAC-SHA-512(SK.prf, OptRand || M))
                 let mut mac =
@@ -388,6 +391,7 @@ impl_sha2_cat35_hash_suite!(Sha2_192Hash, 24, PADDING_SHA256_N24, PADDING_SHA512
 impl_sha2_cat35_hash_suite!(Sha2_256Hash, 32, PADDING_SHA256_N32, PADDING_SHA512_N32);
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use alloc::vec;

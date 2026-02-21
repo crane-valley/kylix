@@ -32,6 +32,8 @@
 #![warn(clippy::all)]
 // Note: unsafe_code is allowed for SIMD optimizations in the simd module
 #![cfg_attr(not(feature = "simd"), deny(unsafe_code))]
+#![deny(unsafe_op_in_unsafe_fn)]
+#![deny(clippy::unwrap_used, clippy::expect_used)]
 
 #[cfg(not(feature = "std"))]
 extern crate alloc;

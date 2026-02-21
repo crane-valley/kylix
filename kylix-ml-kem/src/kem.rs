@@ -162,6 +162,7 @@ pub fn ml_kem_encaps<
 /// 4. c' = K-PKE.Encrypt(ek, m', r')
 /// 5. K_bar = J(z || c)  -- implicit rejection key
 /// 6. if c == c': return K' else: return K_bar (constant-time)
+#[allow(clippy::expect_used)] // infallible: slice sizes guaranteed by dk length check
 pub fn ml_kem_decaps<
     const K: usize,
     const ETA1: usize,
@@ -246,6 +247,7 @@ pub fn ml_kem_decaps<
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     #[cfg(not(feature = "std"))]

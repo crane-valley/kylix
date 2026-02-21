@@ -28,6 +28,8 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![deny(unsafe_code)]
+#![deny(unsafe_op_in_unsafe_fn)]
+#![deny(clippy::unwrap_used, clippy::expect_used)]
 #![warn(missing_docs, clippy::pedantic)]
 // Clippy allowances for cryptographic code patterns:
 // - many_single_char_names: Mathematical notation (a, b, c, t, r, z, etc.)

@@ -371,6 +371,7 @@ pub unsafe fn inv_ntt_neon(a: &mut [i32; N]) {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
 
