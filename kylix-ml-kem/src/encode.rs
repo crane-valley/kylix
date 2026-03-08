@@ -130,21 +130,13 @@ pub fn msg_to_poly(m: &[u8; 32]) -> Poly {
 /// 32-byte message
 pub fn poly_to_msg(poly: &Poly) -> [u8; 32] {
     let mut m = [0u8; 32];
-    let half_q = (Q as i16) / 2; // 1664
 
     for i in 0..32 {
         for j in 0..8 {
             // Compress coefficient to 1 bit
             // round(2 * c / q) mod 2
-            let c = poly.coeffs[8 * i + j];
-            // Normalize to [0, q-1]
-            let c = if c < 0 { c + Q as i16 } else { c };
-            // Check if closer to q/2 than to 0 or q
-            let bit = if c > half_q / 2 && c < Q as i16 - half_q / 2 {
-                1u8
-            } else {
-                0u8
-            };
+            let c = normalize_mod_q(poly.coeffs[8 * i + j]);
+            let bit = (((((c as u32) << 1) + (Q as u32) / 2) / (Q as u32)) & 1) as u8;
             m[i] |= bit << j;
         }
     }
@@ -208,14 +200,19 @@ fn byte_encode_1(poly: &Poly, out: &mut [u8]) {
     for i in 0..32 {
         let mut byte = 0u8;
         for j in 0..8 {
-            let c = poly.coeffs[8 * i + j];
             // Compress to 1 bit: round(2*c/q) mod 2
-            let c = if c < 0 { c + Q as i16 } else { c };
+            let c = normalize_mod_q(poly.coeffs[8 * i + j]);
             let bit = ((((c as u32) << 1) + (Q as u32) / 2) / (Q as u32)) & 1;
             byte |= (bit as u8) << j;
         }
         out[i] = byte;
     }
+}
+
+#[inline(always)]
+fn normalize_mod_q(c: i16) -> i16 {
+    let c_i32 = c as i32;
+    (c_i32 + ((c_i32 >> 31) & Q as i32)) as i16
 }
 
 fn byte_decode_1(bytes: &[u8]) -> Poly {
