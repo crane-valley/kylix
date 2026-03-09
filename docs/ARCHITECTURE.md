@@ -16,9 +16,9 @@ Published as `kylix-pqc` on crates.io. MSRV: 1.75.
 | kylix-ml-kem | 203 | ML-KEM (Kyber): key encapsulation mechanism |
 | kylix-ml-dsa | 204 | ML-DSA (Dilithium): digital signature scheme |
 | kylix-slh-dsa | 205 | SLH-DSA (SPHINCS+): hash-based signatures |
-| kylix | -- | Re-export facade published as `kylix-pqc` |
+| kylix-pqc | -- | Re-export facade (directory: `kylix/`, published as `kylix-pqc`) |
 
-Excluded from workspace: `timing/` (dudect tests), `fuzz/` (cargo-fuzz targets)
+Excluded from workspace: `timing/` (dudect tests), per-crate `*/fuzz/` dirs (cargo-fuzz targets, e.g. `kylix-ml-kem/fuzz`)
 
 ## Shared Patterns
 
@@ -51,7 +51,7 @@ All key types (public key, secret key, ciphertext, signature) follow:
 - All secret-dependent logic uses `subtle` crate (Choice, ConditionallySelectable, ct_eq)
 - No branching on secret data
 - Verified via dudect timing tests (timing/ directory)
-- ML-DSA sign uses rejection sampling (inherently variable-time for public output)
+- ML-DSA sign uses rejection sampling, which is an inherently variable-time process.
 
 ## Algorithm-Specific Notes
 
@@ -70,7 +70,7 @@ All key types (public key, secret key, ciphertext, signature) follow:
 ### SLH-DSA (FIPS 205)
 
 - Hash-based (no lattice), stateless
-- Two hash families: SHAKE (default) and SHA2 (feature flag `sha2`)
+- Two hash families: SHAKE (default) and SHA2 (enabled via `slh-dsa-sha2-*` variant features; facade feature `slh-dsa-sha2`)
 - Two speed tiers: f (fast, larger signatures) and s (small, slower)
 - `parallel` feature for multi-threaded signing (Rayon)
 - Inherently constant-time (hash-based design, no secret-dependent branches)

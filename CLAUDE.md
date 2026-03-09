@@ -2,7 +2,7 @@
 
 - Source code, comments, logs, error messages: English
 - PR titles, summaries, and comments: English
-- Create feature branch → commit → push → PR (merge is done by humans)
+- Create feature branch -> commit -> push -> PR (merge is done by humans)
 
 ## CI Notes
 
@@ -98,8 +98,8 @@ Three dispatch flavors (macros in kylix-core):
 ## Constant-Time Testing
 
 - dudect-based timing tests in `timing/` directory (excluded from workspace)
-- Run: `cd timing && cargo test --release` (must be release for meaningful timing)
-- CI threshold: |max t| <= 4.5 passes, >4.5 with <0.5M measurements is inconclusive
+- Run: `cargo run --release -p kylix-timing --bin ml_kem` (must be release for meaningful timing)
+- CI threshold: A test passes if `dudect` reports `|max t| <= 4.5`. A result of `|max t| > 4.5` is considered inconclusive if fewer than 0.5 million measurements were taken; otherwise, it is a failure.
 - All secret-dependent branches must use `subtle::Choice` / `subtle::ct_eq`
 - NEVER use `if` / `match` / `==` on secret data -- use `subtle` crate operations
 
@@ -117,7 +117,7 @@ kylix-core (shared: NTT macros, SIMD dispatch, Barrett reduction, zeroize/subtle
   +-- kylix-ml-dsa  (FIPS 204: ML-DSA-44/65/87)
   +-- kylix-slh-dsa (FIPS 205: SLH-DSA all SHAKE/SHA2 variants)
   |
-  +-- kylix (re-export facade, published as kylix-pqc on crates.io)
+  +-- kylix-pqc (re-export facade, published as kylix-pqc on crates.io)
 ```
 
 ## Performance Notes
