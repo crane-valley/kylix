@@ -110,6 +110,7 @@ Primary optimization opportunity: SHA3/SHAKE SIMD (HIGH priority, biggest single
 - [x] `unsafe_op_in_unsafe_fn` denied across workspace (SIMD modules explicitly allowed)
 - [x] `clippy::unwrap_used` / `clippy::expect_used` denied across workspace (justified uses annotated)
 - [x] Property-based tests (proptest: roundtrip, key/sig sizes, tampering detection)
+- [x] CLAUDE.md expansion (SIMD, dudect, CI, crate graph) + docs/ARCHITECTURE.md
 - [ ] Fuzz targets for error/validation paths (invalid-length inputs to encaps/decaps)
 - [ ] Constant-time formal verification
 - [ ] Security audit
