@@ -71,3 +71,57 @@ When adding a new crate to the workspace:
 
 3. **Verify package contents**: Run `cargo package --list -p <crate>` to confirm large files are excluded
 4. **Gate excluded tests**: If tests depend on excluded files, add skip logic so tests pass when running from crates.io tarball
+
+## SIMD Development
+
+### Dispatch Pattern (kylix-core/src/simd.rs)
+
+Runtime detection with compile-time fast paths:
+- AVX2: `#[target_feature(enable = "avx2")]` + `is_x86_feature_detected!`
+- NEON: always available on aarch64 (const true)
+- WASM-SIMD128: feature-gated (`core::arch::wasm32` intrinsics)
+- Scalar fallback: no_std compatible
+
+Three dispatch flavors (macros in kylix-core):
+- Pattern A: avx2 + neon + scalar
+- Pattern B: avx2 + neon + wasm + scalar (used by ML-DSA pointwise)
+- Pattern C: avx2-only + scalar
+
+### Adding SIMD for a new operation
+
+1. Implement scalar version first (correctness baseline)
+2. Add AVX2 backend in `{crate}/src/simd/avx2.rs`
+3. Add NEON backend in `{crate}/src/simd/neon.rs`
+4. Wire dispatch via kylix-core macros
+5. Test both paths: `cargo test --all-features` (SIMD) AND `cargo test --no-default-features` (scalar)
+
+## Constant-Time Testing
+
+- dudect-based timing tests in `timing/` directory (excluded from workspace)
+- Run: `cd timing && cargo test --release` (must be release for meaningful timing)
+- CI threshold: |max t| <= 4.5 passes, >4.5 with <0.5M measurements is inconclusive
+- All secret-dependent branches must use `subtle::Choice` / `subtle::ct_eq`
+- NEVER use `if` / `match` / `==` on secret data -- use `subtle` crate operations
+
+## Cross-Platform CI
+
+- ci.yml: fast PR checks (fmt, clippy, audit, test on Ubuntu stable, MSRV 1.75, no_std, dudect)
+- ci-full.yml: on push to main -- full matrix (Ubuntu, macOS, Windows, ARM64 with SIMD-specific tests, codecov)
+
+## Workspace Crate Graph
+
+```
+kylix-core (shared: NTT macros, SIMD dispatch, Barrett reduction, zeroize/subtle re-exports)
+  |
+  +-- kylix-ml-kem  (FIPS 203: ML-KEM-512/768/1024)
+  +-- kylix-ml-dsa  (FIPS 204: ML-DSA-44/65/87)
+  +-- kylix-slh-dsa (FIPS 205: SLH-DSA all SHAKE/SHA2 variants)
+  |
+  +-- kylix (re-export facade, published as kylix-pqc on crates.io)
+```
+
+## Performance Notes
+
+- Dev/test profiles use opt-level=2 for crypto crates (SLH-DSA is 10-15x slower at opt-level=0)
+- Release: LTO + codegen-units=1 + panic=abort
+- Benchmark via kylix-cli repo: `cargo bench -p kylix-bench`
