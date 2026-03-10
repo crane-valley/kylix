@@ -2,6 +2,11 @@
 
 Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/205).
 
+This roadmap is intentionally scoped for an experimental PoC. The focus is on
+performance and implementation quality improvements that a coding agent can
+drive directly. Tasks that mainly improve production ecosystem compatibility,
+packaging, or audit readiness are deferred unless the project direction changes.
+
 ---
 
 ## Current Status (v0.4.5)
@@ -18,36 +23,32 @@ Pure Rust, high-performance implementation of NIST PQC standards (FIPS 203/204/2
 
 > See `CHANGELOG.md` for full release history and `BENCHMARKS.md` for performance data.
 
-### Not Started
+### Near-Term Priorities
 
 | Component | Priority | Notes |
 |-----------|----------|-------|
-| Security Audit | HIGH | External (candidates: Trail of Bits, NCC Group, Cure53, X41 D-Sec) |
 | SHA3/SHAKE SIMD Optimization | HIGH | Keccak permutation AVX2 — SHA3/SHAKE is 40-50% of ML-KEM total time. No Rust PQC lib has this yet (differentiation opportunity). |
-| RustCrypto Trait Integration | HIGH | Implement RustCrypto KEM/Signature traits for rustls/ecosystem compatibility |
+| Fuzz Targets for Error/Validation Paths | HIGH | Add coverage for malformed and invalid-length inputs to encaps/decaps and related parsing paths. High-value quality work that is easy to automate and verify in CI. |
+| ML-DSA: `ml_dsa_verify` pk Length Check | HIGH | Prevent panic-on-short-input behavior in an internal verifier entry point. Small change, clear value, easy to test. |
+| k_pke Internal Validation | HIGH | Prevent short-input panics in internal encryption/decryption helpers. Good defense-in-depth with limited implementation cost. |
 | SIMD NTT (WASM) | LOW | ML-DSA pointwise mul done; NTT not yet WASM-optimized. ML-KEM has no WASM SIMD. |
 
 ### Refactoring Backlog
 
 | Component | Priority | Impact | Notes |
 |-----------|----------|--------|-------|
-| Poly API Consistency | MEDIUM | Ergonomics | ML-KEM uses module functions (`poly_add()`), ML-DSA uses methods (`.add()`). Standardize to methods |
-| ~~ML-DSA: ct0 Norm Check (FIPS 204 Alg 2 Step 25)~~ | MEDIUM | Correctness | Done (PR #147). Added `check_norm(GAMMA2)` rejection for ct0 per FIPS 204 Algorithm 2 step 25. |
-| SLH-DSA: parallel/sequential Sign Dedup | MEDIUM | Code quality | `slh_sign_impl()` has parallel and sequential versions (~90 lines each) that differ only in trait bounds (`Send + Sync`), FORS sign function call, and address mutability semantics. Unification is non-trivial due to Rust's inability to conditionally apply trait bounds. |
-| k_pke Internal Validation | LOW | Defense-in-depth | `k_pke_encrypt`/`k_pke_decrypt` accept `&[u8]` with no length validation; panics on short input via `try_into().unwrap()`. Currently protected by ML-KEM layer validation (PR #132), but direct `pub(crate)` callers are unguarded. |
-| ML-DSA: `ml_dsa_verify` pk Length Check | LOW | Defense-in-depth | `ml_dsa_verify` accesses `pk[0..32]` and `pk[offset..offset+320]` without validating `pk.len()`. Currently safe because all public API callers pass pre-validated `VerificationKey`, but the function accepts `&[u8]` and would panic on short input. Add an early length check matching `expand_verification_key`. |
 | ML-DSA: Nonce u16 Overflow at High Iteration Count | LOW | Correctness | In `ml_dsa_sign`, `nonce as u16` truncates for ML-DSA-87 (L=7) when `kappa > 9362` (nonce = kappa\*L+i > 65535). Astronomically unlikely to reach but technically incorrect. Consider using `u32` nonces or lowering `MAX_ATTEMPTS`. Pre-existing issue, not introduced by sign.rs refactor. |
+| Poly API Consistency | LOW | Ergonomics | ML-KEM uses module functions (`poly_add()`), ML-DSA uses methods (`.add()`). Standardize only if the API churn is worth it. |
+| SLH-DSA: parallel/sequential Sign Dedup | LOW | Code quality | `slh_sign_impl()` has parallel and sequential versions (~90 lines each) that differ only in trait bounds (`Send + Sync`), FORS sign function call, and address mutability semantics. Unification is non-trivial due to Rust's inability to conditionally apply trait bounds. |
 | SLH-DSA: wots_pk_gen_to / wots_pk_from_sig_to | LOW | Performance | Add `_to` buffer-write variants for `wots_pk_gen` and `wots_pk_from_sig` to eliminate their single Vec return allocation. Low priority since these are called once per WOTS+ operation (not in hot loops). |
-| ~~ML-DSA: Drop-based Zeroization~~ | MEDIUM | Security | Done. Migrated all sensitive variables in `ml_dsa_sign`, `ml_dsa_keygen`, and `encode_signature` from manual `.zeroize()` calls to `Zeroizing<T>` wrappers for automatic drop-based cleanup. Removed ~76 manual zeroize calls. |
-| Workspace Dependency Consolidation | LOW | Maintainability | `sha3`, `sha2`, `digest` etc. are specified independently in each member crate. Consolidate into `[workspace.dependencies]` in root `Cargo.toml` and reference via `{ workspace = true }` for version consistency. |
 
 ---
 
-## Phase 4: Security Audit (Future)
+## Optional Verification Work
 
-**Scope:** Cryptographic correctness, side-channel resistance, memory safety, dependency audit
-
-**Candidates:** Trail of Bits, NCC Group, Cure53, X41 D-Sec
+These items matter if Kylix moves beyond a PoC and starts targeting outside
+adoption or production-adjacent use. They are intentionally separated from the
+agent-friendly implementation backlog above.
 
 ### Constant-time Verification
 
@@ -61,17 +62,6 @@ Dudect-based timing tests in `timing/` directory.
 - SLH-DSA timing tests (LOW — inherently constant-time hash-based design)
 - Formal verification (ct-verif / ctgrind) for critical paths
 - Zeroize intermediate secrets in `ml_kem_encaps`/`ml_kem_decaps` (stack-allocated `g_input`, `k_prime`, `r_prime`, `m_prime`, `r`, `shared_secret`)
-
----
-
-## Phase 5: Ecosystem Integration (Future)
-
-| Integration | Priority | Notes |
-|-------------|----------|-------|
-| rustls/webpki | HIGH | rustls 0.23.22+ supports ML-KEM via `prefer-post-quantum` feature. Requires RustCrypto KEM trait impl to integrate as a provider. |
-| PKCS#8/X.509 | HIGH | RFC 9881 (ML-DSA AlgorithmIdentifiers, Oct 2025) published. IETF draft for SLH-DSA in progress. Target x509-cert crate integration. |
-| Python (PyO3) | MEDIUM | Untapped market for PQC Python bindings. Use `py.allow_threads()` for GIL-free crypto operations. |
-| WASM bindings | MEDIUM | Browser SIMD128 universally supported. Web Crypto API has no PQC support yet — opportunity for wasm-bindgen API. |
 
 ---
 
@@ -112,5 +102,3 @@ Primary optimization opportunity: SHA3/SHAKE SIMD (HIGH priority, biggest single
 - [x] Property-based tests (proptest: roundtrip, key/sig sizes, tampering detection)
 - [x] CLAUDE.md expansion (SIMD, dudect, CI, crate graph) + docs/ARCHITECTURE.md
 - [ ] Fuzz targets for error/validation paths (invalid-length inputs to encaps/decaps)
-- [ ] Constant-time formal verification
-- [ ] Security audit
