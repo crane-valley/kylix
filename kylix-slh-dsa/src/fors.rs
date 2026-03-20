@@ -15,8 +15,11 @@ use crate::hash::{HashSuite, MAX_N};
 use crate::utils::base_2b;
 use zeroize::Zeroize;
 
-#[cfg(not(feature = "std"))]
+#[cfg(all(test, not(feature = "std")))]
 use alloc::{vec, vec::Vec};
+
+/// Maximum number of FORS roots across all supported parameter sets.
+const MAX_FORS_TREES: usize = 35;
 
 /// Compute a FORS tree node directly into a caller-provided buffer.
 ///
@@ -215,6 +218,7 @@ pub fn fors_sign<H: HashSuite>(
 ///
 /// # Returns
 /// Recovered FORS public key (n bytes)
+#[cfg(test)]
 pub fn fors_pk_from_sig<H: HashSuite>(
     sig_fors: &[u8],
     md: &[u8],
@@ -223,14 +227,30 @@ pub fn fors_pk_from_sig<H: HashSuite>(
     k: usize,
     a: usize,
 ) -> Vec<u8> {
+    let mut pk = vec![0u8; H::N];
+    fors_pk_from_sig_to::<H>(&mut pk, sig_fors, md, pk_seed, adrs, k, a);
+    pk
+}
+
+/// Recover a FORS public key from a signature into a caller-provided buffer.
+pub fn fors_pk_from_sig_to<H: HashSuite>(
+    out: &mut [u8],
+    sig_fors: &[u8],
+    md: &[u8],
+    pk_seed: &[u8],
+    adrs: &mut Address,
+    k: usize,
+    a: usize,
+) {
     let n = H::N;
     let t = 1u32 << a;
+    debug_assert_eq!(out.len(), n);
 
     // Extract indices from message digest
     let indices = base_2b(md, a, k);
 
     // Collect all tree roots
-    let mut roots = vec![0u8; k * n];
+    let mut roots = [0u8; MAX_FORS_TREES * MAX_N];
 
     let sig_elem_size = n + a * n; // sk element + auth path
     let mut node = [0u8; MAX_N];
@@ -279,7 +299,7 @@ pub fn fors_pk_from_sig<H: HashSuite>(
 
     // Compress all roots to get public key
     let fors_pk_adrs = adrs.with_type(AdrsType::ForsPk);
-    H::t_l(pk_seed, &fors_pk_adrs, &roots)
+    H::t_l_to(out, pk_seed, &fors_pk_adrs, &roots[..k * n]);
 }
 
 #[cfg(test)]

@@ -72,6 +72,16 @@ macro_rules! impl_shake_hash_suite {
                 output
             }
 
+            fn prf_msg_to(out: &mut [u8], sk_prf: &[u8], opt_rand: &[u8], message: &[u8]) {
+                debug_assert_eq!(out.len(), $n);
+                let mut hasher = Shake256::default();
+                hasher.update(sk_prf);
+                hasher.update(opt_rand);
+                hasher.update(message);
+                let mut reader = hasher.finalize_xof();
+                reader.read(out);
+            }
+
             fn h_msg(
                 r: &[u8],
                 pk_seed: &[u8],
@@ -90,6 +100,16 @@ macro_rules! impl_shake_hash_suite {
                 let mut output = vec![0u8; out_len];
                 reader.read(&mut output);
                 output
+            }
+
+            fn h_msg_to(out: &mut [u8], r: &[u8], pk_seed: &[u8], pk_root: &[u8], message: &[u8]) {
+                let mut hasher = Shake256::default();
+                hasher.update(r);
+                hasher.update(pk_seed);
+                hasher.update(pk_root);
+                hasher.update(message);
+                let mut reader = hasher.finalize_xof();
+                reader.read(out);
             }
 
             fn f(pk_seed: &[u8], adrs: &Address, m1: &[u8]) -> Vec<u8> {

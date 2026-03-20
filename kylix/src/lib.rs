@@ -44,6 +44,24 @@
 //! # Ok(())
 //! # }
 //! ```
+//!
+//! ML-DSA sign and verify:
+//!
+//! ```no_run
+//! # fn main() -> kylix_pqc::Result<()> {
+//! use kylix_pqc::ml_dsa::MlDsa65;
+//! use kylix_pqc::traits::Signer;
+//! use rand::rng;
+//!
+//! let mut rng = rng();
+//! let (sk, pk) = MlDsa65::keygen(&mut rng)?;
+//! let message = b"Hello, post-quantum world!";
+//! let signature = MlDsa65::sign(&sk, message)?;
+//!
+//! MlDsa65::verify(&pk, message, &signature)?;
+//! # Ok(())
+//! # }
+//! ```
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]

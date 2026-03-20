@@ -7,14 +7,15 @@
 
 use crate::address::{Address, AdrsType};
 use crate::hash::{HashSuite, MAX_N};
-use crate::wots::{wots_pk_from_sig, wots_pk_gen, wots_sign_to};
+#[cfg(test)]
+use crate::wots::wots_pk_gen;
+use crate::wots::{wots_pk_from_sig_to, wots_pk_gen_to, wots_sign_to};
 use zeroize::Zeroize;
-
-#[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
 
 #[cfg(all(test, not(feature = "std")))]
 use alloc::vec;
+#[cfg(test)]
+use alloc::vec::Vec;
 
 /// Compute a node in the XMSS Merkle tree.
 ///
@@ -87,8 +88,7 @@ pub fn xmss_node_to<H: HashSuite, const WOTS_LEN: usize>(
         let mut leaf_adrs = *adrs;
         leaf_adrs.set_type(AdrsType::WotsHash);
         leaf_adrs.set_keypair(i);
-        let pk = wots_pk_gen::<H, WOTS_LEN>(sk_seed, pk_seed, &mut leaf_adrs);
-        out.copy_from_slice(&pk);
+        wots_pk_gen_to::<H, WOTS_LEN>(out, sk_seed, pk_seed, &mut leaf_adrs);
     } else {
         // Internal node: hash of children using stack buffers
         let mut left = [0u8; MAX_N];
@@ -208,6 +208,7 @@ pub fn xmss_sign<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
 ///
 /// # Returns
 /// Recovered XMSS root (n bytes)
+#[cfg(test)]
 pub fn xmss_pk_from_sig<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
     idx: u32,
     sig_xmss: &[u8],
@@ -216,8 +217,26 @@ pub fn xmss_pk_from_sig<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: us
     adrs: &Address,
     h_prime: usize,
 ) -> Vec<u8> {
+    let mut root = vec![0u8; H::N];
+    xmss_pk_from_sig_to::<H, WOTS_LEN, WOTS_LEN1>(
+        &mut root, idx, sig_xmss, message, pk_seed, adrs, h_prime,
+    );
+    root
+}
+
+/// Recover an XMSS root from a signature into a caller-provided buffer.
+pub fn xmss_pk_from_sig_to<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
+    out: &mut [u8],
+    idx: u32,
+    sig_xmss: &[u8],
+    message: &[u8],
+    pk_seed: &[u8],
+    adrs: &Address,
+    h_prime: usize,
+) {
     let n = H::N;
     let wots_sig_len = WOTS_LEN * n;
+    debug_assert_eq!(out.len(), n);
 
     // Extract WOTS+ signature and authentication path
     let sig_wots = &sig_xmss[..wots_sig_len];
@@ -227,9 +246,14 @@ pub fn xmss_pk_from_sig<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: us
     let mut wots_adrs = *adrs;
     wots_adrs.set_type(AdrsType::WotsHash);
     wots_adrs.set_keypair(idx);
-    let pk = wots_pk_from_sig::<H, WOTS_LEN, WOTS_LEN1>(sig_wots, message, pk_seed, &mut wots_adrs);
     let mut node = [0u8; MAX_N];
-    node[..n].copy_from_slice(&pk);
+    wots_pk_from_sig_to::<H, WOTS_LEN, WOTS_LEN1>(
+        &mut node[..n],
+        sig_wots,
+        message,
+        pk_seed,
+        &mut wots_adrs,
+    );
 
     // Climb the tree using authentication path with stack buffers
     let mut tree_adrs = *adrs;
@@ -252,10 +276,9 @@ pub fn xmss_pk_from_sig<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: us
         node[..n].copy_from_slice(&tmp[..n]);
     }
 
-    let result = node[..n].to_vec();
+    out.copy_from_slice(&node[..n]);
     node.zeroize();
     tmp.zeroize();
-    result
 }
 
 #[cfg(test)]
