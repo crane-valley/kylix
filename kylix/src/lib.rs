@@ -22,11 +22,13 @@
 //! rand = "0.9"
 //! ```
 //!
-//! Enable SHA2-based SLH-DSA variants when needed:
+//! Enable SHA2-based SLH-DSA variants when needed. On the facade crate,
+//! `slh-dsa-sha2` augments `slh-dsa`, so SHA2-only configurations with
+//! `default-features = false` should enable both flags:
 //!
 //! ```toml
 //! [dependencies]
-//! kylix-pqc = { version = "0.4", features = ["slh-dsa-sha2"] }
+//! kylix-pqc = { version = "0.4", default-features = false, features = ["slh-dsa", "slh-dsa-sha2"] }
 //! rand = "0.9"
 //! ```
 //!
@@ -36,7 +38,8 @@
 //! - `ml-kem` (default): enable all ML-KEM variants
 //! - `ml-dsa` (default): enable all ML-DSA variants
 //! - `slh-dsa` (default): enable SHAKE-based SLH-DSA variants
-//! - `slh-dsa-sha2`: enable SHA2-based SLH-DSA variants
+//! - `slh-dsa-sha2`: enable SHA2-based SLH-DSA variants; on the facade crate,
+//!   keep `slh-dsa` enabled as well
 //!
 //! ## Choosing An Algorithm
 //!
