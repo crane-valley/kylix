@@ -6,7 +6,7 @@
 use crate::kem::{ml_kem_decaps, ml_kem_encaps, ml_kem_keygen};
 use crate::params::ml_kem_768::*;
 use crate::types::define_kem_types;
-use kylix_core::{Error, Kem, Result};
+use kylix_core::{Kem, Result};
 use rand_core::CryptoRng;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
@@ -79,6 +79,7 @@ impl Kem for MlKem768 {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+    use kylix_core::Error;
 
     #[test]
     fn test_key_sizes() {
