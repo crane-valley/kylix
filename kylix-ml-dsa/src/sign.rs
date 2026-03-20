@@ -795,8 +795,12 @@ pub fn ml_dsa_verify<
     let gamma1_bits = if GAMMA1 == (1 << 17) { 17 } else { 19 };
     let z_bytes = if gamma1_bits == 17 { 576 } else { 640 };
     let expected_sig_len = C_TILDE_BYTES + L * z_bytes + OMEGA + K;
+    let expected_pk_len = 32 + K * 320;
 
     if sig.len() != expected_sig_len {
+        return false;
+    }
+    if pk.len() != expected_pk_len {
         return false;
     }
 
@@ -912,6 +916,45 @@ mod tests {
         // ML-DSA-44: pk = 1312, sk = 2560
         assert_eq!(pk.len(), 1312);
         assert_eq!(sk.len(), 2560);
+    }
+
+    #[test]
+    fn test_verify_rejects_short_public_key() {
+        const BETA_44: i32 = 78;
+        const GAMMA1_44: i32 = 1 << 17;
+        const GAMMA2_44: i32 = 95_232;
+        const TAU_44: usize = 39;
+        const OMEGA_44: usize = 80;
+        const C_TILDE_BYTES_44: usize = 32;
+
+        let xi = [42u8; 32];
+        let rnd = [7u8; 32];
+        let message = b"test message";
+        let (sk, pk) = ml_dsa_keygen::<4, 4, 2>(&xi);
+        let sig = ml_dsa_sign::<
+            4,
+            4,
+            2,
+            { BETA_44 },
+            { GAMMA1_44 },
+            { GAMMA2_44 },
+            { TAU_44 },
+            { OMEGA_44 },
+            { C_TILDE_BYTES_44 },
+        >(&sk, message, &rnd)
+        .expect("signing should succeed");
+
+        let short_pk = &pk[..pk.len() - 1];
+        assert!(!ml_dsa_verify::<
+            4,
+            4,
+            { BETA_44 },
+            { GAMMA1_44 },
+            { GAMMA2_44 },
+            { TAU_44 },
+            { OMEGA_44 },
+            { C_TILDE_BYTES_44 },
+        >(short_pk, message, &sig,));
     }
 
     /// Verify the fundamental identity: A*s1 = t1*2^d + t0 - s2
