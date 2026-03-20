@@ -64,13 +64,13 @@ All key types (public key, secret key, ciphertext, signature) follow:
 ### ML-DSA (FIPS 204)
 
 - Security levels: 44 (Cat 2), 65 (Cat 3), 87 (Cat 5)
-- sign.rs uses Zeroizing<T> wrappers (refactored PR #148, replaced 76+ manual .zeroize() calls)
+- Signing code uses `Zeroizing<T>` wrappers to keep intermediate secret cleanup explicit
 - WASM-SIMD128 implemented for pointwise multiplication
 
 ### SLH-DSA (FIPS 205)
 
 - Hash-based (no lattice), stateless
-- Two hash families: SHAKE (default) and SHA2 (enabled via `slh-dsa-sha2-*` variant features; facade feature `slh-dsa-sha2`)
+- Two hash families: SHAKE (default) and SHA2 (facade feature `slh-dsa-sha2`; per-crate features `slh-dsa-sha2-*`)
 - Two speed tiers: f (fast, larger signatures) and s (small, slower)
 - `parallel` feature for multi-threaded signing (Rayon)
 - Inherently constant-time (hash-based design, no secret-dependent branches)

@@ -22,6 +22,18 @@ kylix-core provides:
 └── SIMD dispatch      → used by kylix-ml-kem, kylix-ml-dsa
 ```
 
+## Workspace Layout
+
+| Path | Package | Notes |
+|------|---------|-------|
+| `kylix/` | `kylix-pqc` | Facade crate published as `kylix-pqc` |
+| `kylix-core/` | `kylix-core` | Shared traits, errors, reduction/NTT/SIMD macros |
+| `kylix-ml-kem/` | `kylix-ml-kem` | ML-KEM implementation crate |
+| `kylix-ml-dsa/` | `kylix-ml-dsa` | ML-DSA implementation crate |
+| `kylix-slh-dsa/` | `kylix-slh-dsa` | SLH-DSA implementation crate |
+| `timing/` | `kylix-timing` | Dudect-based timing checks, excluded from the default workspace |
+| `{crate}/fuzz/` | cargo-fuzz targets | Per-crate fuzz harnesses, excluded from the default workspace |
+
 ## Module Layout
 
 All algorithm crates follow a consistent structure:
@@ -150,6 +162,10 @@ Each algorithm crate supports:
 - `simd` — SIMD optimizations (ML-KEM, ML-DSA; default on)
 - Per-variant flags — Compile only needed parameter sets
 - `parallel` — Multi-threaded signing (SLH-DSA only, requires `std`)
+
+For SLH-DSA specifically, the facade crate exposes `slh-dsa-sha2`, while the
+algorithm crate exposes per-variant SHA2 features such as
+`slh-dsa-sha2-128f` and `slh-dsa-sha2-256s`.
 
 ### no_std
 
