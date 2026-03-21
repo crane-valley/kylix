@@ -78,7 +78,8 @@ let sig = Signature::from_bytes(sig_bytes).unwrap();
 
 ### SHA2-based (optional)
 
-Same sizes as SHAKE variants. Enable with `slh-dsa-sha2-{128s,128f,...}` features.
+Same sizes as SHAKE variants. Enable one or more of the per-variant features
+such as `slh-dsa-sha2-128f` or `slh-dsa-sha2-256s`.
 
 **Trade-off**: "fast" variants have larger signatures but significantly faster signing; "small" variants minimize signature size at ~10x slower signing.
 
