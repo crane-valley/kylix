@@ -66,7 +66,6 @@ If using SHA2-based SLH-DSA with `default-features = false`, enable both
 ```toml
 [dependencies]
 kylix-pqc = { version = "0.4", default-features = false, features = ["slh-dsa", "slh-dsa-sha2"] }
-rand = "0.9"
 ```
 
 ## Usage
