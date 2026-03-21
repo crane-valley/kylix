@@ -10,6 +10,9 @@ use crate::hash::Xof;
 use crate::params::common::Q;
 use crate::poly::Poly;
 
+/// SHAKE128 rate in bytes, rounded to a multiple of 3 for 12-bit rejection parsing.
+const XOF_BLOCK_BYTES: usize = 168;
+
 /// Sample a polynomial in NTT domain from XOF output (FIPS 203 Algorithm 7).
 ///
 /// Uses rejection sampling to uniformly sample coefficients in [0, q-1].
@@ -30,21 +33,29 @@ pub fn sample_ntt(xof: &mut Xof) -> Poly {
     let mut j = 0;
 
     while j < 256 {
-        let mut buf = [0u8; 3];
+        let mut buf = [0u8; XOF_BLOCK_BYTES];
         xof.squeeze(&mut buf);
 
-        // Extract two 12-bit values from 3 bytes
-        let d1 = (buf[0] as u16) | (((buf[1] as u16) & 0x0F) << 8);
-        let d2 = ((buf[1] as u16) >> 4) | ((buf[2] as u16) << 4);
+        for chunk in buf.chunks_exact(3) {
+            // Extract two 12-bit values from 3 bytes
+            let d1 = (chunk[0] as u16) | (((chunk[1] as u16) & 0x0F) << 8);
+            let d2 = ((chunk[1] as u16) >> 4) | ((chunk[2] as u16) << 4);
 
-        // Rejection sampling: only accept values < q
-        if d1 < Q {
-            poly.coeffs[j] = d1 as i16;
-            j += 1;
-        }
-        if j < 256 && d2 < Q {
-            poly.coeffs[j] = d2 as i16;
-            j += 1;
+            // Rejection sampling: only accept values < q
+            if d1 < Q {
+                poly.coeffs[j] = d1 as i16;
+                j += 1;
+                if j == 256 {
+                    break;
+                }
+            }
+            if d2 < Q {
+                poly.coeffs[j] = d2 as i16;
+                j += 1;
+                if j == 256 {
+                    break;
+                }
+            }
         }
     }
 
@@ -70,6 +81,30 @@ pub fn sample_ntt_from_seed(rho: &[u8; 32], i: u8, j: u8) -> Poly {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn sample_ntt_reference(xof: &mut Xof) -> Poly {
+        let mut poly = Poly::new();
+        let mut j = 0;
+
+        while j < 256 {
+            let mut buf = [0u8; 3];
+            xof.squeeze(&mut buf);
+
+            let d1 = (buf[0] as u16) | (((buf[1] as u16) & 0x0F) << 8);
+            let d2 = ((buf[1] as u16) >> 4) | ((buf[2] as u16) << 4);
+
+            if d1 < Q {
+                poly.coeffs[j] = d1 as i16;
+                j += 1;
+            }
+            if j < 256 && d2 < Q {
+                poly.coeffs[j] = d2 as i16;
+                j += 1;
+            }
+        }
+
+        poly
+    }
 
     #[test]
     fn test_sample_ntt_deterministic() {
@@ -149,5 +184,17 @@ mod tests {
             "Expected most coefficients to be nonzero, got {}",
             nonzero_count
         );
+    }
+
+    #[test]
+    fn test_sample_ntt_matches_reference_reader_granularity() {
+        let rho = [0x42u8; 32];
+        let mut xof_fast = Xof::new(&rho, 0, 0);
+        let mut xof_reference = Xof::new(&rho, 0, 0);
+
+        let fast = sample_ntt(&mut xof_fast);
+        let reference = sample_ntt_reference(&mut xof_reference);
+
+        assert_eq!(fast.coeffs, reference.coeffs);
     }
 }
