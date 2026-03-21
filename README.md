@@ -58,6 +58,14 @@ To enable SHA2-based SLH-DSA variants:
 kylix-pqc = { version = "0.4", features = ["slh-dsa-sha2"] }
 ```
 
+If using SHA2-based SLH-DSA with `default-features = false`, enable both
+`slh-dsa` and `slh-dsa-sha2`:
+
+```toml
+[dependencies]
+kylix-pqc = { version = "0.4", default-features = false, features = ["slh-dsa", "slh-dsa-sha2"] }
+```
+
 ## Usage
 
 ### ML-KEM (Key Encapsulation)
@@ -89,6 +97,7 @@ fn main() -> kylix_pqc::Result<()> {
 
 ```rust
 use kylix_pqc::ml_dsa::MlDsa65;
+use kylix_pqc::traits::Signer;
 use rand::rng;
 
 fn main() -> kylix_pqc::Result<()> {
@@ -112,6 +121,7 @@ fn main() -> kylix_pqc::Result<()> {
 
 ```rust
 use kylix_pqc::slh_dsa::SlhDsaShake128f;
+use kylix_pqc::traits::Signer;
 use rand::rng;
 
 fn main() -> kylix_pqc::Result<()> {
