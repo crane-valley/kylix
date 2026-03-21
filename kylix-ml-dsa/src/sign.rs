@@ -288,6 +288,7 @@ pub struct ExpandedVerificationKey<const K: usize, const L: usize> {
 /// - `expand_a()`: K×L polynomials from SHAKE128 (most expensive)
 /// - `hash_pk()`: SHA3-512 hash of public key
 /// - `t1 * 2^D` in NTT domain
+#[allow(clippy::expect_used)] // infallible: slice sizes guaranteed by pk length check
 pub fn expand_verification_key<const K: usize, const L: usize>(
     pk: &[u8],
 ) -> Option<ExpandedVerificationKey<K, L>> {
@@ -296,7 +297,9 @@ pub fn expand_verification_key<const K: usize, const L: usize>(
     }
 
     // Parse rho from public key
-    let rho: [u8; 32] = pk[0..32].try_into().ok()?;
+    let rho: [u8; 32] = pk[0..32]
+        .try_into()
+        .expect("infallible: rho slice is 32 bytes after pk length check");
 
     // Unpack t1
     let mut t1 = PolyVecK::<K>::zero();
@@ -778,6 +781,7 @@ pub fn ml_dsa_sign<
 /// ML-DSA Verify (Algorithm 3)
 ///
 /// Verifies signature on message with public key.
+#[allow(clippy::expect_used)] // infallible: rho slice size guaranteed by pk length check
 pub fn ml_dsa_verify<
     const K: usize,
     const L: usize,
@@ -805,10 +809,9 @@ pub fn ml_dsa_verify<
     }
 
     // Parse public key
-    let rho: [u8; 32] = match pk[0..32].try_into() {
-        Ok(r) => r,
-        Err(_) => return false,
-    };
+    let rho: [u8; 32] = pk[0..32]
+        .try_into()
+        .expect("infallible: rho slice is 32 bytes after pk length check");
 
     let mut t1 = PolyVecK::<K>::zero();
     for i in 0..K {
