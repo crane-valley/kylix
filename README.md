@@ -51,11 +51,19 @@ Add to your `Cargo.toml`:
 kylix-pqc = "0.4"
 ```
 
-To enable SHA2-based SLH-DSA variants:
+To enable SHA2-based SLH-DSA variants alongside the default algorithms:
 
 ```toml
 [dependencies]
 kylix-pqc = { version = "0.4", features = ["slh-dsa-sha2"] }
+```
+
+For a SHA2-only SLH-DSA configuration, disable default features and enable both
+`slh-dsa` and `slh-dsa-sha2` on the facade crate:
+
+```toml
+[dependencies]
+kylix-pqc = { version = "0.4", default-features = false, features = ["slh-dsa", "slh-dsa-sha2"] }
 ```
 
 ## Usage
@@ -88,7 +96,7 @@ fn main() -> kylix_pqc::Result<()> {
 ### ML-DSA (Digital Signatures)
 
 ```rust
-use kylix_pqc::ml_dsa::MlDsa65;
+use kylix_pqc::ml_dsa::{MlDsa65, Signer};
 use rand::rng;
 
 fn main() -> kylix_pqc::Result<()> {
@@ -111,7 +119,7 @@ fn main() -> kylix_pqc::Result<()> {
 ### SLH-DSA (Stateless Hash-Based Signatures)
 
 ```rust
-use kylix_pqc::slh_dsa::SlhDsaShake128f;
+use kylix_pqc::slh_dsa::{Signer, SlhDsaShake128f};
 use rand::rng;
 
 fn main() -> kylix_pqc::Result<()> {

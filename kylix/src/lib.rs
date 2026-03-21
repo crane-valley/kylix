@@ -70,9 +70,9 @@
 //! ML-DSA sign and verify:
 //!
 //! ```no_run
+//! # #[cfg(feature = "ml-dsa")]
 //! # fn main() -> kylix_pqc::Result<()> {
-//! use kylix_pqc::ml_dsa::MlDsa65;
-//! use kylix_pqc::traits::Signer;
+//! use kylix_pqc::ml_dsa::{MlDsa65, Signer};
 //! use rand::rng;
 //!
 //! let mut rng = rng();
@@ -83,6 +83,8 @@
 //! MlDsa65::verify(&pk, message, &signature)?;
 //! # Ok(())
 //! # }
+//! # #[cfg(not(feature = "ml-dsa"))]
+//! # fn main() {}
 //! ```
 //!
 //! ## `no_std`
