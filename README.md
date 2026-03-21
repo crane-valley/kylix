@@ -58,8 +58,8 @@ To enable SHA2-based SLH-DSA variants:
 kylix-pqc = { version = "0.4", features = ["slh-dsa-sha2"] }
 ```
 
-If you disable default features on the facade crate, enable both `slh-dsa` and
-`slh-dsa-sha2`:
+If using SHA2-based SLH-DSA with `default-features = false`, enable both
+`slh-dsa` and `slh-dsa-sha2`:
 
 ```toml
 [dependencies]
