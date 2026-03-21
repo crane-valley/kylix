@@ -21,30 +21,12 @@ macro_rules! define_dsa_types {
             bytes: [u8; $sk_size],
         }
 
-        impl SigningKey {
-            /// Create from bytes.
-            ///
-            /// Writes directly into the struct to avoid intermediate buffers
-            /// that could leave sensitive data on the stack.
-            pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-                if bytes.len() != $sk_size {
-                    return Err(Error::InvalidKeyLength {
-                        expected: $sk_size,
-                        actual: bytes.len(),
-                    });
-                }
-                let mut result = Self {
-                    bytes: [0u8; $sk_size],
-                };
-                result.bytes.copy_from_slice(bytes);
-                Ok(result)
-            }
-
-            /// Get the raw bytes.
-            pub fn as_bytes(&self) -> &[u8; $sk_size] {
-                &self.bytes
-            }
-        }
+        ::kylix_core::impl_fixed_bytes!(
+            for SigningKey,
+            size: $sk_size,
+            error: InvalidKeyLength,
+            as_bytes: &[u8; $sk_size]
+        );
 
         /// Verification key (public key).
         #[derive(Clone)]
@@ -53,26 +35,6 @@ macro_rules! define_dsa_types {
         }
 
         impl VerificationKey {
-            /// Create from bytes.
-            pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-                if bytes.len() != $pk_size {
-                    return Err(Error::InvalidKeyLength {
-                        expected: $pk_size,
-                        actual: bytes.len(),
-                    });
-                }
-                let mut result = Self {
-                    bytes: [0u8; $pk_size],
-                };
-                result.bytes.copy_from_slice(bytes);
-                Ok(result)
-            }
-
-            /// Get the raw bytes.
-            pub fn as_bytes(&self) -> &[u8; $pk_size] {
-                &self.bytes
-            }
-
             /// Expand the verification key for fast repeated verification.
             ///
             /// Pre-computes expensive values that would otherwise be recomputed
@@ -111,6 +73,13 @@ macro_rules! define_dsa_types {
             }
         }
 
+        ::kylix_core::impl_fixed_bytes!(
+            for VerificationKey,
+            size: $pk_size,
+            error: InvalidKeyLength,
+            as_bytes: &[u8; $pk_size]
+        );
+
         /// Expanded verification key with pre-computed values for fast repeated verification.
         ///
         /// See [`VerificationKey::expand`] for usage and performance details.
@@ -122,27 +91,12 @@ macro_rules! define_dsa_types {
             bytes: [u8; $sig_size],
         }
 
-        impl Signature {
-            /// Create from bytes.
-            pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-                if bytes.len() != $sig_size {
-                    return Err(Error::InvalidSignatureLength {
-                        expected: $sig_size,
-                        actual: bytes.len(),
-                    });
-                }
-                let mut result = Self {
-                    bytes: [0u8; $sig_size],
-                };
-                result.bytes.copy_from_slice(bytes);
-                Ok(result)
-            }
-
-            /// Get the raw bytes.
-            pub fn as_bytes(&self) -> &[u8; $sig_size] {
-                &self.bytes
-            }
-        }
+        ::kylix_core::impl_fixed_bytes!(
+            for Signature,
+            size: $sig_size,
+            error: InvalidSignatureLength,
+            as_bytes: &[u8; $sig_size]
+        );
     };
 }
 
