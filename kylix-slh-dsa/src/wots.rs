@@ -12,8 +12,13 @@ use crate::params::common::{LG_W, W};
 use crate::utils::{base_2b, wots_checksum};
 use zeroize::Zeroize;
 
+#[cfg(all(test, not(feature = "std")))]
+use alloc::vec;
 #[cfg(not(feature = "std"))]
-use alloc::{vec, vec::Vec};
+use alloc::vec::Vec;
+
+/// Maximum WOTS+ len across all supported parameter sets.
+const MAX_WOTS_LEN: usize = 67;
 
 /// Encode checksum digits for WOTS+ message.
 ///
@@ -95,13 +100,27 @@ pub fn wots_chain_to<H: HashSuite>(
 ///
 /// # Returns
 /// WOTS+ public key (n bytes)
+#[cfg(test)]
 pub fn wots_pk_gen<H: HashSuite, const WOTS_LEN: usize>(
     sk_seed: &[u8],
     pk_seed: &[u8],
     adrs: &mut Address,
 ) -> Vec<u8> {
+    let mut pk = vec![0u8; H::N];
+    wots_pk_gen_to::<H, WOTS_LEN>(&mut pk, sk_seed, pk_seed, adrs);
+    pk
+}
+
+/// Generate a WOTS+ public key into a caller-provided buffer.
+pub fn wots_pk_gen_to<H: HashSuite, const WOTS_LEN: usize>(
+    out: &mut [u8],
+    sk_seed: &[u8],
+    pk_seed: &[u8],
+    adrs: &mut Address,
+) {
     let n = H::N;
     let w = W as u32;
+    debug_assert_eq!(out.len(), n);
 
     // Compute sk_adrs for secret key generation
     let mut sk_adrs = adrs.with_type(AdrsType::WotsPrf);
@@ -109,30 +128,39 @@ pub fn wots_pk_gen<H: HashSuite, const WOTS_LEN: usize>(
     // Compute wots_pk_adrs for public key compression
     let wots_pk_adrs = adrs.with_type(AdrsType::WotsPk);
 
-    // tmp will hold all chain endpoints
-    let mut tmp = vec![0u8; WOTS_LEN * n];
     let mut sk_buf = [0u8; MAX_N];
+    let tmp_len = WOTS_LEN * n;
+    let mut fill_tmp = |tmp: &mut [u8]| {
+        for i in 0..WOTS_LEN {
+            // Generate secret key element into stack buffer
+            sk_adrs.set_chain(i as u32);
+            H::prf_to(&mut sk_buf[..n], pk_seed, sk_seed, &sk_adrs);
 
-    for i in 0..WOTS_LEN {
-        // Generate secret key element into stack buffer
-        sk_adrs.set_chain(i as u32);
-        H::prf_to(&mut sk_buf[..n], pk_seed, sk_seed, &sk_adrs);
+            // Compute chain endpoint directly into tmp
+            adrs.set_chain(i as u32);
+            wots_chain_to::<H>(
+                &mut tmp[i * n..(i + 1) * n],
+                &sk_buf[..n],
+                0,
+                w - 1,
+                pk_seed,
+                adrs,
+            );
+            sk_buf.zeroize();
+        }
+    };
 
-        // Compute chain endpoint directly into tmp
-        adrs.set_chain(i as u32);
-        wots_chain_to::<H>(
-            &mut tmp[i * n..(i + 1) * n],
-            &sk_buf[..n],
-            0,
-            w - 1,
-            pk_seed,
-            adrs,
-        );
-        sk_buf.zeroize();
-    }
+    let mut stack_tmp = [0u8; MAX_WOTS_LEN * MAX_N];
+    let mut heap_tmp = Vec::new();
+    let tmp = if tmp_len <= MAX_WOTS_LEN * MAX_N {
+        &mut stack_tmp[..tmp_len]
+    } else {
+        heap_tmp.resize(tmp_len, 0);
+        heap_tmp.as_mut()
+    };
 
-    // Compress to get public key
-    H::t_l(pk_seed, &wots_pk_adrs, &tmp)
+    fill_tmp(tmp);
+    H::t_l_to(out, pk_seed, &wots_pk_adrs, tmp);
 }
 
 /// Generate a WOTS+ signature into a pre-allocated buffer.
@@ -228,14 +256,29 @@ pub fn wots_sign<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
 ///
 /// # Returns
 /// Recovered WOTS+ public key (n bytes)
+#[cfg(test)]
 pub fn wots_pk_from_sig<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
     sig: &[u8],
     message: &[u8],
     pk_seed: &[u8],
     adrs: &mut Address,
 ) -> Vec<u8> {
+    let mut pk = vec![0u8; H::N];
+    wots_pk_from_sig_to::<H, WOTS_LEN, WOTS_LEN1>(&mut pk, sig, message, pk_seed, adrs);
+    pk
+}
+
+/// Compute a WOTS+ public key from signature into a caller-provided buffer.
+pub fn wots_pk_from_sig_to<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
+    out: &mut [u8],
+    sig: &[u8],
+    message: &[u8],
+    pk_seed: &[u8],
+    adrs: &mut Address,
+) {
     let w = W as u32;
     let n = H::N;
+    debug_assert_eq!(out.len(), n);
 
     // Convert message to base-w representation and append checksum
     let mut msg = base_2b(message, LG_W, WOTS_LEN1);
@@ -244,24 +287,33 @@ pub fn wots_pk_from_sig<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: us
     // Compute wots_pk_adrs for public key compression
     let wots_pk_adrs = adrs.with_type(AdrsType::WotsPk);
 
-    // Compute chain endpoints from signature
-    let mut tmp = vec![0u8; WOTS_LEN * n];
+    let tmp_len = WOTS_LEN * n;
+    let mut fill_tmp = |tmp: &mut [u8]| {
+        for i in 0..WOTS_LEN {
+            adrs.set_chain(i as u32);
+            let sig_i = &sig[i * n..(i + 1) * n];
+            wots_chain_to::<H>(
+                &mut tmp[i * n..(i + 1) * n],
+                sig_i,
+                msg[i],
+                w - 1 - msg[i],
+                pk_seed,
+                adrs,
+            );
+        }
+    };
 
-    for i in 0..WOTS_LEN {
-        adrs.set_chain(i as u32);
-        let sig_i = &sig[i * n..(i + 1) * n];
-        wots_chain_to::<H>(
-            &mut tmp[i * n..(i + 1) * n],
-            sig_i,
-            msg[i],
-            w - 1 - msg[i],
-            pk_seed,
-            adrs,
-        );
-    }
+    let mut stack_tmp = [0u8; MAX_WOTS_LEN * MAX_N];
+    let mut heap_tmp = Vec::new();
+    let tmp = if tmp_len <= MAX_WOTS_LEN * MAX_N {
+        &mut stack_tmp[..tmp_len]
+    } else {
+        heap_tmp.resize(tmp_len, 0);
+        heap_tmp.as_mut()
+    };
 
-    // Compress to get public key
-    H::t_l(pk_seed, &wots_pk_adrs, &tmp)
+    fill_tmp(tmp);
+    H::t_l_to(out, pk_seed, &wots_pk_adrs, tmp);
 }
 
 #[cfg(test)]

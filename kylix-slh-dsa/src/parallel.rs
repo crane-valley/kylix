@@ -58,7 +58,9 @@ pub fn wots_pk_gen_parallel<H: HashSuite + Send + Sync, const WOTS_LEN: usize>(
         sk_buf.zeroize();
     });
 
-    H::t_l(pk_seed, &wots_pk_adrs, &tmp)
+    let mut pk = vec![0u8; n];
+    H::t_l_to(&mut pk, pk_seed, &wots_pk_adrs, &tmp);
+    pk
 }
 
 /// Generate a WOTS+ signature in parallel into a pre-allocated buffer.
@@ -156,7 +158,9 @@ pub fn wots_pk_from_sig_parallel<
         );
     });
 
-    H::t_l(pk_seed, &wots_pk_adrs, &tmp)
+    let mut pk = vec![0u8; n];
+    H::t_l_to(&mut pk, pk_seed, &wots_pk_adrs, &tmp);
+    pk
 }
 
 // ============================================================================
@@ -297,7 +301,9 @@ pub fn fors_pk_from_sig_parallel<H: HashSuite + Send + Sync>(
         });
 
     let fors_pk_adrs = adrs.with_type(AdrsType::ForsPk);
-    H::t_l(pk_seed, &fors_pk_adrs, &all_roots)
+    let mut pk = vec![0u8; n];
+    H::t_l_to(&mut pk, pk_seed, &fors_pk_adrs, &all_roots);
+    pk
 }
 
 // ============================================================================

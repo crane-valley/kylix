@@ -21,6 +21,14 @@ use alloc::vec::Vec;
 /// Used for stack buffer sizing in `_to` buffer-write variants.
 pub const MAX_N: usize = 32;
 
+/// Maximum Hmsg output length across the built-in SLH-DSA parameter sets.
+///
+/// The largest shipped digest is for the SHA2-256f parameter set:
+/// `ceil(35*9/8) + ceil((68-4)/8) + ceil(4/8) = 49` bytes.
+/// Larger const-generic experiments fall back to heap-backed scratch space
+/// in the signing and verification paths.
+pub const MAX_M_DIGEST_BYTES: usize = 49;
+
 /// Hash function suite trait for SLH-DSA.
 ///
 /// Implementations of this trait provide the complete set of hash functions
@@ -165,6 +173,27 @@ pub trait HashSuite {
     /// Panics if `out` is not exactly `N` bytes.
     fn prf_to(out: &mut [u8], pk_seed: &[u8], sk_seed: &[u8], adrs: &Address) {
         let result = Self::prf(pk_seed, sk_seed, adrs);
+        out.copy_from_slice(&result);
+    }
+
+    /// PRFmsg into a caller-provided buffer (n bytes).
+    ///
+    /// Unlike [`prf_msg`](Self::prf_msg), this does NOT return `Zeroizing`.
+    /// The caller is responsible for zeroizing `out` when it contains secret material.
+    ///
+    /// # Panics
+    /// Panics if `out` is not exactly `N` bytes.
+    fn prf_msg_to(out: &mut [u8], sk_prf: &[u8], opt_rand: &[u8], message: &[u8]) {
+        let result = Self::prf_msg(sk_prf, opt_rand, message);
+        out.copy_from_slice(&result);
+    }
+
+    /// Hmsg into a caller-provided buffer.
+    ///
+    /// # Panics
+    /// Panics if `out.len()` does not match the requested digest length.
+    fn h_msg_to(out: &mut [u8], r: &[u8], pk_seed: &[u8], pk_root: &[u8], message: &[u8]) {
+        let result = Self::h_msg(r, pk_seed, pk_root, message, out.len());
         out.copy_from_slice(&result);
     }
 }

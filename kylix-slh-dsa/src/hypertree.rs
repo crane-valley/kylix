@@ -7,8 +7,8 @@
 //! FIPS 205, Algorithms 11-12.
 
 use crate::address::Address;
-use crate::hash::HashSuite;
-use crate::xmss::{xmss_node_to, xmss_pk_from_sig, xmss_sign_to};
+use crate::hash::{HashSuite, MAX_N};
+use crate::xmss::{xmss_node_to, xmss_pk_from_sig_to, xmss_sign_to};
 use subtle::ConstantTimeEq;
 
 #[cfg(not(feature = "std"))]
@@ -63,7 +63,9 @@ pub fn ht_sign_to<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
     );
 
     // Get root for next layer (read back from buffer)
-    let mut root = xmss_pk_from_sig::<H, WOTS_LEN, WOTS_LEN1>(
+    let mut root = [0u8; MAX_N];
+    xmss_pk_from_sig_to::<H, WOTS_LEN, WOTS_LEN1>(
+        &mut root[..n],
         idx_leaf,
         &out[..xmss_sig_len],
         message,
@@ -84,7 +86,7 @@ pub fn ht_sign_to<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
         let offset = j * xmss_sig_len;
         xmss_sign_to::<H, WOTS_LEN, WOTS_LEN1>(
             &mut out[offset..offset + xmss_sig_len],
-            &root,
+            &root[..n],
             sk_seed,
             idx_leaf_j,
             pk_seed,
@@ -94,10 +96,12 @@ pub fn ht_sign_to<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
 
         // Get root for next layer (if not the last layer)
         if j < d - 1 {
-            root = xmss_pk_from_sig::<H, WOTS_LEN, WOTS_LEN1>(
+            let root_input = root;
+            xmss_pk_from_sig_to::<H, WOTS_LEN, WOTS_LEN1>(
+                &mut root[..n],
                 idx_leaf_j,
                 &out[offset..offset + xmss_sig_len],
-                &root,
+                &root_input[..n],
                 pk_seed,
                 &adrs,
                 h_prime,
@@ -143,8 +147,15 @@ pub fn ht_verify<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
     adrs.set_tree(idx_tree);
 
     let sig_xmss_0 = &sig_ht[..xmss_sig_len];
-    let mut node = xmss_pk_from_sig::<H, WOTS_LEN, WOTS_LEN1>(
-        idx_leaf, sig_xmss_0, message, pk_seed, &adrs, h_prime,
+    let mut node = [0u8; MAX_N];
+    xmss_pk_from_sig_to::<H, WOTS_LEN, WOTS_LEN1>(
+        &mut node[..n],
+        idx_leaf,
+        sig_xmss_0,
+        message,
+        pk_seed,
+        &adrs,
+        h_prime,
     );
 
     // Verify at each subsequent layer
@@ -158,13 +169,20 @@ pub fn ht_verify<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1: usize>(
         adrs.set_tree(current_idx_tree);
 
         let sig_xmss_j = &sig_ht[j * xmss_sig_len..(j + 1) * xmss_sig_len];
-        node = xmss_pk_from_sig::<H, WOTS_LEN, WOTS_LEN1>(
-            idx_leaf_j, sig_xmss_j, &node, pk_seed, &adrs, h_prime,
+        let input = node;
+        xmss_pk_from_sig_to::<H, WOTS_LEN, WOTS_LEN1>(
+            &mut node[..n],
+            idx_leaf_j,
+            sig_xmss_j,
+            &input[..n],
+            pk_seed,
+            &adrs,
+            h_prime,
         );
     }
 
     // Compare with expected root (constant-time to prevent timing leaks)
-    bool::from(node.ct_eq(pk_root))
+    bool::from(node[..n].ct_eq(pk_root))
 }
 
 /// Compute the hypertree root (public key component).

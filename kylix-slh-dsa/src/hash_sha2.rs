@@ -15,7 +15,7 @@ use sha2::{Digest, Sha256, Sha512};
 use zeroize::{Zeroize, Zeroizing};
 
 #[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 
 type HmacSha256 = Hmac<Sha256>;
 type HmacSha512 = Hmac<Sha512>;
@@ -82,13 +82,19 @@ fn adrs_compress(adrs: &Address) -> [u8; 22] {
 /// FIPS 205, Section 10.2:
 /// - MGF1-SHA-256 for 128-bit security (`mgf1::<Sha256>`)
 /// - MGF1-SHA-512 for 192/256-bit security (`mgf1::<Sha512>`)
-#[allow(clippy::expect_used)] // MGF1 counter fits in u32 for all practical mask lengths
 fn mgf1<D: Digest + Clone>(seed_parts: &[&[u8]], mask_len: usize) -> Vec<u8> {
+    let mut output = vec![0u8; mask_len];
+    mgf1_to::<D>(&mut output, seed_parts);
+    output
+}
+
+/// Buffer-write MGF1 mask generation function, generic over hash algorithm.
+fn mgf1_to<D: Digest + Clone>(out: &mut [u8], seed_parts: &[&[u8]]) {
     let hash_len = <D as Digest>::output_size();
-    let num_blocks = mask_len.div_ceil(hash_len);
-    let num_blocks_u32 =
-        u32::try_from(num_blocks).expect("MGF1 counter overflow: mask_len too large");
-    let mut output = Vec::with_capacity(mask_len);
+    let num_blocks = out.len().div_ceil(hash_len);
+    let Ok(num_blocks_u32) = u32::try_from(num_blocks) else {
+        panic!("MGF1 counter overflow: mask_len too large");
+    };
 
     // Pre-hash all seed parts once, then clone for each block
     let mut base_hasher = D::new();
@@ -96,15 +102,16 @@ fn mgf1<D: Digest + Clone>(seed_parts: &[&[u8]], mask_len: usize) -> Vec<u8> {
         base_hasher.update(part);
     }
 
+    let mut written = 0;
     for i in 0..num_blocks_u32 {
         let mut hasher = base_hasher.clone();
         hasher.update(i.to_be_bytes());
         let block = hasher.finalize();
-        let remaining = mask_len - output.len();
-        output.extend_from_slice(&block[..remaining.min(hash_len)]);
+        let remaining = out.len() - written;
+        let count = remaining.min(hash_len);
+        out[written..written + count].copy_from_slice(&block[..count]);
+        written += count;
     }
-
-    output
 }
 
 /// Zero padding for SHA-256 block alignment (64-byte block): toByte(0, 64-n).
@@ -175,6 +182,17 @@ impl HashSuite for Sha2_128Hash {
         out
     }
 
+    #[allow(clippy::expect_used)] // HMAC accepts any key length
+    fn prf_msg_to(out: &mut [u8], sk_prf: &[u8], opt_rand: &[u8], message: &[u8]) {
+        debug_assert_eq!(out.len(), 16);
+        let mut mac = HmacSha256::new_from_slice(sk_prf).expect("HMAC accepts any key length");
+        mac.update(opt_rand);
+        mac.update(message);
+        let mut result = mac.finalize().into_bytes();
+        out.copy_from_slice(&result[..16]);
+        result.zeroize();
+    }
+
     fn h_msg(r: &[u8], pk_seed: &[u8], pk_root: &[u8], message: &[u8], out_len: usize) -> Vec<u8> {
         // Hmsg = MGF1-SHA-256(R || PK.seed || SHA-256(R || PK.seed || PK.root || M), m)
         use sha2::digest::Update;
@@ -187,6 +205,18 @@ impl HashSuite for Sha2_128Hash {
         let out = mgf1::<Sha256>(&[r, pk_seed, &inner_hash], out_len);
         inner_hash.zeroize();
         out
+    }
+
+    fn h_msg_to(out: &mut [u8], r: &[u8], pk_seed: &[u8], pk_root: &[u8], message: &[u8]) {
+        use sha2::digest::Update;
+        let mut inner_hash = Sha256::new()
+            .chain(r)
+            .chain(pk_seed)
+            .chain(pk_root)
+            .chain(message)
+            .finalize();
+        mgf1_to::<Sha256>(out, &[r, pk_seed, &inner_hash]);
+        inner_hash.zeroize();
     }
 
     fn f(pk_seed: &[u8], adrs: &Address, m1: &[u8]) -> Vec<u8> {
@@ -329,6 +359,18 @@ macro_rules! impl_sha2_cat35_hash_suite {
                 out
             }
 
+            #[allow(clippy::expect_used)] // HMAC accepts any key length
+            fn prf_msg_to(out: &mut [u8], sk_prf: &[u8], opt_rand: &[u8], message: &[u8]) {
+                debug_assert_eq!(out.len(), $n);
+                let mut mac =
+                    HmacSha512::new_from_slice(sk_prf).expect("HMAC accepts any key length");
+                mac.update(opt_rand);
+                mac.update(message);
+                let mut result = mac.finalize().into_bytes();
+                out.copy_from_slice(&result[..$n]);
+                result.zeroize();
+            }
+
             fn h_msg(
                 r: &[u8],
                 pk_seed: &[u8],
@@ -347,6 +389,18 @@ macro_rules! impl_sha2_cat35_hash_suite {
                 let out = mgf1::<Sha512>(&[r, pk_seed, &inner_hash], out_len);
                 inner_hash.zeroize();
                 out
+            }
+
+            fn h_msg_to(out: &mut [u8], r: &[u8], pk_seed: &[u8], pk_root: &[u8], message: &[u8]) {
+                use sha2::digest::Update;
+                let mut inner_hash = Sha512::new()
+                    .chain(r)
+                    .chain(pk_seed)
+                    .chain(pk_root)
+                    .chain(message)
+                    .finalize();
+                mgf1_to::<Sha512>(out, &[r, pk_seed, &inner_hash]);
+                inner_hash.zeroize();
             }
 
             fn f(pk_seed: &[u8], adrs: &Address, m1: &[u8]) -> Vec<u8> {

@@ -6,7 +6,7 @@
 //! FIPS 205, Algorithms 20-22.
 
 use crate::address::{Address, AdrsType};
-use crate::hash::HashSuite;
+use crate::hash::{HashSuite, MAX_M_DIGEST_BYTES, MAX_N};
 use crate::hypertree::{ht_root, ht_sign_to, ht_verify};
 
 // Use parallel versions for signing (where parallelization helps)
@@ -15,13 +15,13 @@ use crate::parallel::fors_sign_parallel_to;
 
 // Always use sequential fors_pk_from_sig for verification
 // (parallel overhead exceeds benefits for small workloads)
-use crate::fors::fors_pk_from_sig;
+use crate::fors::fors_pk_from_sig_to;
 
 #[cfg(not(feature = "parallel"))]
 use crate::fors::fors_sign_to;
 
 use rand_core::CryptoRng;
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 #[cfg(not(feature = "std"))]
 use alloc::{vec, vec::Vec};
@@ -225,6 +225,19 @@ pub fn slh_keygen_internal<
     (sk, pk)
 }
 
+fn scratch_slice<'a, const STACK_LEN: usize>(
+    stack: &'a mut [u8; STACK_LEN],
+    heap: &'a mut Vec<u8>,
+    len: usize,
+) -> &'a mut [u8] {
+    if len <= STACK_LEN {
+        &mut stack[..len]
+    } else {
+        heap.resize(len, 0);
+        heap.as_mut_slice()
+    }
+}
+
 /// Sign a message using SLH-DSA.
 ///
 /// FIPS 205, Algorithm 21: slh_sign(M, SK)
@@ -309,7 +322,8 @@ fn slh_sign_impl<
     let randomness = opt_rand.unwrap_or(&sk.pk_seed);
 
     // Generate randomness R
-    let r = H::prf_msg(&sk.sk_prf, randomness, message);
+    let mut r = Zeroizing::new([0u8; MAX_N]);
+    H::prf_msg_to(&mut r[..N], &sk.sk_prf, randomness, message);
 
     // Calculate digest length: need enough bytes for md || idx_tree || idx_leaf
     // md: K*A bits, idx_tree: H_PRIME*(D-1) bits, idx_leaf: H_PRIME bits
@@ -320,10 +334,16 @@ fn slh_sign_impl<
     let digest_len = md_bytes + tree_bytes + leaf_bytes;
 
     // Compute message digest
-    let digest = H::h_msg(&r, &sk.pk_seed, &sk.pk_root, message, digest_len);
+    let mut digest_stack = [0u8; MAX_M_DIGEST_BYTES];
+    let mut digest_heap = Vec::new();
+    let digest = scratch_slice(&mut digest_stack, &mut digest_heap, digest_len);
+    H::h_msg_to(digest, &r[..N], &sk.pk_seed, &sk.pk_root, message);
 
     // Parse digest into (md, idx_tree, idx_leaf)
-    let (md, idx_tree, idx_leaf) = parse_digest::<K, A, H_PRIME, D>(&digest);
+    let mut md_stack = [0u8; MAX_M_DIGEST_BYTES];
+    let mut md_heap = Vec::new();
+    let md = scratch_slice(&mut md_stack, &mut md_heap, md_bytes);
+    let (md_len, idx_tree, idx_leaf) = parse_digest_to::<K, A, H_PRIME, D>(md, digest);
 
     // Set up FORS address
     let adrs = {
@@ -341,12 +361,12 @@ fn slh_sign_impl<
     let mut signature = vec![0u8; sig_len];
 
     // Write R
-    signature[..N].copy_from_slice(&r);
+    signature[..N].copy_from_slice(&r[..N]);
 
     // Generate FORS signature (parallel) directly into buffer
     fors_sign_parallel_to::<H>(
         &mut signature[N..N + fors_sig_len],
-        &md,
+        &md[..md_len],
         &sk.sk_seed,
         &sk.pk_seed,
         &adrs,
@@ -357,9 +377,11 @@ fn slh_sign_impl<
     // Compute FORS public key for hypertree signing
     // Use sequential version - pk recovery is fast and parallel overhead hurts
     let mut adrs_pk = adrs;
-    let pk_fors = fors_pk_from_sig::<H>(
+    let mut pk_fors = [0u8; MAX_N];
+    fors_pk_from_sig_to::<H>(
+        &mut pk_fors[..N],
         &signature[N..N + fors_sig_len],
-        &md,
+        &md[..md_len],
         &sk.pk_seed,
         &mut adrs_pk,
         K,
@@ -369,7 +391,7 @@ fn slh_sign_impl<
     // Generate hypertree signature directly into buffer
     ht_sign_to::<H, WOTS_LEN, WOTS_LEN1>(
         &mut signature[N + fors_sig_len..],
-        &pk_fors,
+        &pk_fors[..N],
         &sk.sk_seed,
         &sk.pk_seed,
         idx_tree,
@@ -402,7 +424,8 @@ fn slh_sign_impl<
     let randomness = opt_rand.unwrap_or(&sk.pk_seed);
 
     // Generate randomness R
-    let r = H::prf_msg(&sk.sk_prf, randomness, message);
+    let mut r = Zeroizing::new([0u8; MAX_N]);
+    H::prf_msg_to(&mut r[..N], &sk.sk_prf, randomness, message);
 
     // Calculate digest length: need enough bytes for md || idx_tree || idx_leaf
     // md: K*A bits, idx_tree: H_PRIME*(D-1) bits, idx_leaf: H_PRIME bits
@@ -413,10 +436,16 @@ fn slh_sign_impl<
     let digest_len = md_bytes + tree_bytes + leaf_bytes;
 
     // Compute message digest
-    let digest = H::h_msg(&r, &sk.pk_seed, &sk.pk_root, message, digest_len);
+    let mut digest_stack = [0u8; MAX_M_DIGEST_BYTES];
+    let mut digest_heap = Vec::new();
+    let digest = scratch_slice(&mut digest_stack, &mut digest_heap, digest_len);
+    H::h_msg_to(digest, &r[..N], &sk.pk_seed, &sk.pk_root, message);
 
     // Parse digest into (md, idx_tree, idx_leaf)
-    let (md, idx_tree, idx_leaf) = parse_digest::<K, A, H_PRIME, D>(&digest);
+    let mut md_stack = [0u8; MAX_M_DIGEST_BYTES];
+    let mut md_heap = Vec::new();
+    let md = scratch_slice(&mut md_stack, &mut md_heap, md_bytes);
+    let (md_len, idx_tree, idx_leaf) = parse_digest_to::<K, A, H_PRIME, D>(md, digest);
 
     // Set up FORS address
     let mut adrs = Address::new();
@@ -431,12 +460,12 @@ fn slh_sign_impl<
     let mut signature = vec![0u8; sig_len];
 
     // Write R
-    signature[..N].copy_from_slice(&r);
+    signature[..N].copy_from_slice(&r[..N]);
 
     // Generate FORS signature (sequential) directly into buffer
     fors_sign_to::<H>(
         &mut signature[N..N + fors_sig_len],
-        &md,
+        &md[..md_len],
         &sk.sk_seed,
         &sk.pk_seed,
         &mut adrs,
@@ -449,9 +478,11 @@ fn slh_sign_impl<
     adrs_pk.set_type(AdrsType::ForsTree);
     adrs_pk.set_tree(idx_tree);
     adrs_pk.set_keypair(idx_leaf);
-    let pk_fors = fors_pk_from_sig::<H>(
+    let mut pk_fors = [0u8; MAX_N];
+    fors_pk_from_sig_to::<H>(
+        &mut pk_fors[..N],
         &signature[N..N + fors_sig_len],
-        &md,
+        &md[..md_len],
         &sk.pk_seed,
         &mut adrs_pk,
         K,
@@ -461,7 +492,7 @@ fn slh_sign_impl<
     // Generate hypertree signature directly into buffer
     ht_sign_to::<H, WOTS_LEN, WOTS_LEN1>(
         &mut signature[N + fors_sig_len..],
-        &pk_fors,
+        &pk_fors[..N],
         &sk.sk_seed,
         &sk.pk_seed,
         idx_tree,
@@ -554,10 +585,16 @@ fn slh_verify_impl<
     let digest_len = md_bytes + tree_bytes + leaf_bytes;
 
     // Compute message digest
-    let digest = H::h_msg(r, &pk.pk_seed, &pk.pk_root, message, digest_len);
+    let mut digest_stack = [0u8; MAX_M_DIGEST_BYTES];
+    let mut digest_heap = Vec::new();
+    let digest = scratch_slice(&mut digest_stack, &mut digest_heap, digest_len);
+    H::h_msg_to(digest, r, &pk.pk_seed, &pk.pk_root, message);
 
     // Parse digest into (md, idx_tree, idx_leaf)
-    let (md, idx_tree, idx_leaf) = parse_digest::<K, A, H_PRIME, D>(&digest);
+    let mut md_stack = [0u8; MAX_M_DIGEST_BYTES];
+    let mut md_heap = Vec::new();
+    let md = scratch_slice(&mut md_stack, &mut md_heap, md_bytes);
+    let (md_len, idx_tree, idx_leaf) = parse_digest_to::<K, A, H_PRIME, D>(md, digest);
 
     // Set up FORS address
     let mut adrs = Address::new();
@@ -566,11 +603,20 @@ fn slh_verify_impl<
     adrs.set_keypair(idx_leaf);
 
     // Recover FORS public key from signature (sequential)
-    let pk_fors = fors_pk_from_sig::<H>(sig_fors, &md, &pk.pk_seed, &mut adrs, K, A);
+    let mut pk_fors = [0u8; MAX_N];
+    fors_pk_from_sig_to::<H>(
+        &mut pk_fors[..N],
+        sig_fors,
+        &md[..md_len],
+        &pk.pk_seed,
+        &mut adrs,
+        K,
+        A,
+    );
 
     // Verify hypertree signature
     ht_verify::<H, WOTS_LEN, WOTS_LEN1>(
-        &pk_fors,
+        &pk_fors[..N],
         sig_ht,
         &pk.pk_seed,
         idx_tree,
@@ -589,9 +635,10 @@ fn slh_verify_impl<
 /// - Next ceil(h'/8) bytes: Leaf index (idx_leaf)
 ///
 /// The tree and leaf indices are masked to their respective bit widths.
-fn parse_digest<const K: usize, const A: usize, const H_PRIME: usize, const D: usize>(
+fn parse_digest_to<const K: usize, const A: usize, const H_PRIME: usize, const D: usize>(
+    md_out: &mut [u8],
     digest: &[u8],
-) -> (Vec<u8>, u64, u32) {
+) -> (usize, u64, u32) {
     // Calculate bit positions
     let md_bits = K * A;
     let tree_bits = H_PRIME * (D - 1); // Total height - h' for bottom layer
@@ -603,7 +650,7 @@ fn parse_digest<const K: usize, const A: usize, const H_PRIME: usize, const D: u
     let leaf_bytes = leaf_bits.div_ceil(8);
 
     // Extract message digest for FORS (first md_bytes)
-    let md = digest[..md_bytes].to_vec();
+    md_out[..md_bytes].copy_from_slice(&digest[..md_bytes]);
 
     // Extract tree index (next tree_bytes)
     let tree_start = md_bytes;
@@ -631,7 +678,7 @@ fn parse_digest<const K: usize, const A: usize, const H_PRIME: usize, const D: u
         idx_leaf &= (1u32 << leaf_bits) - 1;
     }
 
-    (md, idx_tree, idx_leaf)
+    (md_bytes, idx_tree, idx_leaf)
 }
 
 #[cfg(test)]
@@ -702,6 +749,46 @@ mod tests {
         );
 
         assert!(valid, "Signature verification failed");
+    }
+
+    #[test]
+    fn test_sign_verify_roundtrip_with_heap_backed_scratch() {
+        const BIG_WOTS_LEN: usize = 68;
+        const BIG_WOTS_LEN1: usize = BIG_WOTS_LEN;
+        const BIG_H_PRIME: usize = 2;
+        const BIG_D: usize = 2;
+        const BIG_K: usize = 50;
+        const BIG_A: usize = 8;
+        const BIG_MD_BYTES: usize = 50;
+
+        let mut rng = ChaCha20Rng::seed_from_u64(7);
+        let (sk, pk) = slh_keygen::<Shake128Hash, N, BIG_WOTS_LEN, BIG_H_PRIME, BIG_D>(&mut rng);
+        let message = b"Exercises heap-backed scratch";
+
+        let signature = slh_sign::<
+            Shake128Hash,
+            N,
+            BIG_WOTS_LEN,
+            BIG_WOTS_LEN1,
+            BIG_H_PRIME,
+            BIG_D,
+            BIG_K,
+            BIG_A,
+            BIG_MD_BYTES,
+        >(&sk, message, None);
+
+        let valid = slh_verify::<
+            Shake128Hash,
+            N,
+            BIG_WOTS_LEN,
+            BIG_WOTS_LEN1,
+            BIG_H_PRIME,
+            BIG_D,
+            BIG_K,
+            BIG_A,
+        >(&pk, message, &signature);
+
+        assert!(valid, "Heap-backed scratch roundtrip failed");
     }
 
     #[test]
@@ -839,10 +926,12 @@ mod tests {
         let digest = vec![
             0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0, 0x11, 0x22, 0x33, 0x44,
         ];
-        let (md, idx_tree, idx_leaf) = parse_digest::<K, A, H_PRIME, D>(&digest);
+        let mut md = [0u8; MAX_M_DIGEST_BYTES];
+        let (md_len, idx_tree, idx_leaf) = parse_digest_to::<K, A, H_PRIME, D>(&mut md, &digest);
 
         // md should be first ceil(k*a/8) = ceil(12/8) = 2 bytes
-        assert_eq!(md.len(), 2);
+        assert_eq!(md_len, 2);
+        assert_eq!(&md[..md_len], &[0x12, 0x34]);
 
         // tree_bits = H_PRIME * (D - 1) = 3 * 1 = 3 bits, so 1 byte
         // idx_tree should be masked to 3 bits
