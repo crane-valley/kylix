@@ -898,6 +898,19 @@ pub fn ml_dsa_verify<
 mod tests {
     use super::*;
 
+    mod test_params {
+        #[cfg(feature = "ml-dsa-44")]
+        pub use crate::params::ml_dsa_44::*;
+        #[cfg(all(not(feature = "ml-dsa-44"), feature = "ml-dsa-65"))]
+        pub use crate::params::ml_dsa_65::*;
+        #[cfg(all(
+            not(feature = "ml-dsa-44"),
+            not(feature = "ml-dsa-65"),
+            feature = "ml-dsa-87"
+        ))]
+        pub use crate::params::ml_dsa_87::*;
+    }
+
     #[test]
     fn test_expand_a_deterministic() {
         let rho = [0u8; 32];
@@ -924,22 +937,7 @@ mod tests {
     #[cfg(any(feature = "ml-dsa-44", feature = "ml-dsa-65", feature = "ml-dsa-87"))]
     #[test]
     fn test_verify_rejects_short_public_key() {
-        #[cfg(feature = "ml-dsa-44")]
-        use crate::params::ml_dsa_44::{
-            BETA, C_TILDE_BYTES, ETA, GAMMA1, GAMMA2, K, L, OMEGA, TAU,
-        };
-        #[cfg(all(not(feature = "ml-dsa-44"), feature = "ml-dsa-65"))]
-        use crate::params::ml_dsa_65::{
-            BETA, C_TILDE_BYTES, ETA, GAMMA1, GAMMA2, K, L, OMEGA, TAU,
-        };
-        #[cfg(all(
-            not(feature = "ml-dsa-44"),
-            not(feature = "ml-dsa-65"),
-            feature = "ml-dsa-87"
-        ))]
-        use crate::params::ml_dsa_87::{
-            BETA, C_TILDE_BYTES, ETA, GAMMA1, GAMMA2, K, L, OMEGA, TAU,
-        };
+        use test_params::{BETA, C_TILDE_BYTES, ETA, GAMMA1, GAMMA2, K, L, OMEGA, TAU};
 
         let xi = [42u8; 32];
         let rnd = [7u8; 32];
@@ -974,16 +972,7 @@ mod tests {
     #[cfg(any(feature = "ml-dsa-44", feature = "ml-dsa-65", feature = "ml-dsa-87"))]
     #[test]
     fn test_expand_verification_key_rejects_overlong_public_key() {
-        #[cfg(feature = "ml-dsa-44")]
-        use crate::params::ml_dsa_44::{ETA, K, L};
-        #[cfg(all(not(feature = "ml-dsa-44"), feature = "ml-dsa-65"))]
-        use crate::params::ml_dsa_65::{ETA, K, L};
-        #[cfg(all(
-            not(feature = "ml-dsa-44"),
-            not(feature = "ml-dsa-65"),
-            feature = "ml-dsa-87"
-        ))]
-        use crate::params::ml_dsa_87::{ETA, K, L};
+        use test_params::{ETA, K, L};
 
         let xi = [42u8; 32];
         let (_, mut pk) = ml_dsa_keygen::<K, L, ETA>(&xi);
