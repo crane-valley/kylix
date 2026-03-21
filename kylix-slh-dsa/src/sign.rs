@@ -238,8 +238,11 @@ fn scratch_slice<'a, const STACK_LEN: usize>(
     }
 }
 
-fn digest_len<const K: usize, const A: usize, const H_PRIME: usize, const D: usize>() -> usize {
-    message_digest_bytes::<K, A>() + (H_PRIME * (D - 1)).div_ceil(8) + H_PRIME.div_ceil(8)
+fn digest_lengths<const K: usize, const A: usize, const H_PRIME: usize, const D: usize>(
+) -> (usize, usize) {
+    let md_bytes = message_digest_bytes::<K, A>();
+    let digest_len = md_bytes + (H_PRIME * (D - 1)).div_ceil(8) + H_PRIME.div_ceil(8);
+    (md_bytes, digest_len)
 }
 
 fn message_digest_bytes<const K: usize, const A: usize>() -> usize {
@@ -259,15 +262,17 @@ fn hypertree_signature_len<
     D * (WOTS_LEN * N + H_PRIME * N)
 }
 
-fn signature_len<
+fn signature_lengths<
     const N: usize,
     const WOTS_LEN: usize,
     const H_PRIME: usize,
     const D: usize,
     const K: usize,
     const A: usize,
->() -> usize {
-    N + fors_signature_len::<N, K, A>() + hypertree_signature_len::<N, WOTS_LEN, H_PRIME, D>()
+>() -> (usize, usize) {
+    let fors_sig_len = fors_signature_len::<N, K, A>();
+    let sig_len = N + fors_sig_len + hypertree_signature_len::<N, WOTS_LEN, H_PRIME, D>();
+    (fors_sig_len, sig_len)
 }
 
 fn fors_tree_address(idx_tree: u64, idx_leaf: u32) -> Address {
@@ -365,8 +370,7 @@ fn slh_sign_impl<
     let mut r = Zeroizing::new([0u8; MAX_N]);
     H::prf_msg_to(&mut r[..N], &sk.sk_prf, randomness, message);
 
-    let md_bytes = message_digest_bytes::<K, A>();
-    let digest_len = digest_len::<K, A, H_PRIME, D>();
+    let (md_bytes, digest_len) = digest_lengths::<K, A, H_PRIME, D>();
 
     // Compute message digest
     let mut digest_stack = [0u8; MAX_M_DIGEST_BYTES];
@@ -383,8 +387,7 @@ fn slh_sign_impl<
     let adrs = fors_tree_address(idx_tree, idx_leaf);
 
     // Pre-allocate single signature buffer: R || SIG_FORS || SIG_HT
-    let fors_sig_len = fors_signature_len::<N, K, A>();
-    let sig_len = signature_len::<N, WOTS_LEN, H_PRIME, D, K, A>();
+    let (fors_sig_len, sig_len) = signature_lengths::<N, WOTS_LEN, H_PRIME, D, K, A>();
     let mut signature = vec![0u8; sig_len];
 
     // Write R
@@ -454,8 +457,7 @@ fn slh_sign_impl<
     let mut r = Zeroizing::new([0u8; MAX_N]);
     H::prf_msg_to(&mut r[..N], &sk.sk_prf, randomness, message);
 
-    let md_bytes = message_digest_bytes::<K, A>();
-    let digest_len = digest_len::<K, A, H_PRIME, D>();
+    let (md_bytes, digest_len) = digest_lengths::<K, A, H_PRIME, D>();
 
     // Compute message digest
     let mut digest_stack = [0u8; MAX_M_DIGEST_BYTES];
@@ -472,8 +474,7 @@ fn slh_sign_impl<
     let mut adrs = fors_tree_address(idx_tree, idx_leaf);
 
     // Pre-allocate single signature buffer: R || SIG_FORS || SIG_HT
-    let fors_sig_len = fors_signature_len::<N, K, A>();
-    let sig_len = signature_len::<N, WOTS_LEN, H_PRIME, D, K, A>();
+    let (fors_sig_len, sig_len) = signature_lengths::<N, WOTS_LEN, H_PRIME, D, K, A>();
     let mut signature = vec![0u8; sig_len];
 
     // Write R
@@ -578,8 +579,7 @@ fn slh_verify_impl<
     signature: &[u8],
 ) -> bool {
     // Calculate expected signature size
-    let fors_sig_len = fors_signature_len::<N, K, A>();
-    let expected_sig_len = signature_len::<N, WOTS_LEN, H_PRIME, D, K, A>();
+    let (fors_sig_len, expected_sig_len) = signature_lengths::<N, WOTS_LEN, H_PRIME, D, K, A>();
 
     if signature.len() != expected_sig_len {
         return false;
@@ -590,8 +590,7 @@ fn slh_verify_impl<
     let sig_fors = &signature[N..N + fors_sig_len];
     let sig_ht = &signature[N + fors_sig_len..];
 
-    let md_bytes = message_digest_bytes::<K, A>();
-    let digest_len = digest_len::<K, A, H_PRIME, D>();
+    let (md_bytes, digest_len) = digest_lengths::<K, A, H_PRIME, D>();
 
     // Compute message digest
     let mut digest_stack = [0u8; MAX_M_DIGEST_BYTES];
@@ -827,7 +826,7 @@ mod tests {
         );
 
         // Expected size: N + K*(A+1)*N + D*(WOTS_LEN*N + H_PRIME*N)
-        let expected_size = signature_len::<N, WOTS_LEN, H_PRIME, D, K, A>();
+        let (_, expected_size) = signature_lengths::<N, WOTS_LEN, H_PRIME, D, K, A>();
 
         assert_eq!(signature.len(), expected_size);
     }
