@@ -1,43 +1,65 @@
 //! # Kylix
 //!
-//! A post-quantum cryptography library implementing NIST FIPS standards.
+//! `kylix-pqc` is a pure Rust post-quantum cryptography library implementing
+//! NIST FIPS 203, 204, and 205.
 //!
-//! ## Features
+//! The facade crate re-exports the main algorithms behind feature flags:
 //!
-//! - `std` (default): Enable standard library support
-//! - `ml-kem` (default): Enable ML-KEM (FIPS 203) key encapsulation
-//! - `ml-dsa` (default): Enable ML-DSA (FIPS 204) digital signatures
-//! - `slh-dsa` (default): Enable SLH-DSA (FIPS 205) SHAKE-based hash signatures
-//! - `slh-dsa-sha2`: Enable SLH-DSA (FIPS 205) SHA2-based hash signatures
+//! - [`ml_kem`] for ML-KEM key encapsulation
+//! - [`ml_dsa`] for ML-DSA signatures
+//! - [`slh_dsa`] for SLH-DSA stateless hash-based signatures
 //!
-//! ## Supported Algorithms
+//! This library is experimental and has not been audited. Do not use it in
+//! production.
 //!
-//! - **ML-KEM** (FIPS 203): Module-Lattice-Based Key Encapsulation Mechanism
-//!   - ML-KEM-512
-//!   - ML-KEM-768
-//!   - ML-KEM-1024
-//! - **ML-DSA** (FIPS 204): Module-Lattice-Based Digital Signature Algorithm
-//!   - ML-DSA-44
-//!   - ML-DSA-65
-//!   - ML-DSA-87
-//! - **SLH-DSA** (FIPS 205): Stateless Hash-Based Digital Signature Algorithm
-//!   - SHAKE-based variants (default): 128s/128f, 192s/192f, 256s/256f
-//!   - SHA2-based variants (`slh-dsa-sha2` feature): 128s/128f, 192s/192f, 256s/256f
+//! ## Quick Start
 //!
-//! ## Example
+//! Add the facade crate:
+//!
+//! ```toml
+//! [dependencies]
+//! kylix-pqc = "0.4"
+//! rand = "0.9"
+//! ```
+//!
+//! Enable SHA2-based SLH-DSA variants when needed. On the facade crate,
+//! `slh-dsa-sha2` augments `slh-dsa`, so SHA2-only configurations with
+//! `default-features = false` should enable both flags:
+//!
+//! ```toml
+//! [dependencies]
+//! kylix-pqc = { version = "0.4", default-features = false, features = ["slh-dsa", "slh-dsa-sha2"] }
+//! rand = "0.9"
+//! ```
+//!
+//! ## Feature Flags
+//!
+//! - `std` (default): enable standard library support
+//! - `ml-kem` (default): enable all ML-KEM variants
+//! - `ml-dsa` (default): enable all ML-DSA variants
+//! - `slh-dsa` (default): enable SHAKE-based SLH-DSA variants
+//! - `slh-dsa-sha2`: enable SHA2-based SLH-DSA variants; on the facade crate,
+//!   keep `slh-dsa` enabled as well
+//!
+//! ## Choosing An Algorithm
+//!
+//! - Use `MlKem768` for a general-purpose Level 3 key encapsulation mechanism.
+//! - Use `MlDsa65` for a general-purpose Level 3 signature scheme.
+//! - Use `SlhDsaShake128f` when you want stateless hash-based signatures and can
+//!   accept larger signatures for faster signing.
+//!
+//! ## Examples
+//!
+//! ML-KEM key exchange:
 //!
 //! ```no_run
 //! # fn main() -> kylix_pqc::Result<()> {
-//! use kylix_pqc::ml_kem::{MlKem768, Kem};
+//! use kylix_pqc::ml_kem::{Kem, MlKem768};
 //! use rand::rng;
 //!
-//! // Generate a key pair
-//! let (dk, ek) = MlKem768::keygen(&mut rng())?;
-//!
-//! // Encapsulate a shared secret
-//! let (ct, ss_sender) = MlKem768::encaps(&ek, &mut rng())?;
-//!
-//! // Decapsulate the shared secret
+//! let mut rng = rng();
+//! let (dk, ek) = MlKem768::keygen(&mut rng)?;
+//! let (ct, ss_sender) = MlKem768::encaps(&ek, &mut rng)?;
 //! let ss_receiver = MlKem768::decaps(&dk, &ct)?;
 //!
 //! assert_eq!(ss_sender.as_ref(), ss_receiver.as_ref());
@@ -62,6 +84,24 @@
 //! # Ok(())
 //! # }
 //! ```
+//!
+//! ## `no_std`
+//!
+//! Disable default features and select only the algorithms you need:
+//!
+//! ```toml
+//! [dependencies]
+//! kylix-pqc = { version = "0.4", default-features = false, features = ["ml-kem"] }
+//! ```
+//!
+//! Individual algorithm crates expose finer-grained per-variant feature flags if
+//! you need tighter binary-size control.
+//!
+//! ## More Documentation
+//!
+//! - [Repository README](https://github.com/crane-valley/kylix/blob/main/README.md)
+//! - [Architecture Overview](https://github.com/crane-valley/kylix/blob/main/ARCHITECTURE.md)
+//! - [Security Policy](https://github.com/crane-valley/kylix/blob/main/SECURITY.md)
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]

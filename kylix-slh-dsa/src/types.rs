@@ -38,29 +38,6 @@ macro_rules! define_slh_dsa_variant {
         }
 
         impl SigningKey {
-            /// Create a signing key from bytes.
-            ///
-            /// Returns an error if the slice length doesn't match the expected key size.
-            pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-                // Write directly into the struct to avoid intermediate buffers
-                if bytes.len() != SK_BYTES {
-                    return Err(Error::InvalidKeyLength {
-                        expected: SK_BYTES,
-                        actual: bytes.len(),
-                    });
-                }
-                let mut key = Self {
-                    bytes: [0u8; SK_BYTES],
-                };
-                key.bytes.copy_from_slice(bytes);
-                Ok(key)
-            }
-
-            /// Get the signing key bytes as a slice.
-            pub fn as_bytes(&self) -> &[u8] {
-                &self.bytes
-            }
-
             /// Get the corresponding verification key.
             pub fn verification_key(&self) -> VerificationKey {
                 // Extract pk_seed and pk_root from bytes
@@ -70,6 +47,13 @@ macro_rules! define_slh_dsa_variant {
                 VerificationKey { bytes: pk_bytes }
             }
         }
+
+        ::kylix_core::impl_fixed_bytes!(
+            for SigningKey,
+            size: SK_BYTES,
+            error: InvalidKeyLength,
+            as_bytes: &[u8]
+        );
 
         impl Clone for SigningKey {
             fn clone(&self) -> Self {
@@ -99,29 +83,12 @@ macro_rules! define_slh_dsa_variant {
             bytes: [u8; PK_BYTES],
         }
 
-        impl VerificationKey {
-            /// Create a verification key from bytes.
-            ///
-            /// Returns an error if the slice length doesn't match the expected key size.
-            pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-                if bytes.len() != PK_BYTES {
-                    return Err(Error::InvalidKeyLength {
-                        expected: PK_BYTES,
-                        actual: bytes.len(),
-                    });
-                }
-                let mut key = Self {
-                    bytes: [0u8; PK_BYTES],
-                };
-                key.bytes.copy_from_slice(bytes);
-                Ok(key)
-            }
-
-            /// Get the verification key bytes as a slice.
-            pub fn as_bytes(&self) -> &[u8] {
-                &self.bytes
-            }
-        }
+        ::kylix_core::impl_fixed_bytes!(
+            for VerificationKey,
+            size: PK_BYTES,
+            error: InvalidKeyLength,
+            as_bytes: &[u8]
+        );
 
         /// Signature.
         ///

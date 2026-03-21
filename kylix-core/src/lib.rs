@@ -17,6 +17,7 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![deny(clippy::unwrap_used, clippy::expect_used)]
 
+mod bytes;
 mod error;
 mod ntt;
 mod reduce;

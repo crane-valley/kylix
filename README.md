@@ -136,27 +136,41 @@ fn main() -> kylix_pqc::Result<()> {
 The `kylix` CLI is available in a separate repository: [crane-valley/kylix-cli](https://github.com/crane-valley/kylix-cli)
 
 ```bash
-# Install via shell script (Linux/macOS)
+# Linux/macOS
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/crane-valley/kylix-cli/releases/latest/download/kylix-cli-installer.sh | sh
+```
 
-# Install via PowerShell (Windows)
+```powershell
+# Windows PowerShell
 powershell -ExecutionPolicy ByPass -c "irm https://github.com/crane-valley/kylix-cli/releases/latest/download/kylix-cli-installer.ps1 | iex"
+```
 
-# Or install from source
+```bash
+# Install from source
 cargo install --git https://github.com/crane-valley/kylix-cli kylix-cli
 ```
 
 See the [kylix-cli repository](https://github.com/crane-valley/kylix-cli) for full usage documentation.
 
+## Repository Guide
+
+- [ARCHITECTURE.md](ARCHITECTURE.md) - detailed crate graph, feature layout, and security design
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - shorter workspace-oriented architecture summary
+- [BENCHMARKS.md](BENCHMARKS.md) - current benchmark data and comparison notes
+- [PLANS.md](PLANS.md) - active roadmap and near-term priorities
+- [CLAUDE.md](CLAUDE.md) - contributor workflow and verification expectations
+
 ## Crate Structure
 
-| Crate | Description |
-|-------|-------------|
-| `kylix-pqc` | Main crate with re-exports |
-| `kylix-core` | Core traits and utilities |
-| `kylix-ml-kem` | ML-KEM (FIPS 203) implementation |
-| `kylix-ml-dsa` | ML-DSA (FIPS 204) implementation |
-| `kylix-slh-dsa` | SLH-DSA (FIPS 205) implementation |
+| Package | Path | Description |
+|---------|------|-------------|
+| `kylix-pqc` | `kylix/` | Facade crate with re-exports |
+| `kylix-core` | `kylix-core/` | Core traits, errors, and shared macros |
+| `kylix-ml-kem` | `kylix-ml-kem/` | ML-KEM (FIPS 203) implementation |
+| `kylix-ml-dsa` | `kylix-ml-dsa/` | ML-DSA (FIPS 204) implementation |
+| `kylix-slh-dsa` | `kylix-slh-dsa/` | SLH-DSA (FIPS 205) implementation |
+
+The default workspace excludes `timing/` (dudect-based timing tests) and each crate's `fuzz/` directory.
 
 ## Changelog
 
@@ -172,7 +186,9 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## Contributing
 
-Contributions are welcome! Please see [CLAUDE.md](CLAUDE.md) for project guidelines before submitting PRs.
+Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) for the
+human-facing workflow and checks, then see [CLAUDE.md](CLAUDE.md) for additional
+repository-specific guidance used by coding agents.
 
 ## References
 
