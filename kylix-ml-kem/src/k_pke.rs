@@ -21,6 +21,7 @@ use crate::poly::{
     poly_cbd, poly_compress, poly_decompress, poly_from_mont, poly_reduce, poly_to_mont, Poly,
 };
 use crate::polyvec::PolyVec;
+use zeroize::Zeroizing;
 
 /// K-PKE Key Generation (FIPS 203 Algorithm 13).
 ///
@@ -52,12 +53,12 @@ pub fn k_pke_keygen<const K: usize, const ETA1: usize>(d: &[u8; 32]) -> (Vec<u8>
     // This 33-byte input provides domain separation between parameter sets,
     // ensuring different key pairs are generated for ML-KEM-512/768/1024
     // even with the same seed d.
-    let mut g_input = [0u8; 33];
+    let mut g_input = Zeroizing::new([0u8; 33]);
     g_input[..32].copy_from_slice(d);
     g_input[32] = K as u8;
-    let g_output = hash_g(&g_input);
+    let g_output = Zeroizing::new(hash_g(&g_input[..]));
     let mut rho = [0u8; 32];
-    let mut sigma = [0u8; 32];
+    let mut sigma = Zeroizing::new([0u8; 32]);
     rho.copy_from_slice(&g_output[..32]);
     sigma.copy_from_slice(&g_output[32..]);
 
@@ -65,16 +66,16 @@ pub fn k_pke_keygen<const K: usize, const ETA1: usize>(d: &[u8; 32]) -> (Vec<u8>
     let a: [[Poly; K]; K] = sample_matrix(&rho, false);
 
     // 3. Sample s from sigma using CBD with eta1
-    let mut s: PolyVec<K> = PolyVec::new();
+    let mut s = Zeroizing::new(PolyVec::<K>::new());
     let prf_output_len = 64 * ETA1;
-    let mut prf_output = vec![0u8; prf_output_len];
+    let mut prf_output = Zeroizing::new(vec![0u8; prf_output_len]);
     for i in 0..K {
         prf(&sigma, i as u8, &mut prf_output);
         s.polys[i] = poly_cbd(ETA1, &prf_output);
     }
 
     // 4. Sample e from sigma using CBD with eta1
-    let mut e: PolyVec<K> = PolyVec::new();
+    let mut e = Zeroizing::new(PolyVec::<K>::new());
     for i in 0..K {
         prf(&sigma, (K + i) as u8, &mut prf_output);
         e.polys[i] = poly_cbd(ETA1, &prf_output);
@@ -155,18 +156,18 @@ pub fn k_pke_encrypt<
     let a_t: [[Poly; K]; K] = sample_matrix(rho, true);
 
     // 3. Sample r_vec from r using CBD with eta1
-    let mut r_vec: PolyVec<K> = PolyVec::new();
+    let mut r_vec = Zeroizing::new(PolyVec::<K>::new());
     let prf_output_len1 = 64 * ETA1;
-    let mut prf_output1 = vec![0u8; prf_output_len1];
+    let mut prf_output1 = Zeroizing::new(vec![0u8; prf_output_len1]);
     for i in 0..K {
         prf(r, i as u8, &mut prf_output1);
         r_vec.polys[i] = poly_cbd(ETA1, &prf_output1);
     }
 
     // 4. Sample e1 from r using CBD with eta2
-    let mut e1: PolyVec<K> = PolyVec::new();
+    let mut e1 = Zeroizing::new(PolyVec::<K>::new());
     let prf_output_len2 = 64 * ETA2;
-    let mut prf_output2 = vec![0u8; prf_output_len2];
+    let mut prf_output2 = Zeroizing::new(vec![0u8; prf_output_len2]);
     for i in 0..K {
         prf(r, (K + i) as u8, &mut prf_output2);
         e1.polys[i] = poly_cbd(ETA2, &prf_output2);
@@ -174,7 +175,7 @@ pub fn k_pke_encrypt<
 
     // 5. Sample e2 from r using CBD with eta2
     prf(r, (2 * K) as u8, &mut prf_output2);
-    let e2 = poly_cbd(ETA2, &prf_output2);
+    let e2 = Zeroizing::new(poly_cbd(ETA2, &prf_output2));
 
     // 6. Convert r_vec to NTT domain
     r_vec.ntt();
@@ -183,7 +184,7 @@ pub fn k_pke_encrypt<
     // A^T is normal form (sampled), r_vec has NTT form
     // After basemul, call to_mont to compensate for R^-1
     // After inv_ntt, call from_mont to convert from Montgomery form back to normal form
-    let mut u = matrix_vec_mul(&a_t, &r_vec);
+    let mut u = Zeroizing::new(matrix_vec_mul(&a_t, &r_vec));
     u.to_mont(); // Compensate for R^-1 from basemul
     u.inv_ntt();
     u.from_mont(); // Convert from Montgomery form back to normal form
@@ -193,7 +194,7 @@ pub fn k_pke_encrypt<
     // 8. Compute v = NTT^-1(t^T * r_vec) + e2 + mu
     // After basemul, call to_mont to compensate for R^-1
     // After inv_ntt, call from_mont to convert from Montgomery form back to normal form
-    let mut v = t.inner_product(&r_vec);
+    let mut v = Zeroizing::new(t.inner_product(&r_vec));
     poly_to_mont(&mut v); // Compensate for R^-1 from basemul
     inv_ntt(&mut v);
     poly_from_mont(&mut v); // Convert from Montgomery form back to normal form
@@ -205,7 +206,7 @@ pub fn k_pke_encrypt<
     }
 
     // Add message encoding
-    let mu = msg_to_poly(m);
+    let mu = Zeroizing::new(msg_to_poly(m));
     for i in 0..N {
         v.coeffs[i] = v.coeffs[i].wrapping_add(mu.coeffs[i]);
     }
@@ -257,26 +258,26 @@ pub fn k_pke_decrypt<const K: usize, const DU: usize, const DV: usize>(
     let c2 = &c[c1_len..];
 
     // 2. Decompress u from c1
-    let mut u: PolyVec<K> = PolyVec::decompress(c1, DU);
+    let mut u = Zeroizing::new(PolyVec::<K>::decompress(c1, DU));
 
     // 3. Decompress v from c2
-    let v = poly_decompress(c2, DV as u32);
+    let v = Zeroizing::new(poly_decompress(c2, DV as u32));
 
     // 4. Decode secret key s
-    let s: PolyVec<K> = PolyVec::from_bytes(dk_pke);
+    let s = Zeroizing::new(PolyVec::<K>::from_bytes(dk_pke));
 
     // 5. Compute w = v - NTT^-1(s^T * NTT(u))
     // After basemul, call to_mont to compensate for R^-1
     // After inv_ntt, call from_mont to convert from Montgomery form back to normal form
     u.ntt();
-    let mut s_t_u = s.inner_product(&u);
+    let mut s_t_u = Zeroizing::new(s.inner_product(&u));
     poly_to_mont(&mut s_t_u); // Compensate for R^-1 from basemul
     inv_ntt(&mut s_t_u);
     poly_from_mont(&mut s_t_u); // Convert from Montgomery form back to normal form
     poly_reduce(&mut s_t_u);
 
     // w = v - s_t_u
-    let mut w = Poly::new();
+    let mut w = Zeroizing::new(Poly::new());
     for i in 0..N {
         w.coeffs[i] = v.coeffs[i].wrapping_sub(s_t_u.coeffs[i]);
     }

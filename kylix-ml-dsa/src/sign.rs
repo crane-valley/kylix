@@ -151,6 +151,16 @@ fn parse_z<const L: usize>(
     z
 }
 
+/// Convert a rejection-sampling attempt and polynomial index into a mask nonce.
+///
+/// Returns `None` if the nonce would overflow the 16-bit domain used by
+/// `ExpandMask`.
+fn mask_nonce<const L: usize>(kappa: u32, poly_index: usize) -> Option<u16> {
+    let base_nonce = kappa.checked_mul(L as u32)?;
+    let nonce = base_nonce.checked_add(poly_index as u32)?;
+    u16::try_from(nonce).ok()
+}
+
 /// Compute MakeHint vector for the signature.
 ///
 /// Writes hint encoding into `h` (length `OMEGA + K`). Returns `Some(())`
@@ -585,6 +595,11 @@ pub fn ml_dsa_sign<
 ) -> Option<Vec<u8>> {
     let eta_bytes = if ETA == 2 { 96 } else { 128 };
     let gamma1_bits = if GAMMA1 == (1 << 17) { 17 } else { 19 };
+    let expected_sk_len = 32 + 32 + 64 + L * eta_bytes + K * eta_bytes + K * 416;
+
+    if sk.len() != expected_sk_len {
+        return None;
+    }
 
     // Parse secret key
     let rho = &sk[0..32];
@@ -669,10 +684,9 @@ pub fn ml_dsa_sign<
 
         // Sample y
         let mut y = Zeroizing::new(PolyVecL::<L>::zero());
-        let base_nonce = kappa * (L as u32);
         for i in 0..L {
-            let nonce = base_nonce + (i as u32);
-            y.polys[i] = sample_mask(&rho_prime, nonce as u16, gamma1_bits);
+            let nonce = mask_nonce::<L>(kappa, i)?;
+            y.polys[i] = sample_mask(&rho_prime, nonce, gamma1_bits);
         }
 
         // w = A * NTT(y)
@@ -979,6 +993,39 @@ mod tests {
         pk.push(0);
 
         assert!(expand_verification_key::<K, L>(&pk).is_none());
+    }
+
+    #[test]
+    fn test_mask_nonce_rejects_overflow() {
+        assert_eq!(mask_nonce::<7>(9361, 6), Some(65533));
+        assert_eq!(mask_nonce::<7>(9362, 1), Some(65535));
+        assert_eq!(mask_nonce::<7>(9362, 2), None);
+    }
+
+    #[cfg(any(feature = "ml-dsa-44", feature = "ml-dsa-65", feature = "ml-dsa-87"))]
+    #[test]
+    fn test_sign_rejects_short_secret_key() {
+        use test_params::{BETA, C_TILDE_BYTES, ETA, GAMMA1, GAMMA2, K, L, OMEGA, TAU};
+
+        let xi = [42u8; 32];
+        let rnd = [7u8; 32];
+        let message = b"test message";
+        let (sk, _) = ml_dsa_keygen::<K, L, ETA>(&xi);
+        let short_sk = &sk[..sk.len() - 1];
+
+        let sig = ml_dsa_sign::<
+            K,
+            L,
+            ETA,
+            { BETA },
+            { GAMMA1 },
+            { GAMMA2 },
+            { TAU },
+            { OMEGA },
+            { C_TILDE_BYTES },
+        >(short_sk, message, &rnd);
+
+        assert!(sig.is_none());
     }
 
     /// Verify the fundamental identity: A*s1 = t1*2^d + t0 - s2
