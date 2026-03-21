@@ -17,9 +17,9 @@ macro_rules! impl_fixed_bytes {
             ///
             /// Writes directly into the struct to avoid intermediate buffers
             /// that could leave sensitive material on the stack.
-            pub fn from_bytes(bytes: &[u8]) -> ::kylix_core::Result<Self> {
+            pub fn from_bytes(bytes: &[u8]) -> $crate::Result<Self> {
                 if bytes.len() != $size {
-                    return Err(::kylix_core::Error::$error_variant {
+                    return Err($crate::Error::$error_variant {
                         expected: $size,
                         actual: bytes.len(),
                     });
