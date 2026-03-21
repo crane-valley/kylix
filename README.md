@@ -99,7 +99,8 @@ fn main() -> kylix_pqc::Result<()> {
 ### ML-DSA (Digital Signatures)
 
 ```rust
-use kylix_pqc::ml_dsa::{MlDsa65, Signer};
+use kylix_pqc::ml_dsa::MlDsa65;
+use kylix_pqc::traits::Signer;
 use rand::rng;
 
 fn main() -> kylix_pqc::Result<()> {
@@ -122,7 +123,8 @@ fn main() -> kylix_pqc::Result<()> {
 ### SLH-DSA (Stateless Hash-Based Signatures)
 
 ```rust
-use kylix_pqc::slh_dsa::{Signer, SlhDsaShake128f};
+use kylix_pqc::slh_dsa::SlhDsaShake128f;
+use kylix_pqc::traits::Signer;
 use rand::rng;
 
 fn main() -> kylix_pqc::Result<()> {
