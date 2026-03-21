@@ -288,15 +288,18 @@ pub struct ExpandedVerificationKey<const K: usize, const L: usize> {
 /// - `expand_a()`: K×L polynomials from SHAKE128 (most expensive)
 /// - `hash_pk()`: SHA3-512 hash of public key
 /// - `t1 * 2^D` in NTT domain
+#[allow(clippy::expect_used)] // infallible: slice sizes guaranteed by pk length check
 pub fn expand_verification_key<const K: usize, const L: usize>(
     pk: &[u8],
 ) -> Option<ExpandedVerificationKey<K, L>> {
-    if pk.len() < 32 + K * 320 {
+    if pk.len() != 32 + K * 320 {
         return None;
     }
 
     // Parse rho from public key
-    let rho: [u8; 32] = pk[0..32].try_into().ok()?;
+    let rho: [u8; 32] = pk[0..32]
+        .try_into()
+        .expect("infallible: rho slice is 32 bytes after pk length check");
 
     // Unpack t1
     let mut t1 = PolyVecK::<K>::zero();
@@ -778,6 +781,7 @@ pub fn ml_dsa_sign<
 /// ML-DSA Verify (Algorithm 3)
 ///
 /// Verifies signature on message with public key.
+#[allow(clippy::expect_used)] // infallible: rho slice size guaranteed by pk length check
 pub fn ml_dsa_verify<
     const K: usize,
     const L: usize,
@@ -795,16 +799,19 @@ pub fn ml_dsa_verify<
     let gamma1_bits = if GAMMA1 == (1 << 17) { 17 } else { 19 };
     let z_bytes = if gamma1_bits == 17 { 576 } else { 640 };
     let expected_sig_len = C_TILDE_BYTES + L * z_bytes + OMEGA + K;
+    let expected_pk_len = 32 + K * 320;
 
     if sig.len() != expected_sig_len {
         return false;
     }
+    if pk.len() != expected_pk_len {
+        return false;
+    }
 
     // Parse public key
-    let rho: [u8; 32] = match pk[0..32].try_into() {
-        Ok(r) => r,
-        Err(_) => return false,
-    };
+    let rho: [u8; 32] = pk[0..32]
+        .try_into()
+        .expect("infallible: rho slice is 32 bytes after pk length check");
 
     let mut t1 = PolyVecK::<K>::zero();
     for i in 0..K {
@@ -891,6 +898,19 @@ pub fn ml_dsa_verify<
 mod tests {
     use super::*;
 
+    mod test_params {
+        #[cfg(feature = "ml-dsa-44")]
+        pub use crate::params::ml_dsa_44::*;
+        #[cfg(all(not(feature = "ml-dsa-44"), feature = "ml-dsa-65"))]
+        pub use crate::params::ml_dsa_65::*;
+        #[cfg(all(
+            not(feature = "ml-dsa-44"),
+            not(feature = "ml-dsa-65"),
+            feature = "ml-dsa-87"
+        ))]
+        pub use crate::params::ml_dsa_87::*;
+    }
+
     #[test]
     fn test_expand_a_deterministic() {
         let rho = [0u8; 32];
@@ -912,6 +932,53 @@ mod tests {
         // ML-DSA-44: pk = 1312, sk = 2560
         assert_eq!(pk.len(), 1312);
         assert_eq!(sk.len(), 2560);
+    }
+
+    #[cfg(any(feature = "ml-dsa-44", feature = "ml-dsa-65", feature = "ml-dsa-87"))]
+    #[test]
+    fn test_verify_rejects_short_public_key() {
+        use test_params::{BETA, C_TILDE_BYTES, ETA, GAMMA1, GAMMA2, K, L, OMEGA, TAU};
+
+        let xi = [42u8; 32];
+        let rnd = [7u8; 32];
+        let message = b"test message";
+        let (sk, pk) = ml_dsa_keygen::<K, L, ETA>(&xi);
+        let sig = ml_dsa_sign::<
+            K,
+            L,
+            ETA,
+            { BETA },
+            { GAMMA1 },
+            { GAMMA2 },
+            { TAU },
+            { OMEGA },
+            { C_TILDE_BYTES },
+        >(&sk, message, &rnd)
+        .expect("signing should succeed");
+
+        let short_pk = &pk[..pk.len() - 1];
+        assert!(!ml_dsa_verify::<
+            K,
+            L,
+            { BETA },
+            { GAMMA1 },
+            { GAMMA2 },
+            { TAU },
+            { OMEGA },
+            { C_TILDE_BYTES },
+        >(short_pk, message, &sig,));
+    }
+
+    #[cfg(any(feature = "ml-dsa-44", feature = "ml-dsa-65", feature = "ml-dsa-87"))]
+    #[test]
+    fn test_expand_verification_key_rejects_overlong_public_key() {
+        use test_params::{ETA, K, L};
+
+        let xi = [42u8; 32];
+        let (_, mut pk) = ml_dsa_keygen::<K, L, ETA>(&xi);
+        pk.push(0);
+
+        assert!(expand_verification_key::<K, L>(&pk).is_none());
     }
 
     /// Verify the fundamental identity: A*s1 = t1*2^d + t0 - s2
