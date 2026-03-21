@@ -16,9 +16,9 @@ use crate::utils::base_2b;
 use zeroize::Zeroize;
 
 #[cfg(not(feature = "std"))]
-use alloc::vec;
-#[cfg(all(test, not(feature = "std")))]
 use alloc::vec::Vec;
+#[cfg(all(test, not(feature = "std")))]
+use alloc::vec;
 
 /// Maximum number of FORS roots across all supported parameter sets.
 const MAX_FORS_TREES: usize = 35;

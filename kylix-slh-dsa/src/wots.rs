@@ -13,7 +13,9 @@ use crate::utils::{base_2b, wots_checksum};
 use zeroize::Zeroize;
 
 #[cfg(not(feature = "std"))]
-use alloc::{vec, vec::Vec};
+use alloc::vec::Vec;
+#[cfg(all(test, not(feature = "std")))]
+use alloc::vec;
 
 /// Maximum WOTS+ len across all supported parameter sets.
 const MAX_WOTS_LEN: usize = 67;
