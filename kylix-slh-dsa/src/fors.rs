@@ -15,8 +15,10 @@ use crate::hash::{HashSuite, MAX_N};
 use crate::utils::base_2b;
 use zeroize::Zeroize;
 
+#[cfg(not(feature = "std"))]
+use alloc::vec;
 #[cfg(all(test, not(feature = "std")))]
-use alloc::{vec, vec::Vec};
+use alloc::vec::Vec;
 
 /// Maximum number of FORS roots across all supported parameter sets.
 const MAX_FORS_TREES: usize = 35;
@@ -248,58 +250,66 @@ pub fn fors_pk_from_sig_to<H: HashSuite>(
 
     // Extract indices from message digest
     let indices = base_2b(md, a, k);
-
-    // Collect all tree roots
-    let mut roots = [0u8; MAX_FORS_TREES * MAX_N];
+    let fors_pk_adrs = adrs.with_type(AdrsType::ForsPk);
 
     let sig_elem_size = n + a * n; // sk element + auth path
-    let mut node = [0u8; MAX_N];
-    let mut tmp = [0u8; MAX_N];
+    let roots_len = k * n;
+    let mut fill_roots = |roots: &mut [u8]| {
+        let mut node = [0u8; MAX_N];
+        let mut tmp = [0u8; MAX_N];
 
-    for i in 0..k {
-        let sig_i = &sig_fors[i * sig_elem_size..(i + 1) * sig_elem_size];
-        let sk = &sig_i[..n];
-        let auth = &sig_i[n..];
+        for i in 0..k {
+            let sig_i = &sig_fors[i * sig_elem_size..(i + 1) * sig_elem_size];
+            let sk = &sig_i[..n];
+            let auth = &sig_i[n..];
 
-        let idx = indices[i]; // Leaf index within this tree
-        let tree_idx = i as u32;
-        let global_leaf_idx = tree_idx * t + idx;
+            let idx = indices[i]; // Leaf index within this tree
+            let tree_idx = i as u32;
+            let global_leaf_idx = tree_idx * t + idx;
 
-        // Compute leaf from secret key
-        adrs.set_type(AdrsType::ForsTree);
-        adrs.set_tree_height(0);
-        adrs.set_tree_index(global_leaf_idx);
-        H::f_to(&mut node[..n], pk_seed, adrs, sk);
+            // Compute leaf from secret key
+            adrs.set_type(AdrsType::ForsTree);
+            adrs.set_tree_height(0);
+            adrs.set_tree_index(global_leaf_idx);
+            H::f_to(&mut node[..n], pk_seed, adrs, sk);
 
-        // Climb the tree using authentication path
-        for j in 0..a {
-            let auth_j = &auth[j * n..(j + 1) * n];
+            // Climb the tree using authentication path
+            for j in 0..a {
+                let auth_j = &auth[j * n..(j + 1) * n];
 
-            // Compute parent node
-            let parent_in_tree = idx >> (j + 1);
-            let nodes_at_parent_level = t >> (j + 1);
-            let global_parent_idx = tree_idx * nodes_at_parent_level + parent_in_tree;
+                // Compute parent node
+                let parent_in_tree = idx >> (j + 1);
+                let nodes_at_parent_level = t >> (j + 1);
+                let global_parent_idx = tree_idx * nodes_at_parent_level + parent_in_tree;
 
-            adrs.set_tree_height((j + 1) as u32);
-            adrs.set_tree_index(global_parent_idx);
+                adrs.set_tree_height((j + 1) as u32);
+                adrs.set_tree_index(global_parent_idx);
 
-            if (idx >> j) & 1 == 0 {
-                H::h_to(&mut tmp[..n], pk_seed, adrs, &node[..n], auth_j);
-            } else {
-                H::h_to(&mut tmp[..n], pk_seed, adrs, auth_j, &node[..n]);
+                if (idx >> j) & 1 == 0 {
+                    H::h_to(&mut tmp[..n], pk_seed, adrs, &node[..n], auth_j);
+                } else {
+                    H::h_to(&mut tmp[..n], pk_seed, adrs, auth_j, &node[..n]);
+                }
+                node[..n].copy_from_slice(&tmp[..n]);
             }
-            node[..n].copy_from_slice(&tmp[..n]);
+
+            roots[i * n..(i + 1) * n].copy_from_slice(&node[..n]);
         }
 
-        roots[i * n..(i + 1) * n].copy_from_slice(&node[..n]);
+        node.zeroize();
+        tmp.zeroize();
+    };
+
+    if roots_len <= MAX_FORS_TREES * MAX_N {
+        let mut roots = [0u8; MAX_FORS_TREES * MAX_N];
+        let roots = &mut roots[..roots_len];
+        fill_roots(roots);
+        H::t_l_to(out, pk_seed, &fors_pk_adrs, roots);
+    } else {
+        let mut roots = vec![0u8; roots_len];
+        fill_roots(&mut roots);
+        H::t_l_to(out, pk_seed, &fors_pk_adrs, &roots);
     }
-
-    node.zeroize();
-    tmp.zeroize();
-
-    // Compress all roots to get public key
-    let fors_pk_adrs = adrs.with_type(AdrsType::ForsPk);
-    H::t_l_to(out, pk_seed, &fors_pk_adrs, &roots[..k * n]);
 }
 
 #[cfg(test)]

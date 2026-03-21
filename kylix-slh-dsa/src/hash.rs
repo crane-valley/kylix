@@ -21,10 +21,12 @@ use alloc::vec::Vec;
 /// Used for stack buffer sizing in `_to` buffer-write variants.
 pub const MAX_N: usize = 32;
 
-/// Maximum Hmsg output length across all supported SLH-DSA parameter sets.
+/// Maximum Hmsg output length across the built-in SLH-DSA parameter sets.
 ///
-/// The largest supported digest is for the SHA2-256f parameter set:
+/// The largest shipped digest is for the SHA2-256f parameter set:
 /// `ceil(35*9/8) + ceil((68-4)/8) + ceil(4/8) = 49` bytes.
+/// Larger const-generic experiments fall back to heap-backed scratch space
+/// in the signing and verification paths.
 pub const MAX_M_DIGEST_BYTES: usize = 49;
 
 /// Hash function suite trait for SLH-DSA.
