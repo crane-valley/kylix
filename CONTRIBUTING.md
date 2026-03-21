@@ -13,7 +13,7 @@ Thanks for contributing.
 
 Run these commands before opening a PR:
 
-```powershell
+```sh
 cargo fmt --all
 cargo clippy --all-targets --all-features -- -D warnings
 cargo clippy --all-targets --no-default-features -- -D warnings
