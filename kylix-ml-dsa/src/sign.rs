@@ -291,7 +291,7 @@ pub struct ExpandedVerificationKey<const K: usize, const L: usize> {
 pub fn expand_verification_key<const K: usize, const L: usize>(
     pk: &[u8],
 ) -> Option<ExpandedVerificationKey<K, L>> {
-    if pk.len() < 32 + K * 320 {
+    if pk.len() != 32 + K * 320 {
         return None;
     }
 
@@ -966,6 +966,27 @@ mod tests {
             { OMEGA },
             { C_TILDE_BYTES },
         >(short_pk, message, &sig,));
+    }
+
+    #[cfg(any(feature = "ml-dsa-44", feature = "ml-dsa-65", feature = "ml-dsa-87"))]
+    #[test]
+    fn test_expand_verification_key_rejects_overlong_public_key() {
+        #[cfg(feature = "ml-dsa-44")]
+        use crate::params::ml_dsa_44::{ETA, K, L};
+        #[cfg(all(not(feature = "ml-dsa-44"), feature = "ml-dsa-65"))]
+        use crate::params::ml_dsa_65::{ETA, K, L};
+        #[cfg(all(
+            not(feature = "ml-dsa-44"),
+            not(feature = "ml-dsa-65"),
+            feature = "ml-dsa-87"
+        ))]
+        use crate::params::ml_dsa_87::{ETA, K, L};
+
+        let xi = [42u8; 32];
+        let (_, mut pk) = ml_dsa_keygen::<K, L, ETA>(&xi);
+        pk.push(0);
+
+        assert!(expand_verification_key::<K, L>(&pk).is_none());
     }
 
     /// Verify the fundamental identity: A*s1 = t1*2^d + t0 - s2
