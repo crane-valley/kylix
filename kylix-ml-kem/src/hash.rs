@@ -15,6 +15,8 @@ use sha3::{
     Sha3_256, Sha3_512, Shake128, Shake256,
 };
 
+const XOF_BLOCK_BYTES: usize = 168;
+
 /// H function: SHA3-256.
 ///
 /// Used to hash the encapsulation key for domain separation.
@@ -83,6 +85,9 @@ pub fn hash_j(z: &[u8; 32], ciphertext: &[u8], output: &mut [u8]) {
 /// Note: FIPS 203 specifies column-major indexing.
 pub struct Xof {
     reader: sha3::Shake128Reader,
+    block: [u8; XOF_BLOCK_BYTES],
+    block_pos: usize,
+    block_len: usize,
 }
 
 impl Xof {
@@ -101,7 +106,12 @@ impl Xof {
         hasher.update(rho);
         hasher.update(&[j, i]); // FIPS 203: column-major order
         let reader = hasher.finalize_xof();
-        Self { reader }
+        Self {
+            reader,
+            block: [0u8; XOF_BLOCK_BYTES],
+            block_pos: 0,
+            block_len: 0,
+        }
     }
 
     /// Read bytes from the XOF.
@@ -110,7 +120,52 @@ impl Xof {
     /// * `out` - Buffer to fill with XOF output
     #[inline]
     pub fn squeeze(&mut self, out: &mut [u8]) {
-        self.reader.read(out);
+        let mut written = 0;
+
+        if self.block_pos < self.block_len {
+            let available = self.block_len - self.block_pos;
+            let to_copy = available.min(out.len());
+            out[..to_copy].copy_from_slice(&self.block[self.block_pos..self.block_pos + to_copy]);
+            self.block_pos += to_copy;
+            written = to_copy;
+
+            if self.block_pos == self.block_len {
+                self.block_pos = 0;
+                self.block_len = 0;
+            }
+        }
+
+        if written < out.len() {
+            self.reader.read(&mut out[written..]);
+        }
+    }
+
+    /// Read the next 3 bytes while buffering one SHAKE128 rate block internally.
+    #[inline]
+    pub fn squeeze_three(&mut self) -> [u8; 3] {
+        if self.block_len - self.block_pos < 3 {
+            let carry = self.block_len - self.block_pos;
+            if carry > 0 {
+                self.block.copy_within(self.block_pos..self.block_len, 0);
+            }
+            self.reader.read(&mut self.block[carry..]);
+            self.block_pos = 0;
+            self.block_len = XOF_BLOCK_BYTES;
+        }
+
+        let bytes = [
+            self.block[self.block_pos],
+            self.block[self.block_pos + 1],
+            self.block[self.block_pos + 2],
+        ];
+        self.block_pos += 3;
+
+        if self.block_pos == self.block_len {
+            self.block_pos = 0;
+            self.block_len = 0;
+        }
+
+        bytes
     }
 }
 
@@ -209,6 +264,26 @@ mod tests {
         xof1.squeeze(&mut out1);
         xof2.squeeze(&mut out2);
         assert_ne!(out1, out2);
+    }
+
+    #[test]
+    fn test_xof_squeeze_three_preserves_stream_position() {
+        let rho = [0x42u8; 32];
+        let mut buffered = Xof::new(&rho, 0, 0);
+        let mut reference = Xof::new(&rho, 0, 0);
+
+        for _ in 0..159 {
+            let mut out = [0u8; 3];
+            reference.squeeze(&mut out);
+            assert_eq!(buffered.squeeze_three(), out);
+        }
+
+        let mut buffered_tail = [0u8; 32];
+        let mut reference_tail = [0u8; 32];
+        buffered.squeeze(&mut buffered_tail);
+        reference.squeeze(&mut reference_tail);
+
+        assert_eq!(buffered_tail, reference_tail);
     }
 
     #[test]
