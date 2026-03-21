@@ -918,42 +918,53 @@ mod tests {
         assert_eq!(sk.len(), 2560);
     }
 
+    #[cfg(any(feature = "ml-dsa-44", feature = "ml-dsa-65", feature = "ml-dsa-87"))]
     #[test]
     fn test_verify_rejects_short_public_key() {
-        const BETA_44: i32 = 78;
-        const GAMMA1_44: i32 = 1 << 17;
-        const GAMMA2_44: i32 = 95_232;
-        const TAU_44: usize = 39;
-        const OMEGA_44: usize = 80;
-        const C_TILDE_BYTES_44: usize = 32;
+        #[cfg(feature = "ml-dsa-44")]
+        use crate::params::ml_dsa_44::{
+            BETA, C_TILDE_BYTES, ETA, GAMMA1, GAMMA2, K, L, OMEGA, TAU,
+        };
+        #[cfg(all(not(feature = "ml-dsa-44"), feature = "ml-dsa-65"))]
+        use crate::params::ml_dsa_65::{
+            BETA, C_TILDE_BYTES, ETA, GAMMA1, GAMMA2, K, L, OMEGA, TAU,
+        };
+        #[cfg(all(
+            not(feature = "ml-dsa-44"),
+            not(feature = "ml-dsa-65"),
+            feature = "ml-dsa-87"
+        ))]
+        use crate::params::ml_dsa_87::{
+            BETA, C_TILDE_BYTES, ETA, GAMMA1, GAMMA2, K, L, OMEGA, TAU,
+        };
 
         let xi = [42u8; 32];
         let rnd = [7u8; 32];
         let message = b"test message";
-        let (sk, pk) = ml_dsa_keygen::<4, 4, 2>(&xi);
+        let (sk, pk) = ml_dsa_keygen::<K, L, ETA>(&xi);
         let sig = ml_dsa_sign::<
-            4,
-            4,
-            2,
-            { BETA_44 },
-            { GAMMA1_44 },
-            { GAMMA2_44 },
-            { TAU_44 },
-            { OMEGA_44 },
-            { C_TILDE_BYTES_44 },
+            K,
+            L,
+            ETA,
+            { BETA },
+            { GAMMA1 },
+            { GAMMA2 },
+            { TAU },
+            { OMEGA },
+            { C_TILDE_BYTES },
         >(&sk, message, &rnd)
         .expect("signing should succeed");
 
         let short_pk = &pk[..pk.len() - 1];
         assert!(!ml_dsa_verify::<
-            4,
-            4,
-            { BETA_44 },
-            { GAMMA1_44 },
-            { GAMMA2_44 },
-            { TAU_44 },
-            { OMEGA_44 },
-            { C_TILDE_BYTES_44 },
+            K,
+            L,
+            { BETA },
+            { GAMMA1 },
+            { GAMMA2 },
+            { TAU },
+            { OMEGA },
+            { C_TILDE_BYTES },
         >(short_pk, message, &sig,));
     }
 
