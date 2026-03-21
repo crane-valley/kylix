@@ -300,16 +300,17 @@ pub fn fors_pk_from_sig_to<H: HashSuite>(
         tmp.zeroize();
     };
 
-    if roots_len <= MAX_FORS_TREES * MAX_N {
-        let mut roots = [0u8; MAX_FORS_TREES * MAX_N];
-        let roots = &mut roots[..roots_len];
-        fill_roots(roots);
-        H::t_l_to(out, pk_seed, &fors_pk_adrs, roots);
+    let mut stack_roots = [0u8; MAX_FORS_TREES * MAX_N];
+    let mut heap_roots = Vec::new();
+    let roots = if roots_len <= MAX_FORS_TREES * MAX_N {
+        &mut stack_roots[..roots_len]
     } else {
-        let mut roots = vec![0u8; roots_len];
-        fill_roots(&mut roots);
-        H::t_l_to(out, pk_seed, &fors_pk_adrs, &roots);
-    }
+        heap_roots.resize(roots_len, 0);
+        heap_roots.as_mut()
+    };
+
+    fill_roots(roots);
+    H::t_l_to(out, pk_seed, &fors_pk_adrs, roots);
 }
 
 #[cfg(test)]

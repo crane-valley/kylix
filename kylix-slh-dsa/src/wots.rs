@@ -148,16 +148,17 @@ pub fn wots_pk_gen_to<H: HashSuite, const WOTS_LEN: usize>(
         }
     };
 
-    if tmp_len <= MAX_WOTS_LEN * MAX_N {
-        let mut tmp = [0u8; MAX_WOTS_LEN * MAX_N];
-        let tmp = &mut tmp[..tmp_len];
-        fill_tmp(tmp);
-        H::t_l_to(out, pk_seed, &wots_pk_adrs, tmp);
+    let mut stack_tmp = [0u8; MAX_WOTS_LEN * MAX_N];
+    let mut heap_tmp = Vec::new();
+    let tmp = if tmp_len <= MAX_WOTS_LEN * MAX_N {
+        &mut stack_tmp[..tmp_len]
     } else {
-        let mut tmp = vec![0u8; tmp_len];
-        fill_tmp(&mut tmp);
-        H::t_l_to(out, pk_seed, &wots_pk_adrs, &tmp);
-    }
+        heap_tmp.resize(tmp_len, 0);
+        heap_tmp.as_mut()
+    };
+
+    fill_tmp(tmp);
+    H::t_l_to(out, pk_seed, &wots_pk_adrs, tmp);
 }
 
 /// Generate a WOTS+ signature into a pre-allocated buffer.
@@ -300,16 +301,17 @@ pub fn wots_pk_from_sig_to<H: HashSuite, const WOTS_LEN: usize, const WOTS_LEN1:
         }
     };
 
-    if tmp_len <= MAX_WOTS_LEN * MAX_N {
-        let mut tmp = [0u8; MAX_WOTS_LEN * MAX_N];
-        let tmp = &mut tmp[..tmp_len];
-        fill_tmp(tmp);
-        H::t_l_to(out, pk_seed, &wots_pk_adrs, tmp);
+    let mut stack_tmp = [0u8; MAX_WOTS_LEN * MAX_N];
+    let mut heap_tmp = Vec::new();
+    let tmp = if tmp_len <= MAX_WOTS_LEN * MAX_N {
+        &mut stack_tmp[..tmp_len]
     } else {
-        let mut tmp = vec![0u8; tmp_len];
-        fill_tmp(&mut tmp);
-        H::t_l_to(out, pk_seed, &wots_pk_adrs, &tmp);
-    }
+        heap_tmp.resize(tmp_len, 0);
+        heap_tmp.as_mut()
+    };
+
+    fill_tmp(tmp);
+    H::t_l_to(out, pk_seed, &wots_pk_adrs, tmp);
 }
 
 #[cfg(test)]
