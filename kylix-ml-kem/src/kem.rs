@@ -15,6 +15,7 @@ use crate::hash::{hash_g, hash_h, hash_j};
 use crate::k_pke::{k_pke_decrypt, k_pke_encrypt, k_pke_keygen};
 use kylix_core::{Error, Result};
 use subtle::{ConditionallySelectable, ConstantTimeEq};
+use zeroize::Zeroizing;
 
 /// ML-KEM Key Generation (FIPS 203 Algorithm 16).
 ///
@@ -115,13 +116,13 @@ pub fn ml_kem_encaps<
     let h = hash_h(ek);
 
     // 2. (K, r) = G(m || h)
-    let mut g_input = [0u8; 64];
+    let mut g_input = Zeroizing::new([0u8; 64]);
     g_input[..32].copy_from_slice(m);
     g_input[32..].copy_from_slice(&h);
-    let g_output = hash_g(&g_input);
+    let g_output = Zeroizing::new(hash_g(&g_input[..]));
 
     let mut shared_secret = [0u8; 32];
-    let mut r = [0u8; 32];
+    let mut r = Zeroizing::new([0u8; 32]);
     shared_secret.copy_from_slice(&g_output[..32]);
     r.copy_from_slice(&g_output[32..]);
 
@@ -214,16 +215,16 @@ pub fn ml_kem_decaps<
     }
 
     // 1. m' = K-PKE.Decrypt(dk_pke, c)
-    let m_prime = k_pke_decrypt::<K, DU, DV>(dk_pke, c);
+    let m_prime = Zeroizing::new(k_pke_decrypt::<K, DU, DV>(dk_pke, c));
 
     // 2. (K', r') = G(m' || h)
-    let mut g_input = [0u8; 64];
-    g_input[..32].copy_from_slice(&m_prime);
+    let mut g_input = Zeroizing::new([0u8; 64]);
+    g_input[..32].copy_from_slice(&m_prime[..]);
     g_input[32..].copy_from_slice(h);
-    let g_output = hash_g(&g_input);
+    let g_output = Zeroizing::new(hash_g(&g_input[..]));
 
-    let mut k_prime = [0u8; 32];
-    let mut r_prime = [0u8; 32];
+    let mut k_prime = Zeroizing::new([0u8; 32]);
+    let mut r_prime = Zeroizing::new([0u8; 32]);
     k_prime.copy_from_slice(&g_output[..32]);
     r_prime.copy_from_slice(&g_output[32..]);
 
@@ -231,8 +232,8 @@ pub fn ml_kem_decaps<
     let c_prime = k_pke_encrypt::<K, ETA1, ETA2, DU, DV>(ek, &m_prime, &r_prime);
 
     // 4. K_bar = J(z || c)
-    let mut k_bar = [0u8; 32];
-    hash_j(z, c, &mut k_bar);
+    let mut k_bar = Zeroizing::new([0u8; 32]);
+    hash_j(z, c, &mut k_bar[..]);
 
     // 5. Constant-time comparison and selection
     // If c == c': return K', else return K_bar
