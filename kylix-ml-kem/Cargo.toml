@@ -27,7 +27,7 @@ kylix-core.workspace = true
 zeroize.workspace = true
 rand_core.workspace = true
 subtle.workspace = true
-sha3 = { version = "0.10", default-features = false }
+sha3 = { version = "0.12", default-features = false }
 
 [package.metadata.docs.rs]
 all-features = true
