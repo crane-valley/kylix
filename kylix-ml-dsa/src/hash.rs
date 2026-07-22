@@ -84,10 +84,10 @@ pub fn hash_pk(pk: &[u8]) -> [u8; 64] {
     tr
 }
 
-/// Compute mu = H(tr || M, 64) - message representative.
-pub fn hash_message(tr: &[u8; 64], message: &[u8]) -> [u8; 64] {
+/// Compute mu = H(tr || prefix || M, 64) without concatenating the inputs.
+pub fn hash_message_parts(tr: &[u8; 64], prefix: &[u8], message: &[u8]) -> [u8; 64] {
     let mut mu = [0u8; 64];
-    h2(tr, message, &mut mu);
+    h3(tr, prefix, message, &mut mu);
     mu
 }
 

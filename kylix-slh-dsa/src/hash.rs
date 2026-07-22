@@ -188,6 +188,25 @@ pub trait HashSuite {
         out.copy_from_slice(&result);
     }
 
+    /// PRFmsg over two message slices without requiring callers to concatenate them.
+    fn prf_msg_parts_to(
+        out: &mut [u8],
+        sk_prf: &[u8],
+        opt_rand: &[u8],
+        message_prefix: &[u8],
+        message: &[u8],
+    ) {
+        if message_prefix.is_empty() {
+            Self::prf_msg_to(out, sk_prf, opt_rand, message);
+            return;
+        }
+
+        let mut combined = Vec::with_capacity(message_prefix.len() + message.len());
+        combined.extend_from_slice(message_prefix);
+        combined.extend_from_slice(message);
+        Self::prf_msg_to(out, sk_prf, opt_rand, &combined);
+    }
+
     /// Hmsg into a caller-provided buffer.
     ///
     /// # Panics
@@ -195,5 +214,25 @@ pub trait HashSuite {
     fn h_msg_to(out: &mut [u8], r: &[u8], pk_seed: &[u8], pk_root: &[u8], message: &[u8]) {
         let result = Self::h_msg(r, pk_seed, pk_root, message, out.len());
         out.copy_from_slice(&result);
+    }
+
+    /// Hmsg over two message slices without requiring callers to concatenate them.
+    fn h_msg_parts_to(
+        out: &mut [u8],
+        r: &[u8],
+        pk_seed: &[u8],
+        pk_root: &[u8],
+        message_prefix: &[u8],
+        message: &[u8],
+    ) {
+        if message_prefix.is_empty() {
+            Self::h_msg_to(out, r, pk_seed, pk_root, message);
+            return;
+        }
+
+        let mut combined = Vec::with_capacity(message_prefix.len() + message.len());
+        combined.extend_from_slice(message_prefix);
+        combined.extend_from_slice(message);
+        Self::h_msg_to(out, r, pk_seed, pk_root, &combined);
     }
 }

@@ -82,6 +82,23 @@ macro_rules! impl_shake_hash_suite {
                 reader.read(out);
             }
 
+            fn prf_msg_parts_to(
+                out: &mut [u8],
+                sk_prf: &[u8],
+                opt_rand: &[u8],
+                message_prefix: &[u8],
+                message: &[u8],
+            ) {
+                debug_assert_eq!(out.len(), $n);
+                let mut hasher = Shake256::default();
+                hasher.update(sk_prf);
+                hasher.update(opt_rand);
+                hasher.update(message_prefix);
+                hasher.update(message);
+                let mut reader = hasher.finalize_xof();
+                reader.read(out);
+            }
+
             fn h_msg(
                 r: &[u8],
                 pk_seed: &[u8],
@@ -107,6 +124,24 @@ macro_rules! impl_shake_hash_suite {
                 hasher.update(r);
                 hasher.update(pk_seed);
                 hasher.update(pk_root);
+                hasher.update(message);
+                let mut reader = hasher.finalize_xof();
+                reader.read(out);
+            }
+
+            fn h_msg_parts_to(
+                out: &mut [u8],
+                r: &[u8],
+                pk_seed: &[u8],
+                pk_root: &[u8],
+                message_prefix: &[u8],
+                message: &[u8],
+            ) {
+                let mut hasher = Shake256::default();
+                hasher.update(r);
+                hasher.update(pk_seed);
+                hasher.update(pk_root);
+                hasher.update(message_prefix);
                 hasher.update(message);
                 let mut reader = hasher.finalize_xof();
                 reader.read(out);

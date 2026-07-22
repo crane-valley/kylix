@@ -109,15 +109,6 @@ pub struct PublicKey<const N: usize> {
     pub pk_root: [u8; N],
 }
 
-/// FIPS 205 requires this prefix even when applications use the default empty context.
-#[cfg(feature = "any-variant")]
-pub(crate) fn encode_pure_message(message: &[u8]) -> Vec<u8> {
-    let mut encoded = Vec::with_capacity(message.len() + 2);
-    encoded.extend_from_slice(&[0, 0]);
-    encoded.extend_from_slice(message);
-    encoded
-}
-
 impl<const N: usize> PublicKey<N> {
     /// Write the public key to a fixed-size byte array.
     ///
@@ -342,7 +333,38 @@ pub fn slh_sign<
     message: &[u8],
     opt_rand: Option<&[u8]>,
 ) -> Vec<u8> {
-    slh_sign_impl::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(sk, message, opt_rand)
+    slh_sign_with_prefix::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
+        sk,
+        &[],
+        message,
+        opt_rand,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+#[cfg(feature = "parallel")]
+pub(crate) fn slh_sign_with_prefix<
+    H: HashSuite + Send + Sync,
+    const N: usize,
+    const WOTS_LEN: usize,
+    const WOTS_LEN1: usize,
+    const H_PRIME: usize,
+    const D: usize,
+    const K: usize,
+    const A: usize,
+    const MD_BYTES: usize,
+>(
+    sk: &SecretKey<N>,
+    message_prefix: &[u8],
+    message: &[u8],
+    opt_rand: Option<&[u8]>,
+) -> Vec<u8> {
+    slh_sign_impl::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
+        sk,
+        message_prefix,
+        message,
+        opt_rand,
+    )
 }
 
 /// Sign a message using SLH-DSA (sequential version).
@@ -363,7 +385,38 @@ pub fn slh_sign<
     message: &[u8],
     opt_rand: Option<&[u8]>,
 ) -> Vec<u8> {
-    slh_sign_impl::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(sk, message, opt_rand)
+    slh_sign_with_prefix::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
+        sk,
+        &[],
+        message,
+        opt_rand,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+#[cfg(not(feature = "parallel"))]
+pub(crate) fn slh_sign_with_prefix<
+    H: HashSuite,
+    const N: usize,
+    const WOTS_LEN: usize,
+    const WOTS_LEN1: usize,
+    const H_PRIME: usize,
+    const D: usize,
+    const K: usize,
+    const A: usize,
+    const MD_BYTES: usize,
+>(
+    sk: &SecretKey<N>,
+    message_prefix: &[u8],
+    message: &[u8],
+    opt_rand: Option<&[u8]>,
+) -> Vec<u8> {
+    slh_sign_impl::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
+        sk,
+        message_prefix,
+        message,
+        opt_rand,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -380,6 +433,7 @@ fn slh_sign_impl<
     const MD_BYTES: usize,
 >(
     sk: &SecretKey<N>,
+    message_prefix: &[u8],
     message: &[u8],
     opt_rand: Option<&[u8]>,
 ) -> Vec<u8> {
@@ -388,7 +442,7 @@ fn slh_sign_impl<
 
     // Generate randomness R
     let mut r = Zeroizing::new([0u8; MAX_N]);
-    H::prf_msg_to(&mut r[..N], &sk.sk_prf, randomness, message);
+    H::prf_msg_parts_to(&mut r[..N], &sk.sk_prf, randomness, message_prefix, message);
 
     let (md_bytes, digest_len) = digest_lengths::<K, A, H_PRIME, D>();
 
@@ -396,7 +450,14 @@ fn slh_sign_impl<
     let mut digest_stack = [0u8; MAX_M_DIGEST_BYTES];
     let mut digest_heap = Vec::new();
     let digest = scratch_slice(&mut digest_stack, &mut digest_heap, digest_len);
-    H::h_msg_to(digest, &r[..N], &sk.pk_seed, &sk.pk_root, message);
+    H::h_msg_parts_to(
+        digest,
+        &r[..N],
+        &sk.pk_seed,
+        &sk.pk_root,
+        message_prefix,
+        message,
+    );
 
     // Parse digest into (md, idx_tree, idx_leaf)
     let mut md_stack = [0u8; MAX_M_DIGEST_BYTES];
@@ -467,6 +528,7 @@ fn slh_sign_impl<
     const MD_BYTES: usize,
 >(
     sk: &SecretKey<N>,
+    message_prefix: &[u8],
     message: &[u8],
     opt_rand: Option<&[u8]>,
 ) -> Vec<u8> {
@@ -475,7 +537,7 @@ fn slh_sign_impl<
 
     // Generate randomness R
     let mut r = Zeroizing::new([0u8; MAX_N]);
-    H::prf_msg_to(&mut r[..N], &sk.sk_prf, randomness, message);
+    H::prf_msg_parts_to(&mut r[..N], &sk.sk_prf, randomness, message_prefix, message);
 
     let (md_bytes, digest_len) = digest_lengths::<K, A, H_PRIME, D>();
 
@@ -483,7 +545,14 @@ fn slh_sign_impl<
     let mut digest_stack = [0u8; MAX_M_DIGEST_BYTES];
     let mut digest_heap = Vec::new();
     let digest = scratch_slice(&mut digest_stack, &mut digest_heap, digest_len);
-    H::h_msg_to(digest, &r[..N], &sk.pk_seed, &sk.pk_root, message);
+    H::h_msg_parts_to(
+        digest,
+        &r[..N],
+        &sk.pk_seed,
+        &sk.pk_root,
+        message_prefix,
+        message,
+    );
 
     // Parse digest into (md, idx_tree, idx_leaf)
     let mut md_stack = [0u8; MAX_M_DIGEST_BYTES];
@@ -578,7 +647,36 @@ pub fn slh_verify<
     message: &[u8],
     signature: &[u8],
 ) -> bool {
-    slh_verify_impl::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(pk, message, signature)
+    slh_verify_with_prefix::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(
+        pk,
+        &[],
+        message,
+        signature,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn slh_verify_with_prefix<
+    H: HashSuite,
+    const N: usize,
+    const WOTS_LEN: usize,
+    const WOTS_LEN1: usize,
+    const H_PRIME: usize,
+    const D: usize,
+    const K: usize,
+    const A: usize,
+>(
+    pk: &PublicKey<N>,
+    message_prefix: &[u8],
+    message: &[u8],
+    signature: &[u8],
+) -> bool {
+    slh_verify_impl::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(
+        pk,
+        message_prefix,
+        message,
+        signature,
+    )
 }
 
 // Unified verify implementation - always uses sequential FORS pk recovery
@@ -595,6 +693,7 @@ fn slh_verify_impl<
     const A: usize,
 >(
     pk: &PublicKey<N>,
+    message_prefix: &[u8],
     message: &[u8],
     signature: &[u8],
 ) -> bool {
@@ -616,7 +715,7 @@ fn slh_verify_impl<
     let mut digest_stack = [0u8; MAX_M_DIGEST_BYTES];
     let mut digest_heap = Vec::new();
     let digest = scratch_slice(&mut digest_stack, &mut digest_heap, digest_len);
-    H::h_msg_to(digest, r, &pk.pk_seed, &pk.pk_root, message);
+    H::h_msg_parts_to(digest, r, &pk.pk_seed, &pk.pk_root, message_prefix, message);
 
     // Parse digest into (md, idx_tree, idx_leaf)
     let mut md_stack = [0u8; MAX_M_DIGEST_BYTES];

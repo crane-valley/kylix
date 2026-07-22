@@ -23,8 +23,10 @@ macro_rules! define_slh_dsa_variant {
     ) => {
         extern crate alloc;
         use crate::sign::{
-            encode_pure_message, slh_keygen, slh_sign, slh_verify, PublicKey, SecretKey,
+            slh_keygen, slh_sign_with_prefix, slh_verify_with_prefix, PublicKey, SecretKey,
         };
+        #[cfg(test)]
+        use crate::sign::slh_verify;
         use alloc::vec::Vec;
 
         use kylix_core::{Error, Result, Signer};
@@ -169,13 +171,17 @@ macro_rules! define_slh_dsa_variant {
                 let secret_key = SecretKey::<N>::from_bytes(&sk.bytes)
                     .expect("infallible: SigningKey has correct size");
 
-                let message = encode_pure_message(message);
-                let sig_vec =
-                    slh_sign::<$hash_type, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
-                        &secret_key,
-                        &message,
-                        None,
-                    );
+                let sig_vec = slh_sign_with_prefix::<
+                    $hash_type,
+                    N,
+                    WOTS_LEN,
+                    WOTS_LEN1,
+                    H_PRIME,
+                    D,
+                    K,
+                    A,
+                    MD_BYTES,
+                >(&secret_key, &[0, 0], message, None);
 
                 Ok(Signature(sig_vec))
             }
@@ -190,11 +196,19 @@ macro_rules! define_slh_dsa_variant {
                 // This conversion is infallible since pk.bytes has the correct fixed size
                 let public_key = PublicKey::<N>::from_bytes(&pk.bytes)
                     .expect("infallible: VerificationKey has correct size");
-                let message = encode_pure_message(message);
-
-                if slh_verify::<$hash_type, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(
+                if slh_verify_with_prefix::<
+                    $hash_type,
+                    N,
+                    WOTS_LEN,
+                    WOTS_LEN1,
+                    H_PRIME,
+                    D,
+                    K,
+                    A,
+                >(
                     &public_key,
-                    &message,
+                    &[0, 0],
+                    message,
                     &signature.0,
                 ) {
                     Ok(())

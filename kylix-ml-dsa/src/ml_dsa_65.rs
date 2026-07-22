@@ -2,8 +2,8 @@
 
 use crate::params::ml_dsa_65::*;
 use crate::sign::{
-    encode_pure_message, expand_verification_key, ml_dsa_keygen, ml_dsa_sign, ml_dsa_verify,
-    ml_dsa_verify_expanded,
+    expand_verification_key, ml_dsa_keygen, ml_dsa_sign_with_prefix,
+    ml_dsa_verify_expanded_with_prefix, ml_dsa_verify_with_prefix,
 };
 use crate::types::define_dsa_types;
 use kylix_core::{Error, Result, Signer};
@@ -49,14 +49,14 @@ impl Signer for MlDsa65 {
     fn sign(sk: &Self::SigningKey, message: &[u8]) -> Result<Self::Signature> {
         // Use deterministic signing (rnd = 0)
         let rnd = [0u8; 32];
-        let message = encode_pure_message(message);
-
-        let sig_bytes = ml_dsa_sign::<K, L, ETA, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-            sk.as_bytes(),
-            &message,
-            &rnd,
-        )
-        .ok_or(Error::EncodingError)?;
+        let sig_bytes =
+            ml_dsa_sign_with_prefix::<K, L, ETA, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
+                sk.as_bytes(),
+                &[0, 0],
+                message,
+                &rnd,
+            )
+            .ok_or(Error::EncodingError)?;
 
         Signature::from_bytes(&sig_bytes)
     }
@@ -66,12 +66,13 @@ impl Signer for MlDsa65 {
         message: &[u8],
         signature: &Self::Signature,
     ) -> Result<()> {
-        let message = encode_pure_message(message);
-        let valid = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-            pk.as_bytes(),
-            &message,
-            signature.as_bytes(),
-        );
+        let valid =
+            ml_dsa_verify_with_prefix::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
+                pk.as_bytes(),
+                &[0, 0],
+                message,
+                signature.as_bytes(),
+            );
 
         if valid {
             Ok(())
@@ -113,12 +114,16 @@ impl MlDsa65 {
         message: &[u8],
         signature: &Signature,
     ) -> Result<()> {
-        let message = encode_pure_message(message);
-        let valid = ml_dsa_verify_expanded::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-            expanded,
-            &message,
-            signature.as_bytes(),
-        );
+        let valid = ml_dsa_verify_expanded_with_prefix::<
+            K,
+            L,
+            BETA,
+            GAMMA1,
+            GAMMA2,
+            TAU,
+            OMEGA,
+            C_TILDE_BYTES,
+        >(expanded, &[0, 0], message, signature.as_bytes());
 
         if valid {
             Ok(())
@@ -132,6 +137,7 @@ impl MlDsa65 {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+    use crate::sign::ml_dsa_verify;
 
     #[test]
     fn test_key_sizes() {
