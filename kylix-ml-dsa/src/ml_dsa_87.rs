@@ -2,7 +2,8 @@
 
 use crate::params::ml_dsa_87::*;
 use crate::sign::{
-    expand_verification_key, ml_dsa_keygen, ml_dsa_sign, ml_dsa_verify, ml_dsa_verify_expanded,
+    encode_pure_message, expand_verification_key, ml_dsa_keygen, ml_dsa_sign, ml_dsa_verify,
+    ml_dsa_verify_expanded,
 };
 use crate::types::define_dsa_types;
 use kylix_core::{Error, Result, Signer};
@@ -48,10 +49,11 @@ impl Signer for MlDsa87 {
     fn sign(sk: &Self::SigningKey, message: &[u8]) -> Result<Self::Signature> {
         // Use deterministic signing (rnd = 0)
         let rnd = [0u8; 32];
+        let message = encode_pure_message(message);
 
         let sig_bytes = ml_dsa_sign::<K, L, ETA, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
             sk.as_bytes(),
-            message,
+            &message,
             &rnd,
         )
         .ok_or(Error::EncodingError)?;
@@ -64,9 +66,10 @@ impl Signer for MlDsa87 {
         message: &[u8],
         signature: &Self::Signature,
     ) -> Result<()> {
+        let message = encode_pure_message(message);
         let valid = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
             pk.as_bytes(),
-            message,
+            &message,
             signature.as_bytes(),
         );
 
@@ -87,9 +90,10 @@ impl MlDsa87 {
         message: &[u8],
         signature: &Signature,
     ) -> Result<()> {
+        let message = encode_pure_message(message);
         let valid = ml_dsa_verify_expanded::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
             expanded,
-            message,
+            &message,
             signature.as_bytes(),
         );
 

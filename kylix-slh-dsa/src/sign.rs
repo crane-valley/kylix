@@ -109,6 +109,15 @@ pub struct PublicKey<const N: usize> {
     pub pk_root: [u8; N],
 }
 
+/// FIPS 205 requires this prefix even when applications use the default empty context.
+#[cfg(feature = "any-variant")]
+pub(crate) fn encode_pure_message(message: &[u8]) -> Vec<u8> {
+    let mut encoded = Vec::with_capacity(message.len() + 2);
+    encoded.extend_from_slice(&[0, 0]);
+    encoded.extend_from_slice(message);
+    encoded
+}
+
 impl<const N: usize> PublicKey<N> {
     /// Write the public key to a fixed-size byte array.
     ///
@@ -168,15 +177,24 @@ pub fn slh_keygen<
 >(
     rng: &mut impl CryptoRng,
 ) -> (SecretKey<N>, PublicKey<N>) {
-    let mut sk_seed = [0u8; N];
-    let mut sk_prf = [0u8; N];
-    let mut pk_seed = [0u8; N];
+    let mut sk = SecretKey {
+        sk_seed: [0u8; N],
+        sk_prf: [0u8; N],
+        pk_seed: [0u8; N],
+        pk_root: [0u8; N],
+    };
+    rng.fill_bytes(&mut sk.sk_seed);
+    rng.fill_bytes(&mut sk.sk_prf);
+    rng.fill_bytes(&mut sk.pk_seed);
 
-    rng.fill_bytes(&mut sk_seed);
-    rng.fill_bytes(&mut sk_prf);
-    rng.fill_bytes(&mut pk_seed);
+    let pk_root = ht_root::<H, WOTS_LEN>(&sk.sk_seed, &sk.pk_seed, H_PRIME, D);
+    sk.pk_root.copy_from_slice(&pk_root);
 
-    slh_keygen_internal::<H, N, WOTS_LEN, H_PRIME, D>(sk_seed, sk_prf, pk_seed)
+    let pk = PublicKey {
+        pk_seed: sk.pk_seed,
+        pk_root: sk.pk_root,
+    };
+    (sk, pk)
 }
 
 /// Internal key generation with deterministic seeds.
@@ -204,8 +222,8 @@ pub fn slh_keygen_internal<
     const H_PRIME: usize,
     const D: usize,
 >(
-    sk_seed: [u8; N],
-    sk_prf: [u8; N],
+    mut sk_seed: [u8; N],
+    mut sk_prf: [u8; N],
     pk_seed: [u8; N],
 ) -> (SecretKey<N>, PublicKey<N>) {
     // Compute pk_root using hypertree
@@ -219,6 +237,8 @@ pub fn slh_keygen_internal<
         pk_seed,
         pk_root,
     };
+    sk_seed.zeroize();
+    sk_prf.zeroize();
 
     let pk = PublicKey { pk_seed, pk_root };
 

@@ -19,6 +19,15 @@ use zeroize::Zeroizing;
 // Helper functions
 // ---------------------------------------------------------------------------
 
+/// FIPS 204 requires this prefix even when applications use the default empty context.
+#[cfg(any(feature = "ml-dsa-44", feature = "ml-dsa-65", feature = "ml-dsa-87"))]
+pub(crate) fn encode_pure_message(message: &[u8]) -> Vec<u8> {
+    let mut encoded = Vec::with_capacity(message.len() + 2);
+    encoded.extend_from_slice(&[0, 0]);
+    encoded.extend_from_slice(message);
+    encoded
+}
+
 /// Validate hint encoding per FIPS 204 canonical requirements.
 ///
 /// Checks that hint positions are within bounds, strictly increasing per

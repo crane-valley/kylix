@@ -154,7 +154,8 @@ pub fn ml_kem_encaps<
 /// # Errors
 /// - [`Error::InvalidKeyLength`] if `dk` length is not `K * 768 + 96`
 /// - [`Error::InvalidCiphertextLength`] if `c` length is not `32 * (K * DU + DV)`
-/// - [`Error::EncodingError`] if any decoded 12-bit coefficient in the embedded `ek` is `>= q` (defense-in-depth check on stored key).
+/// - [`Error::EncodingError`] if the embedded `H(ek)` is inconsistent, or if any
+///   decoded 12-bit coefficient in the embedded `ek` is `>= q`.
 ///
 /// # Algorithm (with implicit rejection)
 /// 1. Parse dk as (dk_pke || ek || h || z)
@@ -206,6 +207,11 @@ pub fn ml_kem_decaps<
     let z: &[u8; 32] = z_bytes
         .try_into()
         .expect("infallible: z_bytes is 32 bytes after dk length check");
+
+    let computed_h = hash_h(ek);
+    if !bool::from(h.ct_eq(&computed_h)) {
+        return Err(Error::EncodingError);
+    }
 
     // Defense-in-depth: validate embedded ek coefficients are in [0, q-1].
     // Not mandated by FIPS 203 Algorithm 18 (ek in dk is internally generated),
@@ -523,6 +529,22 @@ mod tests {
             Err(Error::InvalidCiphertextLength { expected, actual })
                 if expected == expected_ct_len && actual == 0
         ));
+    }
+
+    #[test]
+    fn test_ml_kem_decaps_rejects_mismatched_embedded_key_hash() {
+        let d = [0x42u8; 32];
+        let z = [0x43u8; 32];
+        let m = [0x55u8; 32];
+
+        let (mut dk, ek) = ml_kem_keygen::<K768, ETA1_768>(&d, &z);
+        let (c, _) = ml_kem_encaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &m).unwrap();
+
+        let embedded_hash_offset = K768 * 768 + 32;
+        dk[embedded_hash_offset] ^= 1;
+
+        let result = ml_kem_decaps::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&dk, &c);
+        assert!(matches!(result, Err(Error::EncodingError)));
     }
 
     #[test]

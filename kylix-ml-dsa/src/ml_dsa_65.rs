@@ -2,7 +2,8 @@
 
 use crate::params::ml_dsa_65::*;
 use crate::sign::{
-    expand_verification_key, ml_dsa_keygen, ml_dsa_sign, ml_dsa_verify, ml_dsa_verify_expanded,
+    encode_pure_message, expand_verification_key, ml_dsa_keygen, ml_dsa_sign, ml_dsa_verify,
+    ml_dsa_verify_expanded,
 };
 use crate::types::define_dsa_types;
 use kylix_core::{Error, Result, Signer};
@@ -48,10 +49,11 @@ impl Signer for MlDsa65 {
     fn sign(sk: &Self::SigningKey, message: &[u8]) -> Result<Self::Signature> {
         // Use deterministic signing (rnd = 0)
         let rnd = [0u8; 32];
+        let message = encode_pure_message(message);
 
         let sig_bytes = ml_dsa_sign::<K, L, ETA, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
             sk.as_bytes(),
-            message,
+            &message,
             &rnd,
         )
         .ok_or(Error::EncodingError)?;
@@ -64,9 +66,10 @@ impl Signer for MlDsa65 {
         message: &[u8],
         signature: &Self::Signature,
     ) -> Result<()> {
+        let message = encode_pure_message(message);
         let valid = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
             pk.as_bytes(),
-            message,
+            &message,
             signature.as_bytes(),
         );
 
@@ -110,9 +113,10 @@ impl MlDsa65 {
         message: &[u8],
         signature: &Signature,
     ) -> Result<()> {
+        let message = encode_pure_message(message);
         let valid = ml_dsa_verify_expanded::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
             expanded,
-            message,
+            &message,
             signature.as_bytes(),
         );
 
@@ -161,6 +165,32 @@ mod tests {
         let result = MlDsa65::verify(&pk, message, &signature);
         eprintln!("Verification result: {:?}", result);
         assert!(result.is_ok(), "Verification failed: {:?}", result);
+    }
+
+    #[test]
+    fn test_signer_uses_pure_ml_dsa_domain_separation() {
+        let mut rng = rand::rng();
+        let (sk, pk) = MlDsa65::keygen(&mut rng).unwrap();
+        let message = b"domain-separated message";
+        let signature = MlDsa65::sign(&sk, message).unwrap();
+
+        let mut pure_message = Vec::with_capacity(message.len() + 2);
+        pure_message.extend_from_slice(&[0, 0]);
+        pure_message.extend_from_slice(message);
+
+        let raw_valid = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
+            pk.as_bytes(),
+            message,
+            signature.as_bytes(),
+        );
+        let pure_valid = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
+            pk.as_bytes(),
+            &pure_message,
+            signature.as_bytes(),
+        );
+
+        assert!(!raw_valid);
+        assert!(pure_valid);
     }
 
     #[test]
