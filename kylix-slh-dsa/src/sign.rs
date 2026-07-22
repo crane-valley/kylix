@@ -168,15 +168,24 @@ pub fn slh_keygen<
 >(
     rng: &mut impl CryptoRng,
 ) -> (SecretKey<N>, PublicKey<N>) {
-    let mut sk_seed = [0u8; N];
-    let mut sk_prf = [0u8; N];
-    let mut pk_seed = [0u8; N];
+    let mut sk = SecretKey {
+        sk_seed: [0u8; N],
+        sk_prf: [0u8; N],
+        pk_seed: [0u8; N],
+        pk_root: [0u8; N],
+    };
+    rng.fill_bytes(&mut sk.sk_seed);
+    rng.fill_bytes(&mut sk.sk_prf);
+    rng.fill_bytes(&mut sk.pk_seed);
 
-    rng.fill_bytes(&mut sk_seed);
-    rng.fill_bytes(&mut sk_prf);
-    rng.fill_bytes(&mut pk_seed);
+    let pk_root = ht_root::<H, WOTS_LEN>(&sk.sk_seed, &sk.pk_seed, H_PRIME, D);
+    sk.pk_root.copy_from_slice(&pk_root);
 
-    slh_keygen_internal::<H, N, WOTS_LEN, H_PRIME, D>(sk_seed, sk_prf, pk_seed)
+    let pk = PublicKey {
+        pk_seed: sk.pk_seed,
+        pk_root: sk.pk_root,
+    };
+    (sk, pk)
 }
 
 /// Internal key generation with deterministic seeds.
@@ -204,8 +213,8 @@ pub fn slh_keygen_internal<
     const H_PRIME: usize,
     const D: usize,
 >(
-    sk_seed: [u8; N],
-    sk_prf: [u8; N],
+    mut sk_seed: [u8; N],
+    mut sk_prf: [u8; N],
     pk_seed: [u8; N],
 ) -> (SecretKey<N>, PublicKey<N>) {
     // Compute pk_root using hypertree
@@ -219,6 +228,8 @@ pub fn slh_keygen_internal<
         pk_seed,
         pk_root,
     };
+    sk_seed.zeroize();
+    sk_prf.zeroize();
 
     let pk = PublicKey { pk_seed, pk_root };
 
@@ -322,7 +333,38 @@ pub fn slh_sign<
     message: &[u8],
     opt_rand: Option<&[u8]>,
 ) -> Vec<u8> {
-    slh_sign_impl::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(sk, message, opt_rand)
+    slh_sign_with_prefix::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
+        sk,
+        &[],
+        message,
+        opt_rand,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+#[cfg(feature = "parallel")]
+pub(crate) fn slh_sign_with_prefix<
+    H: HashSuite + Send + Sync,
+    const N: usize,
+    const WOTS_LEN: usize,
+    const WOTS_LEN1: usize,
+    const H_PRIME: usize,
+    const D: usize,
+    const K: usize,
+    const A: usize,
+    const MD_BYTES: usize,
+>(
+    sk: &SecretKey<N>,
+    message_prefix: &[u8],
+    message: &[u8],
+    opt_rand: Option<&[u8]>,
+) -> Vec<u8> {
+    slh_sign_impl::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
+        sk,
+        message_prefix,
+        message,
+        opt_rand,
+    )
 }
 
 /// Sign a message using SLH-DSA (sequential version).
@@ -343,7 +385,38 @@ pub fn slh_sign<
     message: &[u8],
     opt_rand: Option<&[u8]>,
 ) -> Vec<u8> {
-    slh_sign_impl::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(sk, message, opt_rand)
+    slh_sign_with_prefix::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
+        sk,
+        &[],
+        message,
+        opt_rand,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+#[cfg(not(feature = "parallel"))]
+pub(crate) fn slh_sign_with_prefix<
+    H: HashSuite,
+    const N: usize,
+    const WOTS_LEN: usize,
+    const WOTS_LEN1: usize,
+    const H_PRIME: usize,
+    const D: usize,
+    const K: usize,
+    const A: usize,
+    const MD_BYTES: usize,
+>(
+    sk: &SecretKey<N>,
+    message_prefix: &[u8],
+    message: &[u8],
+    opt_rand: Option<&[u8]>,
+) -> Vec<u8> {
+    slh_sign_impl::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
+        sk,
+        message_prefix,
+        message,
+        opt_rand,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -360,6 +433,7 @@ fn slh_sign_impl<
     const MD_BYTES: usize,
 >(
     sk: &SecretKey<N>,
+    message_prefix: &[u8],
     message: &[u8],
     opt_rand: Option<&[u8]>,
 ) -> Vec<u8> {
@@ -368,7 +442,7 @@ fn slh_sign_impl<
 
     // Generate randomness R
     let mut r = Zeroizing::new([0u8; MAX_N]);
-    H::prf_msg_to(&mut r[..N], &sk.sk_prf, randomness, message);
+    H::prf_msg_parts_to(&mut r[..N], &sk.sk_prf, randomness, message_prefix, message);
 
     let (md_bytes, digest_len) = digest_lengths::<K, A, H_PRIME, D>();
 
@@ -376,7 +450,14 @@ fn slh_sign_impl<
     let mut digest_stack = [0u8; MAX_M_DIGEST_BYTES];
     let mut digest_heap = Vec::new();
     let digest = scratch_slice(&mut digest_stack, &mut digest_heap, digest_len);
-    H::h_msg_to(digest, &r[..N], &sk.pk_seed, &sk.pk_root, message);
+    H::h_msg_parts_to(
+        digest,
+        &r[..N],
+        &sk.pk_seed,
+        &sk.pk_root,
+        message_prefix,
+        message,
+    );
 
     // Parse digest into (md, idx_tree, idx_leaf)
     let mut md_stack = [0u8; MAX_M_DIGEST_BYTES];
@@ -447,6 +528,7 @@ fn slh_sign_impl<
     const MD_BYTES: usize,
 >(
     sk: &SecretKey<N>,
+    message_prefix: &[u8],
     message: &[u8],
     opt_rand: Option<&[u8]>,
 ) -> Vec<u8> {
@@ -455,7 +537,7 @@ fn slh_sign_impl<
 
     // Generate randomness R
     let mut r = Zeroizing::new([0u8; MAX_N]);
-    H::prf_msg_to(&mut r[..N], &sk.sk_prf, randomness, message);
+    H::prf_msg_parts_to(&mut r[..N], &sk.sk_prf, randomness, message_prefix, message);
 
     let (md_bytes, digest_len) = digest_lengths::<K, A, H_PRIME, D>();
 
@@ -463,7 +545,14 @@ fn slh_sign_impl<
     let mut digest_stack = [0u8; MAX_M_DIGEST_BYTES];
     let mut digest_heap = Vec::new();
     let digest = scratch_slice(&mut digest_stack, &mut digest_heap, digest_len);
-    H::h_msg_to(digest, &r[..N], &sk.pk_seed, &sk.pk_root, message);
+    H::h_msg_parts_to(
+        digest,
+        &r[..N],
+        &sk.pk_seed,
+        &sk.pk_root,
+        message_prefix,
+        message,
+    );
 
     // Parse digest into (md, idx_tree, idx_leaf)
     let mut md_stack = [0u8; MAX_M_DIGEST_BYTES];
@@ -558,7 +647,36 @@ pub fn slh_verify<
     message: &[u8],
     signature: &[u8],
 ) -> bool {
-    slh_verify_impl::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(pk, message, signature)
+    slh_verify_with_prefix::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(
+        pk,
+        &[],
+        message,
+        signature,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn slh_verify_with_prefix<
+    H: HashSuite,
+    const N: usize,
+    const WOTS_LEN: usize,
+    const WOTS_LEN1: usize,
+    const H_PRIME: usize,
+    const D: usize,
+    const K: usize,
+    const A: usize,
+>(
+    pk: &PublicKey<N>,
+    message_prefix: &[u8],
+    message: &[u8],
+    signature: &[u8],
+) -> bool {
+    slh_verify_impl::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(
+        pk,
+        message_prefix,
+        message,
+        signature,
+    )
 }
 
 // Unified verify implementation - always uses sequential FORS pk recovery
@@ -575,6 +693,7 @@ fn slh_verify_impl<
     const A: usize,
 >(
     pk: &PublicKey<N>,
+    message_prefix: &[u8],
     message: &[u8],
     signature: &[u8],
 ) -> bool {
@@ -596,7 +715,7 @@ fn slh_verify_impl<
     let mut digest_stack = [0u8; MAX_M_DIGEST_BYTES];
     let mut digest_heap = Vec::new();
     let digest = scratch_slice(&mut digest_stack, &mut digest_heap, digest_len);
-    H::h_msg_to(digest, r, &pk.pk_seed, &pk.pk_root, message);
+    H::h_msg_parts_to(digest, r, &pk.pk_seed, &pk.pk_root, message_prefix, message);
 
     // Parse digest into (md, idx_tree, idx_leaf)
     let mut md_stack = [0u8; MAX_M_DIGEST_BYTES];

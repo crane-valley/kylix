@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **ML-KEM decapsulation-key validation**: Enforce the FIPS 203 §7.3 hash check before decapsulation and reject keys whose embedded `H(ek)` does not match the embedded encapsulation key.
+- **SLH-DSA key generation cleanup**: Generate random secret seeds directly in the returned secret-key structure and zeroize deterministic key-generation seed parameters after copying them into protected storage.
+
+### Fixed
+
+- **Pure-signature domain separation**: Apply the required empty-context domain prefix in the public ML-DSA and SLH-DSA `Signer` implementations. Signatures created by earlier releases through these high-level APIs used the internal-algorithm message format and are not compatible with the corrected high-level verification path.
+
 ## [0.4.5] - 2026-02-11
 
 ### Security

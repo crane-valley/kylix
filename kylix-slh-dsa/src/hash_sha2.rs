@@ -193,6 +193,24 @@ impl HashSuite for Sha2_128Hash {
         result.zeroize();
     }
 
+    #[allow(clippy::expect_used)] // HMAC accepts any key length
+    fn prf_msg_parts_to(
+        out: &mut [u8],
+        sk_prf: &[u8],
+        opt_rand: &[u8],
+        message_prefix: &[u8],
+        message: &[u8],
+    ) {
+        debug_assert_eq!(out.len(), 16);
+        let mut mac = HmacSha256::new_from_slice(sk_prf).expect("HMAC accepts any key length");
+        mac.update(opt_rand);
+        mac.update(message_prefix);
+        mac.update(message);
+        let mut result = mac.finalize().into_bytes();
+        out.copy_from_slice(&result[..16]);
+        result.zeroize();
+    }
+
     fn h_msg(r: &[u8], pk_seed: &[u8], pk_root: &[u8], message: &[u8], out_len: usize) -> Vec<u8> {
         // Hmsg = MGF1-SHA-256(R || PK.seed || SHA-256(R || PK.seed || PK.root || M), m)
         use sha2::digest::Update;
@@ -213,6 +231,26 @@ impl HashSuite for Sha2_128Hash {
             .chain(r)
             .chain(pk_seed)
             .chain(pk_root)
+            .chain(message)
+            .finalize();
+        mgf1_to::<Sha256>(out, &[r, pk_seed, &inner_hash]);
+        inner_hash.zeroize();
+    }
+
+    fn h_msg_parts_to(
+        out: &mut [u8],
+        r: &[u8],
+        pk_seed: &[u8],
+        pk_root: &[u8],
+        message_prefix: &[u8],
+        message: &[u8],
+    ) {
+        use sha2::digest::Update;
+        let mut inner_hash = Sha256::new()
+            .chain(r)
+            .chain(pk_seed)
+            .chain(pk_root)
+            .chain(message_prefix)
             .chain(message)
             .finalize();
         mgf1_to::<Sha256>(out, &[r, pk_seed, &inner_hash]);
@@ -371,6 +409,25 @@ macro_rules! impl_sha2_cat35_hash_suite {
                 result.zeroize();
             }
 
+            #[allow(clippy::expect_used)] // HMAC accepts any key length
+            fn prf_msg_parts_to(
+                out: &mut [u8],
+                sk_prf: &[u8],
+                opt_rand: &[u8],
+                message_prefix: &[u8],
+                message: &[u8],
+            ) {
+                debug_assert_eq!(out.len(), $n);
+                let mut mac =
+                    HmacSha512::new_from_slice(sk_prf).expect("HMAC accepts any key length");
+                mac.update(opt_rand);
+                mac.update(message_prefix);
+                mac.update(message);
+                let mut result = mac.finalize().into_bytes();
+                out.copy_from_slice(&result[..$n]);
+                result.zeroize();
+            }
+
             fn h_msg(
                 r: &[u8],
                 pk_seed: &[u8],
@@ -397,6 +454,26 @@ macro_rules! impl_sha2_cat35_hash_suite {
                     .chain(r)
                     .chain(pk_seed)
                     .chain(pk_root)
+                    .chain(message)
+                    .finalize();
+                mgf1_to::<Sha512>(out, &[r, pk_seed, &inner_hash]);
+                inner_hash.zeroize();
+            }
+
+            fn h_msg_parts_to(
+                out: &mut [u8],
+                r: &[u8],
+                pk_seed: &[u8],
+                pk_root: &[u8],
+                message_prefix: &[u8],
+                message: &[u8],
+            ) {
+                use sha2::digest::Update;
+                let mut inner_hash = Sha512::new()
+                    .chain(r)
+                    .chain(pk_seed)
+                    .chain(pk_root)
+                    .chain(message_prefix)
                     .chain(message)
                     .finalize();
                 mgf1_to::<Sha512>(out, &[r, pk_seed, &inner_hash]);

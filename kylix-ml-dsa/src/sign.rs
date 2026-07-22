@@ -5,7 +5,7 @@
 #[cfg(not(feature = "std"))]
 use alloc::{vec, vec::Vec};
 
-use crate::hash::{h, h2, hash_message, hash_pk, Shake128Xof};
+use crate::hash::{h, h2, hash_message_parts, hash_pk, Shake128Xof};
 use crate::packing::*;
 use crate::poly::{Poly, N};
 use crate::polyvec::{Matrix, PolyVecK, PolyVecL};
@@ -358,6 +358,30 @@ pub fn ml_dsa_verify_expanded<
     message: &[u8],
     sig: &[u8],
 ) -> bool {
+    ml_dsa_verify_expanded_with_prefix::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
+        expanded,
+        &[],
+        message,
+        sig,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn ml_dsa_verify_expanded_with_prefix<
+    const K: usize,
+    const L: usize,
+    const BETA: i32,
+    const GAMMA1: i32,
+    const GAMMA2: i32,
+    const TAU: usize,
+    const OMEGA: usize,
+    const C_TILDE_BYTES: usize,
+>(
+    expanded: &ExpandedVerificationKey<K, L>,
+    message_prefix: &[u8],
+    message: &[u8],
+    sig: &[u8],
+) -> bool {
     let gamma1_bits = if GAMMA1 == (1 << 17) { 17 } else { 19 };
     let z_bytes = if gamma1_bits == 17 { 576 } else { 640 };
     let expected_sig_len = C_TILDE_BYTES + L * z_bytes + OMEGA + K;
@@ -382,7 +406,7 @@ pub fn ml_dsa_verify_expanded<
     }
 
     // Use pre-computed tr
-    let mu = hash_message(&expanded.tr, message);
+    let mu = hash_message_parts(&expanded.tr, message_prefix, message);
 
     // c = SampleInBall(c_tilde)
     let c = sample_in_ball(c_tilde, TAU);
@@ -593,6 +617,31 @@ pub fn ml_dsa_sign<
     message: &[u8],
     rnd: &[u8; 32],
 ) -> Option<Vec<u8>> {
+    ml_dsa_sign_with_prefix::<K, L, ETA, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
+        sk,
+        &[],
+        message,
+        rnd,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn ml_dsa_sign_with_prefix<
+    const K: usize,
+    const L: usize,
+    const ETA: usize,
+    const BETA: i32,
+    const GAMMA1: i32,
+    const GAMMA2: i32,
+    const TAU: usize,
+    const OMEGA: usize,
+    const C_TILDE_BYTES: usize,
+>(
+    sk: &[u8],
+    message_prefix: &[u8],
+    message: &[u8],
+    rnd: &[u8; 32],
+) -> Option<Vec<u8>> {
     let eta_bytes = if ETA == 2 { 96 } else { 128 };
     let gamma1_bits = if GAMMA1 == (1 << 17) { 17 } else { 19 };
     let expected_sk_len = 32 + 32 + 64 + L * eta_bytes + K * eta_bytes + K * 416;
@@ -645,7 +694,7 @@ pub fn ml_dsa_sign<
     let a = expand_a::<K, L>(&rho_arr);
 
     // Compute mu = H(tr || M)
-    let mu = hash_message(tr, message);
+    let mu = hash_message_parts(tr, message_prefix, message);
 
     // Compute rho' = H(K || rnd || mu)
     // Use h3 directly to avoid heap allocation with secret key material
@@ -810,6 +859,30 @@ pub fn ml_dsa_verify<
     message: &[u8],
     sig: &[u8],
 ) -> bool {
+    ml_dsa_verify_with_prefix::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
+        pk,
+        &[],
+        message,
+        sig,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::expect_used)]
+pub(crate) fn ml_dsa_verify_with_prefix<
+    const K: usize,
+    const L: usize,
+    const BETA: i32,
+    const GAMMA1: i32,
+    const GAMMA2: i32,
+    const TAU: usize,
+    const OMEGA: usize,
+    const C_TILDE_BYTES: usize,
+>(
+    pk: &[u8],
+    message_prefix: &[u8],
+    message: &[u8],
+    sig: &[u8],
+) -> bool {
     let gamma1_bits = if GAMMA1 == (1 << 17) { 17 } else { 19 };
     let z_bytes = if gamma1_bits == 17 { 576 } else { 640 };
     let expected_sig_len = C_TILDE_BYTES + L * z_bytes + OMEGA + K;
@@ -854,7 +927,7 @@ pub fn ml_dsa_verify<
     let tr = hash_pk(pk);
 
     // Compute mu = H(tr || M)
-    let mu = hash_message(&tr, message);
+    let mu = hash_message_parts(&tr, message_prefix, message);
 
     // Expand A
     let a = expand_a::<K, L>(&rho);
