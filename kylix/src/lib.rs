@@ -119,23 +119,71 @@ pub mod traits {
     pub use kylix_core::{Kem, Signer};
 }
 
+// The facade re-exports each algorithm crate item by item rather than with a
+// glob. A glob would republish every future `pub` item of the algorithm crates
+// as supported `kylix-pqc` API, which is how internals such as `Poly` and the
+// `params` modules leaked into 0.4.x. Adding an item here must be a deliberate
+// act; do not reintroduce `pub use <crate>::*`.
+
 /// ML-KEM (FIPS 203) key encapsulation mechanism.
 #[cfg(feature = "ml-kem")]
 pub mod ml_kem {
     pub use kylix_core::Kem;
-    pub use kylix_ml_kem::*;
+
+    pub use kylix_ml_kem::{ml_kem_1024, ml_kem_512, ml_kem_768};
+    pub use kylix_ml_kem::{MlKem1024, MlKem512, MlKem768};
+
+    #[doc(hidden)]
+    pub use kylix_ml_kem::kem;
 }
 
 /// ML-DSA (FIPS 204) digital signature algorithm.
 #[cfg(feature = "ml-dsa")]
 pub mod ml_dsa {
     pub use kylix_core::Signer;
-    pub use kylix_ml_dsa::*;
+
+    pub use kylix_ml_dsa::{ml_dsa_44, ml_dsa_65, ml_dsa_87};
+    pub use kylix_ml_dsa::{Error, MlDsa44, MlDsa65, MlDsa87, Result};
+
+    // Dropping the deprecated aliases from the facade would break facade users
+    // outright instead of warning them, so they are re-exported until removal.
+    #[allow(deprecated)]
+    pub use kylix_ml_dsa::{dsa44, dsa65, dsa87};
+
+    #[doc(hidden)]
+    pub use kylix_ml_dsa::sign;
 }
 
 /// SLH-DSA (FIPS 205) stateless hash-based digital signature algorithm.
 #[cfg(feature = "slh-dsa")]
 pub mod slh_dsa {
     pub use kylix_core::Signer;
-    pub use kylix_slh_dsa::*;
+
+    pub use kylix_slh_dsa::{hash_shake, Shake128Hash, Shake192Hash, Shake256Hash};
+    pub use kylix_slh_dsa::{Address, AdrsType, Error, HashSuite, Result};
+
+    pub use kylix_slh_dsa::{
+        slh_dsa_shake_128f, slh_dsa_shake_128s, slh_dsa_shake_192f, slh_dsa_shake_192s,
+        slh_dsa_shake_256f, slh_dsa_shake_256s,
+    };
+    pub use kylix_slh_dsa::{
+        SlhDsaShake128f, SlhDsaShake128s, SlhDsaShake192f, SlhDsaShake192s, SlhDsaShake256f,
+        SlhDsaShake256s,
+    };
+
+    #[cfg(feature = "slh-dsa-sha2")]
+    pub use kylix_slh_dsa::{hash_sha2, Sha2_128Hash, Sha2_192Hash, Sha2_256Hash};
+    #[cfg(feature = "slh-dsa-sha2")]
+    pub use kylix_slh_dsa::{
+        slh_dsa_sha2_128f, slh_dsa_sha2_128s, slh_dsa_sha2_192f, slh_dsa_sha2_192s,
+        slh_dsa_sha2_256f, slh_dsa_sha2_256s,
+    };
+    #[cfg(feature = "slh-dsa-sha2")]
+    pub use kylix_slh_dsa::{
+        SlhDsaSha2_128f, SlhDsaSha2_128s, SlhDsaSha2_192f, SlhDsaSha2_192s, SlhDsaSha2_256f,
+        SlhDsaSha2_256s,
+    };
+
+    #[doc(hidden)]
+    pub use kylix_slh_dsa::sign;
 }
