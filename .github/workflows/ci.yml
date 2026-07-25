@@ -116,7 +116,10 @@ jobs:
         with:
           toolchain: "1.75"
       - uses: Swatinem/rust-cache@v2
-      - run: cargo check --workspace --all-features
+      # kylix-test-util is a dev-only, unpublished crate; it depends on proptest,
+      # which needs a newer compiler than the MSRV. Excluding it keeps this job
+      # checking only the crates whose MSRV we actually promise.
+      - run: cargo check --workspace --all-features --exclude kylix-test-util
 
   constant-time:
     name: Constant-Time Check
