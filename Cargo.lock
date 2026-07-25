@@ -184,7 +184,6 @@ name = "kylix-core"
 version = "0.4.5"
 dependencies = [
  "rand_core",
- "subtle",
  "zeroize",
 ]
 
