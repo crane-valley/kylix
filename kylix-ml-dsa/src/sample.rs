@@ -14,11 +14,10 @@ const REJECTION_BOUND: i32 = Q;
 /// Used for expanding matrix A.
 pub fn sample_ntt(xof: &mut Shake128Xof) -> Poly {
     let mut poly = Poly::zero();
-    let mut buf = [0u8; 3];
     let mut ctr = 0;
 
     while ctr < N {
-        xof.squeeze(&mut buf);
+        let buf = xof.squeeze_three();
 
         // Extract two 12-bit values from 3 bytes (for compatibility)
         // Actually for q=8380417, we need 23 bits
