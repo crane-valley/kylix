@@ -7,9 +7,6 @@
 //! - XOF = SHAKE128: Sample matrix A
 //! - PRF = SHAKE256: Sample noise vectors
 
-// Hash wrappers are feature-gated; some functions are only used in specific parameter sets.
-#![allow(dead_code)]
-
 use sha3::{
     digest::{ExtendableOutput, Update, XofReader},
     Sha3_256, Sha3_512, Shake128, Shake256,
@@ -118,6 +115,8 @@ impl Xof {
     ///
     /// # Arguments
     /// * `out` - Buffer to fill with XOF output
+    // Not called from production paths; exercised by this module's unit tests.
+    #[allow(dead_code)]
     #[inline]
     pub fn squeeze(&mut self, out: &mut [u8]) {
         let mut written = 0;

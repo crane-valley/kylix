@@ -3,9 +3,6 @@
 //! This module implements FIPS 203 Algorithm 7 (SampleNTT) for sampling
 //! polynomials uniformly from the XOF output.
 
-// Sampling internals used by matrix/key generation; not directly exposed.
-#![allow(dead_code)]
-
 use crate::hash::Xof;
 use crate::params::common::Q;
 use crate::poly::Poly;

@@ -16,10 +16,6 @@
 #![allow(clippy::cast_sign_loss)]
 // Use explicit a = a + b form for consistency with ntt.rs scalar implementation
 #![allow(clippy::assign_op_pattern)]
-// Allow dead_code for poly_add/poly_sub which are implemented but not yet
-// integrated into the main poly.rs. These will be used in a future PR to
-// accelerate polynomial arithmetic throughout the crate.
-#![allow(dead_code)]
 
 #[cfg(target_arch = "aarch64")]
 use core::arch::aarch64::*;
@@ -523,46 +519,6 @@ unsafe fn interleave_8(even: int16x8_t, odd: int16x8_t) -> int16x8_t {
 }
 
 // ============================================================================
-// Polynomial arithmetic
-// ============================================================================
-
-/// Polynomial addition using NEON.
-///
-/// # Safety
-///
-/// Requires NEON support.
-#[cfg(target_arch = "aarch64")]
-#[target_feature(enable = "neon")]
-pub unsafe fn poly_add(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) {
-    for i in (0..N).step_by(8) {
-        let va = vld1q_s16(a.as_ptr().add(i));
-        let vb = vld1q_s16(b.as_ptr().add(i));
-
-        let vr = vaddq_s16(va, vb);
-
-        vst1q_s16(r.as_mut_ptr().add(i), vr);
-    }
-}
-
-/// Polynomial subtraction using NEON.
-///
-/// # Safety
-///
-/// Requires NEON support.
-#[cfg(target_arch = "aarch64")]
-#[target_feature(enable = "neon")]
-pub unsafe fn poly_sub(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) {
-    for i in (0..N).step_by(8) {
-        let va = vld1q_s16(a.as_ptr().add(i));
-        let vb = vld1q_s16(b.as_ptr().add(i));
-
-        let vr = vsubq_s16(va, vb);
-
-        vst1q_s16(r.as_mut_ptr().add(i), vr);
-    }
-}
-
-// ============================================================================
 // Tests
 // ============================================================================
 
@@ -645,51 +601,5 @@ mod tests {
             let expected = crate::reduce::barrett_reduce_full(orig);
             assert_eq!(result, expected, "Roundtrip mismatch at index {}", i);
         }
-    }
-
-    #[test]
-    fn test_poly_add_equivalence() {
-        let mut a = [0i16; N];
-        let mut b = [0i16; N];
-        for i in 0..N {
-            a[i] = (i as i16) % 3329;
-            b[i] = ((i * 2) as i16) % 3329;
-        }
-
-        let mut r_simd = [0i16; N];
-        unsafe {
-            poly_add(&mut r_simd, &a, &b);
-        }
-
-        // Scalar addition
-        let mut r_scalar = [0i16; N];
-        for i in 0..N {
-            r_scalar[i] = a[i].wrapping_add(b[i]);
-        }
-
-        assert_eq!(r_simd, r_scalar, "Poly add SIMD vs scalar mismatch");
-    }
-
-    #[test]
-    fn test_poly_sub_equivalence() {
-        let mut a = [0i16; N];
-        let mut b = [0i16; N];
-        for i in 0..N {
-            a[i] = ((i * 3) as i16) % 3329;
-            b[i] = (i as i16) % 3329;
-        }
-
-        let mut r_simd = [0i16; N];
-        unsafe {
-            poly_sub(&mut r_simd, &a, &b);
-        }
-
-        // Scalar subtraction
-        let mut r_scalar = [0i16; N];
-        for i in 0..N {
-            r_scalar[i] = a[i].wrapping_sub(b[i]);
-        }
-
-        assert_eq!(r_simd, r_scalar, "Poly sub SIMD vs scalar mismatch");
     }
 }

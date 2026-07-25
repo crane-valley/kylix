@@ -4,9 +4,6 @@
 //! K-PKE provides IND-CPA security but not IND-CCA2 security; the full ML-KEM
 //! construction adds CCA security through the Fujisaki-Okamoto transform.
 
-// K-PKE internals used by KEM module; public API is via variant modules.
-#![allow(dead_code)]
-
 #[cfg(not(feature = "std"))]
 use alloc::vec;
 #[cfg(not(feature = "std"))]
