@@ -205,7 +205,7 @@ algorithm crate exposes per-variant SHA2 features such as
 All crates support `no_std` with `alloc`. Disable default features and select variants:
 
 ```toml
-kylix-ml-kem = { version = "0.4", default-features = false, features = ["ml-kem-768"] }
+kylix-ml-kem = { version = "0.5", default-features = false, features = ["ml-kem-768"] }
 ```
 
 ## Testing Strategy

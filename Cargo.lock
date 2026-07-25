@@ -181,7 +181,7 @@ dependencies = [
 
 [[package]]
 name = "kylix-core"
-version = "0.4.5"
+version = "0.5.0"
 dependencies = [
  "rand_core",
  "zeroize",
@@ -189,7 +189,7 @@ dependencies = [
 
 [[package]]
 name = "kylix-ml-dsa"
-version = "0.4.5"
+version = "0.5.0"
 dependencies = [
  "hex",
  "kylix-core",
@@ -206,7 +206,7 @@ dependencies = [
 
 [[package]]
 name = "kylix-ml-kem"
-version = "0.4.5"
+version = "0.5.0"
 dependencies = [
  "hex",
  "kylix-core",
@@ -223,7 +223,7 @@ dependencies = [
 
 [[package]]
 name = "kylix-pqc"
-version = "0.4.5"
+version = "0.5.0"
 dependencies = [
  "kylix-core",
  "kylix-ml-dsa",
@@ -234,7 +234,7 @@ dependencies = [
 
 [[package]]
 name = "kylix-slh-dsa"
-version = "0.4.5"
+version = "0.5.0"
 dependencies = [
  "hex",
  "hmac",
@@ -256,7 +256,7 @@ dependencies = [
 
 [[package]]
 name = "kylix-test-util"
-version = "0.4.5"
+version = "0.5.0"
 dependencies = [
  "hex",
  "proptest",

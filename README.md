@@ -48,7 +48,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-kylix-pqc = "0.4"
+kylix-pqc = "0.5"
 rand = "0.9"
 ```
 
@@ -56,7 +56,7 @@ To enable SHA2-based SLH-DSA variants alongside the default algorithms:
 
 ```toml
 [dependencies]
-kylix-pqc = { version = "0.4", features = ["slh-dsa-sha2"] }
+kylix-pqc = { version = "0.5", features = ["slh-dsa-sha2"] }
 rand = "0.9"
 ```
 
@@ -65,7 +65,7 @@ If using SHA2-based SLH-DSA with `default-features = false`, enable both
 
 ```toml
 [dependencies]
-kylix-pqc = { version = "0.4", default-features = false, features = ["slh-dsa", "slh-dsa-sha2"] }
+kylix-pqc = { version = "0.5", default-features = false, features = ["slh-dsa", "slh-dsa-sha2"] }
 ```
 
 ## Usage

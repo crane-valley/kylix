@@ -111,7 +111,7 @@ Three dispatch flavors (macros in kylix-core):
 ## Workspace Crate Graph
 
 ```
-kylix-core (shared: NTT macros, SIMD dispatch, Barrett reduction, zeroize/subtle re-exports)
+kylix-core (shared: NTT macros, SIMD dispatch, Barrett reduction, zeroize re-exports)
   |
   +-- kylix-ml-kem  (FIPS 203: ML-KEM-512/768/1024)
   +-- kylix-ml-dsa  (FIPS 204: ML-DSA-44/65/87)

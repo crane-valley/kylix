@@ -18,7 +18,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! kylix-pqc = "0.4"
+//! kylix-pqc = "0.5"
 //! rand = "0.9"
 //! ```
 //!
@@ -28,7 +28,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! kylix-pqc = { version = "0.4", default-features = false, features = ["slh-dsa", "slh-dsa-sha2"] }
+//! kylix-pqc = { version = "0.5", default-features = false, features = ["slh-dsa", "slh-dsa-sha2"] }
 //! rand = "0.9"
 //! ```
 //!
@@ -93,7 +93,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! kylix-pqc = { version = "0.4", default-features = false, features = ["ml-kem"] }
+//! kylix-pqc = { version = "0.5", default-features = false, features = ["ml-kem"] }
 //! ```
 //!
 //! Individual algorithm crates expose finer-grained per-variant feature flags if
