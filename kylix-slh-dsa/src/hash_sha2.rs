@@ -12,9 +12,9 @@ use crate::address::{Address, AdrsType};
 use crate::hash::HashSuite;
 use hmac::{Hmac, Mac};
 use sha2::{Digest, Sha256, Sha512};
-use zeroize::{Zeroize, Zeroizing};
+use zeroize::Zeroize;
 
-#[cfg(not(feature = "std"))]
+#[cfg(all(test, not(feature = "std")))]
 use alloc::{vec, vec::Vec};
 
 type HmacSha256 = Hmac<Sha256>;
@@ -82,6 +82,9 @@ fn adrs_compress(adrs: &Address) -> [u8; 22] {
 /// FIPS 205, Section 10.2:
 /// - MGF1-SHA-256 for 128-bit security (`mgf1::<Sha256>`)
 /// - MGF1-SHA-512 for 192/256-bit security (`mgf1::<Sha512>`)
+///
+/// Only used in tests now that Hmsg is implemented purely via `mgf1_to`.
+#[cfg(test)]
 fn mgf1<D: Digest + Clone>(seed_parts: &[&[u8]], mask_len: usize) -> Vec<u8> {
     let mut output = vec![0u8; mask_len];
     mgf1_to::<D>(&mut output, seed_parts);
@@ -137,22 +140,6 @@ const PADDING_SHA512_N32: [u8; 96] = [0u8; 96]; // 128 - 32, for n=32 (256-bit)
 // =============================================================================
 
 impl Sha2_128Hash {
-    /// Trunc_n(SHA-256(PK.seed || toByte(0, 64-n) || ADRSc || M...))
-    fn sha256_hash_trunc_n(pk_seed: &[u8], adrs: &Address, ms: &[&[u8]]) -> Vec<u8> {
-        let adrs_c = adrs_compress(adrs);
-        let mut hasher = Sha256::new();
-        hasher.update(pk_seed);
-        hasher.update(PADDING_SHA256_N16);
-        hasher.update(adrs_c);
-        for m in ms {
-            hasher.update(m);
-        }
-        let mut hash = hasher.finalize();
-        let out = hash[..16].to_vec();
-        hash.zeroize();
-        out
-    }
-
     fn sha256_hash_trunc_n_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, ms: &[&[u8]]) {
         debug_assert_eq!(out.len(), 16);
         let adrs_c = adrs_compress(adrs);
@@ -171,23 +158,6 @@ impl Sha2_128Hash {
 
 impl HashSuite for Sha2_128Hash {
     const N: usize = 16;
-
-    fn prf(pk_seed: &[u8], sk_seed: &[u8], adrs: &Address) -> Zeroizing<Vec<u8>> {
-        // PRF(PK.seed, SK.seed, ADRS) = Trunc_n(SHA-256(PK.seed || toByte(0, 64-n) || ADRSc || SK.seed))
-        Zeroizing::new(Self::sha256_hash_trunc_n(pk_seed, adrs, &[sk_seed]))
-    }
-
-    #[allow(clippy::expect_used)] // HMAC accepts any key length
-    fn prf_msg(sk_prf: &[u8], opt_rand: &[u8], message: &[u8]) -> Zeroizing<Vec<u8>> {
-        // PRFmsg = Trunc_n(HMAC-SHA-256(SK.prf, OptRand || M))
-        let mut mac = HmacSha256::new_from_slice(sk_prf).expect("HMAC accepts any key length");
-        mac.update(opt_rand);
-        mac.update(message);
-        let mut result = mac.finalize().into_bytes();
-        let out = Zeroizing::new(result[..16].to_vec());
-        result.zeroize();
-        out
-    }
 
     #[allow(clippy::expect_used)] // HMAC accepts any key length
     fn prf_msg_to(out: &mut [u8], sk_prf: &[u8], opt_rand: &[u8], message: &[u8]) {
@@ -216,20 +186,6 @@ impl HashSuite for Sha2_128Hash {
         let mut result = mac.finalize().into_bytes();
         out.copy_from_slice(&result[..16]);
         result.zeroize();
-    }
-
-    fn h_msg(r: &[u8], pk_seed: &[u8], pk_root: &[u8], message: &[u8], out_len: usize) -> Vec<u8> {
-        // Hmsg = MGF1-SHA-256(R || PK.seed || SHA-256(R || PK.seed || PK.root || M), m)
-        use sha2::digest::Update;
-        let mut inner_hash = Sha256::new()
-            .chain(r)
-            .chain(pk_seed)
-            .chain(pk_root)
-            .chain(message)
-            .finalize();
-        let out = mgf1::<Sha256>(&[r, pk_seed, &inner_hash], out_len);
-        inner_hash.zeroize();
-        out
     }
 
     fn h_msg_to(out: &mut [u8], r: &[u8], pk_seed: &[u8], pk_root: &[u8], message: &[u8]) {
@@ -264,18 +220,6 @@ impl HashSuite for Sha2_128Hash {
         inner_hash.zeroize();
     }
 
-    fn f(pk_seed: &[u8], adrs: &Address, m1: &[u8]) -> Vec<u8> {
-        Self::sha256_hash_trunc_n(pk_seed, adrs, &[m1])
-    }
-
-    fn h(pk_seed: &[u8], adrs: &Address, m1: &[u8], m2: &[u8]) -> Vec<u8> {
-        Self::sha256_hash_trunc_n(pk_seed, adrs, &[m1, m2])
-    }
-
-    fn t_l(pk_seed: &[u8], adrs: &Address, m: &[u8]) -> Vec<u8> {
-        Self::sha256_hash_trunc_n(pk_seed, adrs, &[m])
-    }
-
     fn f_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m1: &[u8]) {
         Self::sha256_hash_trunc_n_to(out, pk_seed, adrs, &[m1]);
     }
@@ -308,22 +252,6 @@ impl HashSuite for Sha2_128Hash {
 macro_rules! impl_sha2_cat35_hash_suite {
     ($name:ident, $n:expr, $padding_256:ident, $padding_512:ident) => {
         impl $name {
-            /// SHA-256 hash with padding and truncation (for F and PRF).
-            fn sha256_hash_trunc_n(pk_seed: &[u8], adrs: &Address, ms: &[&[u8]]) -> Vec<u8> {
-                let adrs_c = adrs_compress(adrs);
-                let mut hasher = Sha256::new();
-                hasher.update(pk_seed);
-                hasher.update(&$padding_256);
-                hasher.update(&adrs_c);
-                for m in ms {
-                    hasher.update(m);
-                }
-                let mut hash = hasher.finalize();
-                let out = hash[..$n].to_vec();
-                hash.zeroize();
-                out
-            }
-
             /// Buffer-write variant of sha256_hash_trunc_n (for F and PRF).
             fn sha256_hash_trunc_n_to(
                 out: &mut [u8],
@@ -343,22 +271,6 @@ macro_rules! impl_sha2_cat35_hash_suite {
                 let mut hash = hasher.finalize();
                 out.copy_from_slice(&hash[..$n]);
                 hash.zeroize();
-            }
-
-            /// SHA-512 hash with padding and truncation (for H and T_l).
-            fn sha512_hash_trunc_n(pk_seed: &[u8], adrs: &Address, ms: &[&[u8]]) -> Vec<u8> {
-                let adrs_c = adrs_compress(adrs);
-                let mut hasher = Sha512::new();
-                hasher.update(pk_seed);
-                hasher.update(&$padding_512);
-                hasher.update(&adrs_c);
-                for m in ms {
-                    hasher.update(m);
-                }
-                let mut hash = hasher.finalize();
-                let out = hash[..$n].to_vec();
-                hash.zeroize();
-                out
             }
 
             /// Buffer-write variant of sha512_hash_trunc_n (for H and T_l).
@@ -385,24 +297,6 @@ macro_rules! impl_sha2_cat35_hash_suite {
 
         impl HashSuite for $name {
             const N: usize = $n;
-
-            fn prf(pk_seed: &[u8], sk_seed: &[u8], adrs: &Address) -> Zeroizing<Vec<u8>> {
-                // PRF uses SHA-256 for all security levels
-                Zeroizing::new(Self::sha256_hash_trunc_n(pk_seed, adrs, &[sk_seed]))
-            }
-
-            #[allow(clippy::expect_used)] // HMAC accepts any key length
-            fn prf_msg(sk_prf: &[u8], opt_rand: &[u8], message: &[u8]) -> Zeroizing<Vec<u8>> {
-                // PRFmsg = Trunc_n(HMAC-SHA-512(SK.prf, OptRand || M))
-                let mut mac =
-                    HmacSha512::new_from_slice(sk_prf).expect("HMAC accepts any key length");
-                mac.update(opt_rand);
-                mac.update(message);
-                let mut result = mac.finalize().into_bytes();
-                let out = Zeroizing::new(result[..$n].to_vec());
-                result.zeroize();
-                out
-            }
 
             #[allow(clippy::expect_used)] // HMAC accepts any key length
             fn prf_msg_to(out: &mut [u8], sk_prf: &[u8], opt_rand: &[u8], message: &[u8]) {
@@ -435,26 +329,6 @@ macro_rules! impl_sha2_cat35_hash_suite {
                 result.zeroize();
             }
 
-            fn h_msg(
-                r: &[u8],
-                pk_seed: &[u8],
-                pk_root: &[u8],
-                message: &[u8],
-                out_len: usize,
-            ) -> Vec<u8> {
-                // Hmsg = MGF1-SHA-512(R || PK.seed || SHA-512(R || PK.seed || PK.root || M), m)
-                use sha2::digest::Update;
-                let mut inner_hash = Sha512::new()
-                    .chain(r)
-                    .chain(pk_seed)
-                    .chain(pk_root)
-                    .chain(message)
-                    .finalize();
-                let out = mgf1::<Sha512>(&[r, pk_seed, &inner_hash], out_len);
-                inner_hash.zeroize();
-                out
-            }
-
             fn h_msg_to(out: &mut [u8], r: &[u8], pk_seed: &[u8], pk_root: &[u8], message: &[u8]) {
                 use sha2::digest::Update;
                 let mut inner_hash = Sha512::new()
@@ -485,21 +359,6 @@ macro_rules! impl_sha2_cat35_hash_suite {
                     .finalize();
                 mgf1_to::<Sha512>(out, &[r, pk_seed, &inner_hash]);
                 inner_hash.zeroize();
-            }
-
-            fn f(pk_seed: &[u8], adrs: &Address, m1: &[u8]) -> Vec<u8> {
-                // F uses SHA-256 for all security levels
-                Self::sha256_hash_trunc_n(pk_seed, adrs, &[m1])
-            }
-
-            fn h(pk_seed: &[u8], adrs: &Address, m1: &[u8], m2: &[u8]) -> Vec<u8> {
-                // H uses SHA-512 for category 3/5
-                Self::sha512_hash_trunc_n(pk_seed, adrs, &[m1, m2])
-            }
-
-            fn t_l(pk_seed: &[u8], adrs: &Address, m: &[u8]) -> Vec<u8> {
-                // T_l uses SHA-512 for category 3/5
-                Self::sha512_hash_trunc_n(pk_seed, adrs, &[m])
             }
 
             fn f_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m1: &[u8]) {
