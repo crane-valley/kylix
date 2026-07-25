@@ -97,7 +97,13 @@ mod polyvec;
 mod reduce;
 mod rounding;
 mod sample;
-/// Core signing algorithms (internal API for ACVP testing).
+/// Low-level ML-DSA signing algorithms, kept public only for ACVP vectors and
+/// timing harnesses that need deterministic entry points.
+///
+/// Use `MlDsa44`, `MlDsa65`, or `MlDsa87` instead. This module is hidden from
+/// rustdoc to discourage use; it is still part of the public API surface, so
+/// changes to it remain semver-breaking.
+#[doc(hidden)]
 pub mod sign;
 #[cfg(any(feature = "ml-dsa-44", feature = "ml-dsa-65", feature = "ml-dsa-87"))]
 mod types;

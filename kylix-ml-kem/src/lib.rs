@@ -44,8 +44,13 @@ mod hash;
 mod k_pke;
 #[cfg(test)]
 mod kat;
-/// Internal KEM functions for deterministic testing.
-/// For normal use, prefer the `MlKem512`, `MlKem768`, or `MlKem1024` types.
+/// Low-level KEM functions, kept public only for ACVP vectors and timing
+/// harnesses that need deterministic entry points.
+///
+/// Use `MlKem512`, `MlKem768`, or `MlKem1024` instead. This module is hidden
+/// from rustdoc to discourage use; it is still part of the public API surface,
+/// so changes to it remain semver-breaking.
+#[doc(hidden)]
 pub mod kem;
 mod matrix;
 mod ntt;
