@@ -2,12 +2,11 @@
 
 - Source code, comments, logs, error messages: English
 - PR titles, summaries, and comments: English
-- Create feature branch -> commit -> push -> PR (merge is done by humans)
+- Create feature branch -> commit -> push -> PR
 
 ## CI Notes
 
 - CI uses `-Dwarnings` so all warnings are treated as errors
-- For WIP modules, add `#![allow(dead_code)]` at module top
 - Doc comments: `[X]` is interpreted as a link reference by rustdoc; escape as `\[X\]`
 
 ## Code Quality Rules
@@ -17,10 +16,6 @@ Before committing or creating a PR, always run:
 2. `cargo clippy --all-targets --all-features -- -D warnings` - Check for lints
 3. `cargo clippy --all-targets --no-default-features -- -D warnings` - Check for lints (no default features)
 4. `cargo test --workspace --all-features` - Run all tests
-
-Note: CLI-related tests are in the separate [kylix-cli repository](https://github.com/crane-valley/kylix-cli).
-
-During development, run `cargo fmt --all` frequently (for example, after each edit) to keep formatting consistent and get fast feedback.
 
 ## Security: Handling Sensitive Data
 
