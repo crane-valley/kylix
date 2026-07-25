@@ -48,21 +48,6 @@ kylix_core::define_simd_dispatch! {
     neon: neon::inv_ntt_neon(&mut poly.coeffs)
 }
 
-// Polynomial arithmetic dispatch
-kylix_core::define_simd_dispatch! {
-    #[allow(dead_code)]
-    pub fn poly_add(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) -> bool;
-    avx2: avx2::poly_add(r, a, b),
-    neon: neon::poly_add(r, a, b)
-}
-
-kylix_core::define_simd_dispatch! {
-    #[allow(dead_code)]
-    pub fn poly_sub(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) -> bool;
-    avx2: avx2::poly_sub(r, a, b),
-    neon: neon::poly_sub(r, a, b)
-}
-
 // Basemul accumulate dispatch
 kylix_core::define_simd_dispatch! {
     pub fn poly_basemul_acc(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) -> bool;

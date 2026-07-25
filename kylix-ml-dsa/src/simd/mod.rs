@@ -36,6 +36,9 @@ kylix_core::define_has_avx2!();
 /// Check if SIMD128 is available (wasm32).
 ///
 /// Returns true if compiled with simd128 target feature.
+// Availability probe kept for parity with has_avx2()/has_neon(); the wasm
+// dispatch arms test cfg(target_feature = "simd128") directly.
+#[allow(dead_code)]
 #[cfg(target_arch = "wasm32")]
 #[inline]
 pub const fn has_simd128() -> bool {

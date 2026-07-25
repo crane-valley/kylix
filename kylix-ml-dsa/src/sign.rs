@@ -11,9 +11,44 @@ use crate::poly::{Poly, N};
 use crate::polyvec::{Matrix, PolyVecK, PolyVecL};
 use crate::reduce::{freeze, Q};
 use crate::rounding::{highbits, lowbits, make_hint, power2round, use_hint, D};
-use crate::sample::{sample_eta, sample_in_ball, sample_mask, sample_ntt};
+use crate::sample::{sample_eta, sample_in_ball, sample_mask, sample_ntt, EtaCheck};
 
 use zeroize::Zeroizing;
+
+// ---------------------------------------------------------------------------
+// Compile-time parameter guards
+// ---------------------------------------------------------------------------
+
+// `encode_w1`, `parse_z` and `encode_signature` dispatch on runtime `gamma2` /
+// `gamma1_bits` values that always originate from the const generics below, and
+// `signature_layout` picks 19 bits for anything that is not 2^17 -- a wrong
+// parameter set would silently produce a mis-sized signature. Forcing these
+// associated constants at every generic entry point turns that into a compile
+// error. The runtime `unreachable!` arms are kept as defence in depth.
+//
+// The associated-constant form is deliberate: inline `const { .. }` blocks are
+// not available on the MSRV (1.75), and a `const _: () = ..` item inside a
+// generic function cannot see the function's generic parameters.
+
+/// Compile-time guard for the mask bound (`gamma1_bits` dispatch).
+struct Gamma1Check<const GAMMA1: i32>;
+
+impl<const GAMMA1: i32> Gamma1Check<GAMMA1> {
+    const SUPPORTED: () = assert!(
+        GAMMA1 == (1 << 17) || GAMMA1 == (1 << 19),
+        "unsupported GAMMA1: FIPS 204 defines only 2^17 and 2^19"
+    );
+}
+
+/// Compile-time guard for the low-order rounding range (`w1` encoding dispatch).
+struct Gamma2Check<const GAMMA2: i32>;
+
+impl<const GAMMA2: i32> Gamma2Check<GAMMA2> {
+    const SUPPORTED: () = assert!(
+        GAMMA2 == 261_888 || GAMMA2 == 95_232,
+        "unsupported GAMMA2: FIPS 204 defines only (Q-1)/32 and (Q-1)/88"
+    );
+}
 
 // ---------------------------------------------------------------------------
 // Helper functions
@@ -366,6 +401,130 @@ pub fn ml_dsa_verify_expanded<
     )
 }
 
+/// Derived signature-encoding lengths: (`gamma1_bits`, `z_bytes`, `expected_sig_len`).
+const fn signature_layout<
+    const K: usize,
+    const L: usize,
+    const GAMMA1: i32,
+    const OMEGA: usize,
+    const C_TILDE_BYTES: usize,
+>() -> (u32, usize, usize) {
+    let gamma1_bits: u32 = if GAMMA1 == (1 << 17) { 17 } else { 19 };
+    let z_bytes = if gamma1_bits == 17 { 576 } else { 640 };
+    (
+        gamma1_bits,
+        z_bytes,
+        C_TILDE_BYTES + L * z_bytes + OMEGA + K,
+    )
+}
+
+/// Structurally valid signature: length-checked, z parsed and norm-checked,
+/// hint encoding checked for FIPS 204 canonicality.
+struct ParsedSignature<'a, const L: usize> {
+    c_tilde: &'a [u8],
+    z: PolyVecL<L>,
+    h: &'a [u8],
+}
+
+/// Cheap structural validation of a signature: length, z norm, hint canonicality.
+///
+/// Runs before any expensive key expansion so that malformed signatures are
+/// rejected without forcing SHAKE work.
+fn parse_and_validate_signature<
+    const K: usize,
+    const L: usize,
+    const BETA: i32,
+    const GAMMA1: i32,
+    const OMEGA: usize,
+    const C_TILDE_BYTES: usize,
+>(
+    sig: &[u8],
+) -> Option<ParsedSignature<'_, L>> {
+    let () = Gamma1Check::<GAMMA1>::SUPPORTED;
+
+    let (gamma1_bits, z_bytes, expected_sig_len) =
+        signature_layout::<K, L, GAMMA1, OMEGA, C_TILDE_BYTES>();
+
+    if sig.len() != expected_sig_len {
+        return None;
+    }
+
+    let c_tilde = &sig[0..C_TILDE_BYTES];
+    let z = parse_z::<L>(sig, C_TILDE_BYTES, gamma1_bits, z_bytes);
+
+    let h_start = C_TILDE_BYTES + L * z_bytes;
+    let h = &sig[h_start..];
+
+    if !z.check_norm(GAMMA1 - BETA) {
+        return None;
+    }
+
+    validate_hints::<K, OMEGA>(h)?;
+
+    Some(ParsedSignature { c_tilde, z, h })
+}
+
+/// Mathematical half of ML-DSA verification, shared by the plain and
+/// pre-expanded entry points.
+///
+/// `t1_2d_hat` is t1 * 2^D in the NTT domain; `tr` is H(pk).
+fn verify_core<
+    const K: usize,
+    const L: usize,
+    const GAMMA2: i32,
+    const TAU: usize,
+    const OMEGA: usize,
+    const C_TILDE_BYTES: usize,
+>(
+    tr: &[u8; 64],
+    a_hat: &Matrix<K, L>,
+    t1_2d_hat: &PolyVecK<K>,
+    parsed: &ParsedSignature<'_, L>,
+    message_prefix: &[u8],
+    message: &[u8],
+) -> bool {
+    let () = Gamma2Check::<GAMMA2>::SUPPORTED;
+
+    // mu = H(tr || M)
+    let mu = hash_message_parts(tr, message_prefix, message);
+
+    // c = SampleInBall(c_tilde)
+    let c = sample_in_ball(parsed.c_tilde, TAU);
+
+    // NTT of c, z
+    let mut c_hat = c.clone();
+    c_hat.ntt();
+
+    let mut z_hat = parsed.z.clone();
+    z_hat.ntt();
+
+    // w' = A*z - c * (t1 * 2^d) (in NTT domain)
+    let mut az = a_hat.mul_vec(&z_hat);
+    az.reduce();
+
+    let mut ct1_2d = PolyVecK::<K>::zero();
+    for i in 0..K {
+        ct1_2d.polys[i] = c_hat.pointwise_mul(&t1_2d_hat.polys[i]);
+    }
+    ct1_2d.reduce();
+
+    let mut w_prime = az.sub(&ct1_2d);
+    w_prime.reduce();
+    w_prime.inv_ntt();
+    w_prime.caddq();
+
+    // Apply hints to get w'1
+    let w1_prime = apply_hints::<K, OMEGA>(&w_prime, parsed.h, GAMMA2);
+    let w1_encoded = encode_w1::<K>(&w1_prime, GAMMA2);
+
+    // c_tilde' = H(mu || w1Encode(w'1))
+    let mut c_tilde_prime = [0u8; 64];
+    h2(&mu, &w1_encoded, &mut c_tilde_prime);
+
+    // Verify c_tilde == c_tilde'
+    parsed.c_tilde == &c_tilde_prime[..C_TILDE_BYTES]
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn ml_dsa_verify_expanded_with_prefix<
     const K: usize,
@@ -382,68 +541,20 @@ pub(crate) fn ml_dsa_verify_expanded_with_prefix<
     message: &[u8],
     sig: &[u8],
 ) -> bool {
-    let gamma1_bits = if GAMMA1 == (1 << 17) { 17 } else { 19 };
-    let z_bytes = if gamma1_bits == 17 { 576 } else { 640 };
-    let expected_sig_len = C_TILDE_BYTES + L * z_bytes + OMEGA + K;
-
-    if sig.len() != expected_sig_len {
+    let Some(parsed) =
+        parse_and_validate_signature::<K, L, BETA, GAMMA1, OMEGA, C_TILDE_BYTES>(sig)
+    else {
         return false;
-    }
+    };
 
-    // Parse signature
-    let c_tilde = &sig[0..C_TILDE_BYTES];
-    let z = parse_z::<L>(sig, C_TILDE_BYTES, gamma1_bits, z_bytes);
-
-    let h_start = C_TILDE_BYTES + L * z_bytes;
-    let h = &sig[h_start..];
-
-    if !z.check_norm(GAMMA1 - BETA) {
-        return false;
-    }
-
-    if validate_hints::<K, OMEGA>(h).is_none() {
-        return false;
-    }
-
-    // Use pre-computed tr
-    let mu = hash_message_parts(&expanded.tr, message_prefix, message);
-
-    // c = SampleInBall(c_tilde)
-    let c = sample_in_ball(c_tilde, TAU);
-
-    // NTT of c, z
-    let mut c_hat = c.clone();
-    c_hat.ntt();
-
-    let mut z_hat = z.clone();
-    z_hat.ntt();
-
-    // Use pre-computed a_hat and t1_2d_hat
-    // w' = A*z - c * (t1 * 2^d) (in NTT domain)
-    let mut az = expanded.a_hat.mul_vec(&z_hat);
-    az.reduce();
-
-    let mut ct1_2d = PolyVecK::<K>::zero();
-    for i in 0..K {
-        ct1_2d.polys[i] = c_hat.pointwise_mul(&expanded.t1_2d_hat.polys[i]);
-    }
-    ct1_2d.reduce();
-
-    let mut w_prime = az.sub(&ct1_2d);
-    w_prime.reduce();
-    w_prime.inv_ntt();
-    w_prime.caddq();
-
-    // Apply hints to get w'1
-    let w1_prime = apply_hints::<K, OMEGA>(&w_prime, h, GAMMA2);
-    let w1_encoded = encode_w1::<K>(&w1_prime, GAMMA2);
-
-    // c_tilde' = H(mu || w1Encode(w'1))
-    let mut c_tilde_prime = [0u8; 64];
-    h2(&mu, &w1_encoded, &mut c_tilde_prime);
-
-    // Verify c_tilde == c_tilde'
-    c_tilde == &c_tilde_prime[..C_TILDE_BYTES]
+    verify_core::<K, L, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
+        &expanded.tr,
+        &expanded.a_hat,
+        &expanded.t1_2d_hat,
+        &parsed,
+        message_prefix,
+        message,
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -642,6 +753,10 @@ pub(crate) fn ml_dsa_sign_with_prefix<
     message: &[u8],
     rnd: &[u8; 32],
 ) -> Option<Vec<u8>> {
+    let () = EtaCheck::<ETA>::SUPPORTED;
+    let () = Gamma1Check::<GAMMA1>::SUPPORTED;
+    let () = Gamma2Check::<GAMMA2>::SUPPORTED;
+
     let eta_bytes = if ETA == 2 { 96 } else { 128 };
     let gamma1_bits = if GAMMA1 == (1 << 17) { 17 } else { 19 };
     let expected_sk_len = 32 + 32 + 64 + L * eta_bytes + K * eta_bytes + K * 416;
@@ -883,14 +998,16 @@ pub(crate) fn ml_dsa_verify_with_prefix<
     message: &[u8],
     sig: &[u8],
 ) -> bool {
-    let gamma1_bits = if GAMMA1 == (1 << 17) { 17 } else { 19 };
-    let z_bytes = if gamma1_bits == 17 { 576 } else { 640 };
-    let expected_sig_len = C_TILDE_BYTES + L * z_bytes + OMEGA + K;
-    let expected_pk_len = 32 + K * 320;
-
-    if sig.len() != expected_sig_len {
+    // All cheap structural rejections happen first: an invalid signature or a
+    // wrong-sized public key must never reach the SHAKE-heavy key expansion
+    // below, or malformed inputs gain a DoS lever.
+    let Some(parsed) =
+        parse_and_validate_signature::<K, L, BETA, GAMMA1, OMEGA, C_TILDE_BYTES>(sig)
+    else {
         return false;
-    }
+    };
+
+    let expected_pk_len = 32 + K * 320;
     if pk.len() != expected_pk_len {
         return false;
     }
@@ -906,78 +1023,29 @@ pub(crate) fn ml_dsa_verify_with_prefix<
         unpack_t1(&pk[offset..offset + 320], &mut t1.polys[i]);
     }
 
-    // Parse signature
-    let c_tilde = &sig[0..C_TILDE_BYTES];
-    let z = parse_z::<L>(sig, C_TILDE_BYTES, gamma1_bits, z_bytes);
-
-    let h_start = C_TILDE_BYTES + L * z_bytes;
-    let h = &sig[h_start..];
-
-    // Check z norm
-    if !z.check_norm(GAMMA1 - BETA) {
-        return false;
-    }
-
-    // Validate hint encoding per FIPS 204 canonical requirements
-    if validate_hints::<K, OMEGA>(h).is_none() {
-        return false;
-    }
-
     // Compute tr = H(pk)
     let tr = hash_pk(pk);
-
-    // Compute mu = H(tr || M)
-    let mu = hash_message_parts(&tr, message_prefix, message);
 
     // Expand A
     let a = expand_a::<K, L>(&rho);
 
-    // c = SampleInBall(c_tilde)
-    let c = sample_in_ball(c_tilde, TAU);
-
-    // NTT of c, z
-    let mut c_hat = c.clone();
-    c_hat.ntt();
-
-    let mut z_hat = z.clone();
-    z_hat.ntt();
-
     // Scale t1 by 2^d first, then NTT
-    // w' = A*z - c * (t1 * 2^d)
-    let mut t1_scaled = PolyVecK::<K>::zero();
+    let mut t1_2d_hat = PolyVecK::<K>::zero();
     for i in 0..K {
         for j in 0..N {
-            t1_scaled.polys[i].coeffs[j] = t1.polys[i].coeffs[j] << D;
+            t1_2d_hat.polys[i].coeffs[j] = t1.polys[i].coeffs[j] << D;
         }
     }
-    t1_scaled.ntt();
+    t1_2d_hat.ntt();
 
-    // Compute A*z - c*(t1*2^d) in NTT domain
-    let mut az = a.mul_vec(&z_hat);
-    az.reduce();
-
-    let mut ct1_2d = PolyVecK::<K>::zero();
-    for i in 0..K {
-        ct1_2d.polys[i] = c_hat.pointwise_mul(&t1_scaled.polys[i]);
-    }
-    ct1_2d.reduce();
-
-    // w' = A*z - c*t1*2^d (in NTT domain)
-    let mut w_prime = az.sub(&ct1_2d);
-    w_prime.reduce();
-    w_prime.inv_ntt();
-    w_prime.caddq();
-
-    // Apply hints to get w'1
-    let w1_prime = apply_hints::<K, OMEGA>(&w_prime, h, GAMMA2);
-    let w1_encoded = encode_w1::<K>(&w1_prime, GAMMA2);
-
-    // c_tilde' = H(mu || w1Encode(w'1))
-    let mut c_tilde_prime = [0u8; 64];
-    h2(&mu, &w1_encoded, &mut c_tilde_prime);
-
-    // Verify c_tilde == c_tilde'
-    c_tilde == &c_tilde_prime[..C_TILDE_BYTES]
+    verify_core::<K, L, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
+        &tr,
+        &a,
+        &t1_2d_hat,
+        &parsed,
+        message_prefix,
+        message,
+    )
 }
 
 #[cfg(test)]

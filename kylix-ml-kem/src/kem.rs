@@ -4,9 +4,6 @@
 //! ML-KEM uses the Fujisaki-Okamoto transform to build a CCA-secure KEM
 //! from the underlying IND-CPA secure K-PKE scheme.
 
-// Internal implementation functions; public API is exposed via variant modules.
-#![allow(dead_code)]
-
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 

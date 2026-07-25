@@ -6,8 +6,6 @@
 //!
 //! All operations are designed to be constant-time where necessary for security.
 
-// Polynomial helpers include compression variants not used by all parameter sets.
-#![allow(dead_code)]
 #![allow(clippy::needless_range_loop)]
 #![allow(clippy::manual_range_contains)]
 
@@ -95,6 +93,8 @@ pub fn poly_add(a: &Poly, b: &Poly) -> Poly {
 }
 
 /// Add polynomial `b` to `a` in place.
+// Currently unused; kept as part of the complete FIPS 203 primitive set.
+#[allow(dead_code)]
 pub fn poly_add_assign(a: &mut Poly, b: &Poly) {
     for i in 0..N {
         a.coeffs[i] += b.coeffs[i];
@@ -109,6 +109,8 @@ pub fn poly_add_assign(a: &mut Poly, b: &Poly) {
 ///
 /// # Returns
 /// Difference polynomial a - b
+// Not called from production paths; exercised by this module's unit tests.
+#[allow(dead_code)]
 pub fn poly_sub(a: &Poly, b: &Poly) -> Poly {
     let mut r = Poly::default();
     for i in 0..N {
@@ -118,6 +120,8 @@ pub fn poly_sub(a: &Poly, b: &Poly) -> Poly {
 }
 
 /// Subtract polynomial `b` from `a` in place.
+// Currently unused; kept as part of the complete FIPS 203 primitive set.
+#[allow(dead_code)]
 pub fn poly_sub_assign(a: &mut Poly, b: &Poly) {
     for i in 0..N {
         a.coeffs[i] -= b.coeffs[i];
@@ -135,6 +139,8 @@ pub fn poly_sub_assign(a: &mut Poly, b: &Poly) {
 ///
 /// # Returns
 /// Product polynomial in NTT domain
+// Not called from production paths; exercised by this module's unit tests.
+#[allow(dead_code)]
 pub fn poly_basemul(a: &Poly, b: &Poly) -> Poly {
     let mut r = Poly::default();
     // 64 pairs of basemuls, each pair using +zeta and -zeta

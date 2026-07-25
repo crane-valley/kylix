@@ -181,20 +181,19 @@ dependencies = [
 
 [[package]]
 name = "kylix-core"
-version = "0.4.5"
+version = "0.5.0"
 dependencies = [
  "rand_core",
- "subtle",
- "thiserror",
  "zeroize",
 ]
 
 [[package]]
 name = "kylix-ml-dsa"
-version = "0.4.5"
+version = "0.5.0"
 dependencies = [
  "hex",
  "kylix-core",
+ "kylix-test-util",
  "proptest",
  "rand",
  "rand_core",
@@ -207,10 +206,11 @@ dependencies = [
 
 [[package]]
 name = "kylix-ml-kem"
-version = "0.4.5"
+version = "0.5.0"
 dependencies = [
  "hex",
  "kylix-core",
+ "kylix-test-util",
  "proptest",
  "rand",
  "rand_core",
@@ -223,7 +223,7 @@ dependencies = [
 
 [[package]]
 name = "kylix-pqc"
-version = "0.4.5"
+version = "0.5.0"
 dependencies = [
  "kylix-core",
  "kylix-ml-dsa",
@@ -234,11 +234,12 @@ dependencies = [
 
 [[package]]
 name = "kylix-slh-dsa"
-version = "0.4.5"
+version = "0.5.0"
 dependencies = [
  "hex",
  "hmac",
  "kylix-core",
+ "kylix-test-util",
  "proptest",
  "rand",
  "rand_chacha",
@@ -251,6 +252,16 @@ dependencies = [
  "sha3",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "kylix-test-util"
+version = "0.5.0"
+dependencies = [
+ "hex",
+ "proptest",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -525,26 +536,6 @@ dependencies = [
  "once_cell",
  "rustix",
  "windows-sys",
-]
-
-[[package]]
-name = "thiserror"
-version = "2.0.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4288b5bcbc7920c07a1149a35cf9590a2aa808e0bc1eafaade0b80947865fbc4"
-dependencies = [
- "thiserror-impl",
-]
-
-[[package]]
-name = "thiserror-impl"
-version = "2.0.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebc4ee7f67670e9b64d05fa4253e753e016c6c95ff35b89b7941d6b856dec1d5"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]

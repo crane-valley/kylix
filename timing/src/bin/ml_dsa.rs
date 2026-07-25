@@ -9,7 +9,7 @@
 
 use dudect_bencher::rand::Rng;
 use dudect_bencher::{ctbench_main, BenchRng, Class, CtRunner};
-use kylix_ml_dsa::dsa65::{MlDsa65, SigningKey, VerificationKey};
+use kylix_ml_dsa::ml_dsa_65::{MlDsa65, SigningKey, VerificationKey};
 use kylix_ml_dsa::Signer;
 use once_cell::sync::Lazy;
 use rand::{rngs::StdRng, SeedableRng};

@@ -65,6 +65,24 @@ jobs:
       - name: Test integration
         run: cargo test -p kylix-pqc --all-features
 
+  # Exercise the scalar fallback: --no-default-features drops the `simd` feature,
+  # so the non-SIMD code paths actually execute instead of being merely compiled.
+  test-scalar:
+    name: Test (scalar fallback)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Test kylix-core
+        run: cargo test -p kylix-core --no-default-features --features std
+      - name: Test ML-KEM
+        run: cargo test -p kylix-ml-kem --no-default-features --features "std,ml-kem-512,ml-kem-768,ml-kem-1024"
+      - name: Test ML-DSA
+        run: cargo test -p kylix-ml-dsa --no-default-features --features "std,ml-dsa-44,ml-dsa-65,ml-dsa-87"
+      - name: Test SLH-DSA fast variants
+        run: cargo test -p kylix-slh-dsa --no-default-features --features "std,slh-dsa-shake-128f,slh-dsa-shake-192f,slh-dsa-shake-256f"
+
   test-no-std:
     name: no_std
     runs-on: ubuntu-latest
@@ -98,7 +116,10 @@ jobs:
         with:
           toolchain: "1.75"
       - uses: Swatinem/rust-cache@v2
-      - run: cargo check --workspace --all-features
+      # kylix-test-util is a dev-only, unpublished crate; it depends on proptest,
+      # which needs a newer compiler than the MSRV. Excluding it keeps this job
+      # checking only the crates whose MSRV we actually promise.
+      - run: cargo check --workspace --all-features --exclude kylix-test-util
 
   constant-time:
     name: Constant-Time Check
