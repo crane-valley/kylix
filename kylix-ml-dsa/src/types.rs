@@ -26,7 +26,7 @@ macro_rules! define_dsa_types {
             for SigningKey,
             size: $sk_size,
             error: InvalidKeyLength,
-            as_bytes: &[u8; $sk_size]
+            as_bytes: &[u8]
         );
 
         /// Verification key (public key).
@@ -78,7 +78,7 @@ macro_rules! define_dsa_types {
             for VerificationKey,
             size: $pk_size,
             error: InvalidKeyLength,
-            as_bytes: &[u8; $pk_size]
+            as_bytes: &[u8]
         );
 
         /// Expanded verification key with pre-computed values for fast repeated verification.
@@ -96,7 +96,7 @@ macro_rules! define_dsa_types {
             for Signature,
             size: $sig_size,
             error: InvalidSignatureLength,
-            as_bytes: &[u8; $sig_size]
+            as_bytes: &[u8]
         );
     };
 }
