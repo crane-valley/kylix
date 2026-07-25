@@ -36,25 +36,58 @@ kylix-core provides:
 
 ## Module Layout
 
-All algorithm crates follow a consistent structure:
+Every algorithm crate shares a small common core (`lib.rs`, per-variant
+wrapper modules, `types.rs`, `params.rs`, and `hash.rs`). Beyond that the
+layout follows the algorithm family, so the lattice crates and SLH-DSA differ.
+
+The lattice crates (ML-KEM, ML-DSA) are built around polynomial arithmetic:
 
 ```
-kylix-{algorithm}/src/
-├── lib.rs              # Public API, feature gates, trait implementations
-├── {variant}.rs        # Per-variant wrappers (e.g., ml_kem_768.rs)
-├── types.rs            # Key type generation macro (define_kem_types! / define_dsa_types!)
-├── params.rs           # Algorithm constants per parameter set
-├── poly.rs             # Polynomial arithmetic in R_q = Z_q[X]/(X^N + 1)
-├── ntt.rs              # Number Theoretic Transform (generated via kylix-core macros)
-├── reduce.rs           # Modular reduction (generated via kylix-core macros)
-├── sample.rs           # Polynomial sampling from distributions
-├── hash.rs             # Hash function wrappers (SHA3/SHAKE)
-├── encode.rs           # Bit-packing and serialization
-└── simd/               # Platform-specific SIMD (ML-KEM, ML-DSA only)
-    ├── avx2.rs         # x86-64 AVX2
-    ├── neon.rs         # AArch64 NEON
-    └── wasm.rs         # WASM-SIMD128 (ML-DSA only)
+kylix-ml-kem/src/            kylix-ml-dsa/src/
+├── lib.rs                   ├── lib.rs
+├── {variant}.rs             ├── {variant}.rs      # ml_dsa_65.rs, ...
+├── types.rs                 ├── types.rs
+├── params.rs                ├── params.rs
+├── poly.rs                  ├── poly.rs
+├── polyvec.rs               ├── polyvec.rs
+├── ntt.rs                   ├── ntt.rs
+├── reduce.rs                ├── reduce.rs
+├── sample.rs                ├── sample.rs
+├── hash.rs                  ├── hash.rs
+├── encode.rs                ├── packing.rs        # bit-packing (no encode.rs)
+├── matrix.rs                ├── rounding.rs       # Power2Round / Decompose
+├── k_pke.rs                 ├── sign.rs
+├── kem.rs                   └── simd/
+└── simd/                        ├── avx2.rs
+    ├── avx2.rs                  ├── neon.rs
+    └── neon.rs                  └── wasm.rs       # ML-DSA only
 ```
+
+`ntt.rs` and `reduce.rs` are generated via the kylix-core macros.
+
+SLH-DSA is hash-based and has no polynomial layer, so its modules mirror the
+FIPS 205 construction instead:
+
+```
+kylix-slh-dsa/src/
+├── lib.rs
+├── {variant}.rs        # slh_dsa_shake_128f.rs, slh_dsa_sha2_256s.rs, ...
+├── types.rs
+├── params.rs
+├── sign.rs             # slh_keygen / slh_sign / slh_verify
+├── wots.rs             # WOTS+ one-time signatures
+├── fors.rs             # FORS few-time signatures
+├── xmss.rs             # XMSS subtrees
+├── hypertree.rs        # Hypertree (HT) over XMSS layers
+├── address.rs          # ADRS structure
+├── hash.rs             # HashSuite trait
+├── hash_shake.rs       # SHAKE instantiation
+├── hash_sha2.rs        # SHA2 instantiation
+├── utils.rs            # base_2b, WOTS+ checksum
+└── parallel.rs         # rayon FORS signing (feature = "parallel")
+```
+
+No SLH-DSA SIMD module exists; its speedup path is the `parallel` feature.
 
 ## SIMD Optimization
 

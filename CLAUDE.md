@@ -57,7 +57,7 @@ All sensitive key types must implement `Zeroize` and `ZeroizeOnDrop` to ensure a
 
 When adding a new crate to the workspace:
 
-1. **Update `.github/workflows/release.yml`**: Add a publish step for the new crate in the correct dependency order (before crates that depend on it)
+1. **Update `.github/workflows/publish.yml`**: Add a publish step for the new crate in the correct dependency order (before crates that depend on it)
 2. **Exclude large files**: crates.io has a 10MB upload limit. Add `exclude` in `Cargo.toml` to exclude:
    - ACVP test vectors (`tests/acvp/`)
    - Fuzz corpora
