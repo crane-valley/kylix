@@ -114,6 +114,7 @@ impl MlDsa44 {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+    use crate::sign::ml_dsa_verify;
 
     #[test]
     fn test_key_sizes() {
@@ -157,5 +158,63 @@ mod tests {
 
         let result = MlDsa44::verify_expanded(&expanded, message, &signature);
         assert!(result.is_ok(), "Expanded verification failed: {:?}", result);
+    }
+
+    #[test]
+    fn test_signer_uses_pure_ml_dsa_domain_separation() {
+        let mut rng = rand::rng();
+        let (sk, pk) = MlDsa44::keygen(&mut rng).unwrap();
+        let message = b"domain-separated message";
+        let signature = MlDsa44::sign(&sk, message).unwrap();
+
+        let mut pure_message = Vec::with_capacity(message.len() + 2);
+        pure_message.extend_from_slice(&[0, 0]);
+        pure_message.extend_from_slice(message);
+
+        let raw_valid = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
+            pk.as_bytes(),
+            message,
+            signature.as_bytes(),
+        );
+        let pure_valid = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
+            pk.as_bytes(),
+            &pure_message,
+            signature.as_bytes(),
+        );
+
+        assert!(!raw_valid);
+        assert!(pure_valid);
+    }
+
+    #[test]
+    fn test_expanded_verify_wrong_message() {
+        let mut rng = rand::rng();
+        let (sk, pk) = MlDsa44::keygen(&mut rng).unwrap();
+
+        let expanded = pk.expand().expect("expand should succeed");
+
+        let message = b"Original message";
+        let wrong_message = b"Wrong message";
+        let signature = MlDsa44::sign(&sk, message).unwrap();
+
+        // Should fail with wrong message
+        let result = MlDsa44::verify_expanded(&expanded, wrong_message, &signature);
+        assert!(result.is_err(), "Should fail with wrong message");
+    }
+
+    #[test]
+    fn test_expanded_verify_multiple_signatures() {
+        let mut rng = rand::rng();
+        let (sk, pk) = MlDsa44::keygen(&mut rng).unwrap();
+
+        let expanded = pk.expand().expect("expand should succeed");
+
+        // Verify multiple signatures with the same expanded key
+        for i in 0..5 {
+            let message = format!("Message number {}", i);
+            let signature = MlDsa44::sign(&sk, message.as_bytes()).unwrap();
+            let result = MlDsa44::verify_expanded(&expanded, message.as_bytes(), &signature);
+            assert!(result.is_ok(), "Verification {} failed: {:?}", i, result);
+        }
     }
 }

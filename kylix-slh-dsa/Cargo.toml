@@ -60,6 +60,9 @@ rustdoc-args = ["--cfg", "docsrs"]
 rand = "0.9"
 rand_chacha = "0.9"
 hex = "0.4"
+# Same version as the crate dependency above; the deterministic fixture tests
+# need SHAKE256 from an integration test target.
+sha3 = "0.10"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 proptest = "1.10"
