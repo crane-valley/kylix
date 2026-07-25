@@ -414,10 +414,52 @@ pub(crate) fn slh_sign_with_prefix<
     )
 }
 
-#[allow(clippy::too_many_arguments)]
+/// Hash-suite bound required by the signing body.
+///
+/// The parallel FORS backend needs `Send + Sync`, the sequential one does not.
+/// Selecting the bound here lets a single `slh_sign_impl` body serve both
+/// feature arms. The public wrappers keep their own spelled-out bounds, which
+/// are part of the public API and must not be unified.
 #[cfg(feature = "parallel")]
+trait SignHashSuite: HashSuite + Send + Sync {}
+
+#[cfg(feature = "parallel")]
+impl<H: HashSuite + Send + Sync> SignHashSuite for H {}
+
+#[cfg(not(feature = "parallel"))]
+trait SignHashSuite: HashSuite {}
+
+#[cfg(not(feature = "parallel"))]
+impl<H: HashSuite> SignHashSuite for H {}
+
+/// FORS signing step of `slh_sign_impl`.
+///
+/// Takes `adrs` by shared reference in both arms: the sequential backend
+/// mutates the address it is given, so that mutation is confined to a local
+/// copy here and the caller regenerates the address for FORS pk recovery. This
+/// keeps the byte output of the two arms identical.
+fn fors_sign_dispatch<H: SignHashSuite>(
+    out: &mut [u8],
+    md: &[u8],
+    sk_seed: &[u8],
+    pk_seed: &[u8],
+    adrs: &Address,
+    k: usize,
+    a: usize,
+) {
+    #[cfg(feature = "parallel")]
+    fors_sign_parallel_to::<H>(out, md, sk_seed, pk_seed, adrs, k, a);
+
+    #[cfg(not(feature = "parallel"))]
+    {
+        let mut adrs = *adrs;
+        fors_sign_to::<H>(out, md, sk_seed, pk_seed, &mut adrs, k, a);
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn slh_sign_impl<
-    H: HashSuite + Send + Sync,
+    H: SignHashSuite,
     const N: usize,
     const WOTS_LEN: usize,
     const WOTS_LEN1: usize,
@@ -469,8 +511,8 @@ fn slh_sign_impl<
     // Write R
     signature[..N].copy_from_slice(&r[..N]);
 
-    // Generate FORS signature (parallel) directly into buffer
-    fors_sign_parallel_to::<H>(
+    // Generate FORS signature directly into buffer
+    fors_sign_dispatch::<H>(
         &mut signature[N..N + fors_sig_len],
         &md[..md_len],
         &sk.sk_seed,
@@ -480,102 +522,10 @@ fn slh_sign_impl<
         A,
     );
 
-    // Compute FORS public key for hypertree signing
-    // Use sequential version - pk recovery is fast and parallel overhead hurts
-    let mut adrs_pk = adrs;
-    let mut pk_fors = [0u8; MAX_N];
-    fors_pk_from_sig_to::<H>(
-        &mut pk_fors[..N],
-        &signature[N..N + fors_sig_len],
-        &md[..md_len],
-        &sk.pk_seed,
-        &mut adrs_pk,
-        K,
-        A,
-    );
-
-    // Generate hypertree signature directly into buffer
-    ht_sign_to::<H, WOTS_LEN, WOTS_LEN1>(
-        &mut signature[N + fors_sig_len..],
-        &pk_fors[..N],
-        &sk.sk_seed,
-        &sk.pk_seed,
-        idx_tree,
-        idx_leaf,
-        H_PRIME,
-        D,
-    );
-
-    signature
-}
-
-#[allow(clippy::too_many_arguments)]
-#[cfg(not(feature = "parallel"))]
-fn slh_sign_impl<
-    H: HashSuite,
-    const N: usize,
-    const WOTS_LEN: usize,
-    const WOTS_LEN1: usize,
-    const H_PRIME: usize,
-    const D: usize,
-    const K: usize,
-    const A: usize,
-    const MD_BYTES: usize,
->(
-    sk: &SecretKey<N>,
-    message_prefix: &[u8],
-    message: &[u8],
-    opt_rand: Option<&[u8]>,
-) -> Vec<u8> {
-    // Use pk_seed as opt_rand for deterministic signing if not provided
-    let randomness = opt_rand.unwrap_or(&sk.pk_seed);
-
-    // Generate randomness R
-    let mut r = Zeroizing::new([0u8; MAX_N]);
-    H::prf_msg_parts_to(&mut r[..N], &sk.sk_prf, randomness, message_prefix, message);
-
-    let (md_bytes, digest_len) = digest_lengths::<K, A, H_PRIME, D>();
-
-    // Compute message digest
-    let mut digest_stack = [0u8; MAX_M_DIGEST_BYTES];
-    let mut digest_heap = Vec::new();
-    let digest = scratch_slice(&mut digest_stack, &mut digest_heap, digest_len);
-    H::h_msg_parts_to(
-        digest,
-        &r[..N],
-        &sk.pk_seed,
-        &sk.pk_root,
-        message_prefix,
-        message,
-    );
-
-    // Parse digest into (md, idx_tree, idx_leaf)
-    let mut md_stack = [0u8; MAX_M_DIGEST_BYTES];
-    let mut md_heap = Vec::new();
-    let md = scratch_slice(&mut md_stack, &mut md_heap, md_bytes);
-    let (md_len, idx_tree, idx_leaf) = parse_digest_to::<K, A, H_PRIME, D>(md, digest);
-
-    let mut adrs = fors_tree_address(idx_tree, idx_leaf);
-
-    // Pre-allocate single signature buffer: R || SIG_FORS || SIG_HT
-    let (fors_sig_len, sig_len) = signature_lengths::<N, WOTS_LEN, H_PRIME, D, K, A>();
-    let mut signature = vec![0u8; sig_len];
-
-    // Write R
-    signature[..N].copy_from_slice(&r[..N]);
-
-    // Generate FORS signature (sequential) directly into buffer
-    fors_sign_to::<H>(
-        &mut signature[N..N + fors_sig_len],
-        &md[..md_len],
-        &sk.sk_seed,
-        &sk.pk_seed,
-        &mut adrs,
-        K,
-        A,
-    );
-
-    // Compute FORS public key for hypertree signing (sequential)
+    // Compute FORS public key for hypertree signing.
+    // Always sequential: pk recovery is fast and parallel overhead hurts.
+    // The address is regenerated rather than reused so both FORS backends see
+    // the same input regardless of whether they mutated their own copy.
     let mut adrs_pk = fors_tree_address(idx_tree, idx_leaf);
     let mut pk_fors = [0u8; MAX_N];
     fors_pk_from_sig_to::<H>(
