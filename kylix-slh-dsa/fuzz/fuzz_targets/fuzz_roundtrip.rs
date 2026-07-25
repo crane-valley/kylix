@@ -76,7 +76,7 @@ fuzz_target!(|input: RoundtripInput| {
     assert!(result.is_ok(), "roundtrip verification should always succeed");
 
     // Signature should have correct size
-    assert_eq!(sig.to_bytes().len(), SlhDsaShake128f::SIGNATURE_SIZE);
+    assert_eq!(sig.as_bytes().len(), SlhDsaShake128f::SIGNATURE_SIZE);
 
     // Verification with different message should fail
     if !input.message.is_empty() {

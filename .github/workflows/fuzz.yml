@@ -375,7 +375,9 @@ jobs:
           exit $FUZZ_EXIT_CODE
 
       - name: Upload crash artifacts
-        if: failure()
+        # Match the issue-creation gate: a bare failure() also fires on infra
+        # failures, when there is nothing to upload.
+        if: failure() && steps.fuzz.outputs.crash_count > 0
         uses: actions/upload-artifact@v7
         with:
           name: crash-slh-dsa-${{ matrix.target }}-${{ github.run_id }}
