@@ -349,17 +349,23 @@ jobs:
             if [ "$CRASH_COUNT" -gt 0 ]; then
               echo "Found ${CRASH_COUNT} crash artifact(s)"
 
-              # Save crash info for issue creation
-              echo "CRASH_FILES<<EOF" >> $GITHUB_ENV
-              ls -la fuzz/artifacts/${{ matrix.target }}/
-              echo "EOF" >> $GITHUB_ENV
+              # Save crash info for issue creation. The command output must be
+              # redirected into $GITHUB_ENV as well; otherwise only the heredoc
+              # markers land there and the variables stay empty.
+              {
+                echo "CRASH_FILES<<EOF"
+                ls -la fuzz/artifacts/${{ matrix.target }}/
+                echo "EOF"
+              } >> $GITHUB_ENV
 
               # Get first crash file content (hex dump)
               FIRST_CRASH=$(find fuzz/artifacts/${{ matrix.target }} -type f | head -1)
               if [ -n "$FIRST_CRASH" ]; then
-                echo "CRASH_HEX<<EOF" >> $GITHUB_ENV
-                xxd "$FIRST_CRASH" | head -50
-                echo "EOF" >> $GITHUB_ENV
+                {
+                  echo "CRASH_HEX<<EOF"
+                  xxd "$FIRST_CRASH" | head -50
+                  echo "EOF"
+                } >> $GITHUB_ENV
               fi
             fi
           else
@@ -377,7 +383,9 @@ jobs:
           if-no-files-found: ignore
 
       - name: Create issue on failure
-        if: failure()
+        # Only report a real crash: a bare failure() also fires on infra
+        # failures (checkout, toolchain, cargo-fuzz install, build).
+        if: failure() && steps.fuzz.outputs.crash_count > 0
         uses: actions/github-script@v8
         with:
           script: |
