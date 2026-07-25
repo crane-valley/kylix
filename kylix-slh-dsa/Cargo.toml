@@ -17,7 +17,7 @@ exclude = ["tests/acvp/"]
 [features]
 default = ["std", "slh-dsa-shake-128f"]
 std = ["kylix-core/std"]
-parallel = ["std", "rayon"]
+parallel = ["std", "rayon", "dep:rayon-core"]
 
 # Internal meta-features (not for direct use)
 any-variant = []
