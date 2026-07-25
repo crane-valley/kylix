@@ -11,9 +11,44 @@ use crate::poly::{Poly, N};
 use crate::polyvec::{Matrix, PolyVecK, PolyVecL};
 use crate::reduce::{freeze, Q};
 use crate::rounding::{highbits, lowbits, make_hint, power2round, use_hint, D};
-use crate::sample::{sample_eta, sample_in_ball, sample_mask, sample_ntt};
+use crate::sample::{sample_eta, sample_in_ball, sample_mask, sample_ntt, EtaCheck};
 
 use zeroize::Zeroizing;
+
+// ---------------------------------------------------------------------------
+// Compile-time parameter guards
+// ---------------------------------------------------------------------------
+
+// `encode_w1`, `parse_z` and `encode_signature` dispatch on runtime `gamma2` /
+// `gamma1_bits` values that always originate from the const generics below, and
+// `signature_layout` picks 19 bits for anything that is not 2^17 -- a wrong
+// parameter set would silently produce a mis-sized signature. Forcing these
+// associated constants at every generic entry point turns that into a compile
+// error. The runtime `unreachable!` arms are kept as defence in depth.
+//
+// The associated-constant form is deliberate: inline `const { .. }` blocks are
+// not available on the MSRV (1.75), and a `const _: () = ..` item inside a
+// generic function cannot see the function's generic parameters.
+
+/// Compile-time guard for the mask bound (`gamma1_bits` dispatch).
+struct Gamma1Check<const GAMMA1: i32>;
+
+impl<const GAMMA1: i32> Gamma1Check<GAMMA1> {
+    const SUPPORTED: () = assert!(
+        GAMMA1 == (1 << 17) || GAMMA1 == (1 << 19),
+        "unsupported GAMMA1: FIPS 204 defines only 2^17 and 2^19"
+    );
+}
+
+/// Compile-time guard for the low-order rounding range (`w1` encoding dispatch).
+struct Gamma2Check<const GAMMA2: i32>;
+
+impl<const GAMMA2: i32> Gamma2Check<GAMMA2> {
+    const SUPPORTED: () = assert!(
+        GAMMA2 == 261_888 || GAMMA2 == 95_232,
+        "unsupported GAMMA2: FIPS 204 defines only (Q-1)/32 and (Q-1)/88"
+    );
+}
 
 // ---------------------------------------------------------------------------
 // Helper functions
@@ -405,6 +440,8 @@ fn parse_and_validate_signature<
 >(
     sig: &[u8],
 ) -> Option<ParsedSignature<'_, L>> {
+    let () = Gamma1Check::<GAMMA1>::SUPPORTED;
+
     let (gamma1_bits, z_bytes, expected_sig_len) =
         signature_layout::<K, L, GAMMA1, OMEGA, C_TILDE_BYTES>();
 
@@ -446,6 +483,8 @@ fn verify_core<
     message_prefix: &[u8],
     message: &[u8],
 ) -> bool {
+    let () = Gamma2Check::<GAMMA2>::SUPPORTED;
+
     // mu = H(tr || M)
     let mu = hash_message_parts(tr, message_prefix, message);
 
@@ -714,6 +753,10 @@ pub(crate) fn ml_dsa_sign_with_prefix<
     message: &[u8],
     rnd: &[u8; 32],
 ) -> Option<Vec<u8>> {
+    let () = EtaCheck::<ETA>::SUPPORTED;
+    let () = Gamma1Check::<GAMMA1>::SUPPORTED;
+    let () = Gamma2Check::<GAMMA2>::SUPPORTED;
+
     let eta_bytes = if ETA == 2 { 96 } else { 128 };
     let gamma1_bits = if GAMMA1 == (1 << 17) { 17 } else { 19 };
     let expected_sk_len = 32 + 32 + 64 + L * eta_bytes + K * eta_bytes + K * 416;

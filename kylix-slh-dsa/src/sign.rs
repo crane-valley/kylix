@@ -26,6 +26,22 @@ use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 #[cfg(not(feature = "std"))]
 use alloc::{vec, vec::Vec};
 
+// The `write_to` buffer-shape invariants below were `debug_assert_eq!`, i.e.
+// compiled out in release builds. Both `SIZE` and `N` are const generics, so
+// the check belongs at compile time instead.
+//
+// The associated-constant form is deliberate: inline `const { .. }` blocks are
+// not available on the MSRV (1.75), and a `const _: () = ..` item inside a
+// generic function cannot see the function's generic parameters.
+
+/// Compile-time guard for the `write_to` output buffer shape.
+struct BufferShape<const N: usize, const SIZE: usize>;
+
+impl<const N: usize, const SIZE: usize> BufferShape<N, SIZE> {
+    const IS_4N: () = assert!(SIZE == N * 4, "secret key buffer size must be 4*N");
+    const IS_2N: () = assert!(SIZE == N * 2, "public key buffer size must be 2*N");
+}
+
 /// Secret key components.
 ///
 /// Implements `Zeroize` and `ZeroizeOnDrop` so secret material is securely
@@ -50,7 +66,7 @@ impl<const N: usize> SecretKey<N> {
     /// This avoids heap allocation by writing directly to the provided buffer.
     /// Layout: sk_seed || sk_prf || pk_seed || pk_root
     pub fn write_to<const SIZE: usize>(&self, out: &mut [u8; SIZE]) {
-        debug_assert_eq!(SIZE, N * 4, "Output buffer size must be 4*N");
+        let () = BufferShape::<N, SIZE>::IS_4N;
         out[..N].copy_from_slice(&self.sk_seed);
         out[N..2 * N].copy_from_slice(&self.sk_prf);
         out[2 * N..3 * N].copy_from_slice(&self.pk_seed);
@@ -110,7 +126,7 @@ impl<const N: usize> PublicKey<N> {
     /// This avoids heap allocation by writing directly to the provided buffer.
     /// Layout: pk_seed || pk_root
     pub fn write_to<const SIZE: usize>(&self, out: &mut [u8; SIZE]) {
-        debug_assert_eq!(SIZE, N * 2, "Output buffer size must be 2*N");
+        let () = BufferShape::<N, SIZE>::IS_2N;
         out[..N].copy_from_slice(&self.pk_seed);
         out[N..].copy_from_slice(&self.pk_root);
     }

@@ -20,6 +20,38 @@ use crate::poly::{
 use crate::polyvec::PolyVec;
 use zeroize::Zeroizing;
 
+// `poly_cbd`, `poly_compress` and `poly_decompress` dispatch on runtime values
+// that always originate from these const generics, and their fallback arms
+// `panic!`. Forcing the associated constants below at every K-PKE entry point
+// moves that failure to compile time: a parameter set outside the FIPS 203
+// tables cannot be instantiated at all. The runtime panics are kept as
+// defence in depth: `encode::byte_encode` / `byte_decode` take a plain `usize`
+// with no const-generic caller, so a compile-time guard does not apply there.
+//
+// The associated-constant form is deliberate: inline `const { .. }` blocks are
+// not available on the MSRV (1.75), and a `const _: () = ..` item inside a
+// generic function cannot see the function's generic parameters.
+
+/// Compile-time guard for the CBD noise parameter (`poly_cbd` dispatch).
+struct EtaCheck<const ETA: usize>;
+
+impl<const ETA: usize> EtaCheck<ETA> {
+    const SUPPORTED: () = assert!(
+        ETA == 2 || ETA == 3,
+        "unsupported eta: FIPS 203 defines CBD only for eta = 2 or 3"
+    );
+}
+
+/// Compile-time guard for the compression parameters (`poly_compress` dispatch).
+struct CompressCheck<const D: usize>;
+
+impl<const D: usize> CompressCheck<D> {
+    const SUPPORTED: () = assert!(
+        D == 4 || D == 5 || D == 10 || D == 11,
+        "unsupported compression parameter: supported values are 4, 5, 10, 11"
+    );
+}
+
 /// K-PKE Key Generation (FIPS 203 Algorithm 13).
 ///
 /// Generates an encryption key pair for the K-PKE scheme.
@@ -43,6 +75,8 @@ use zeroize::Zeroizing;
 /// 5. ek_pke = encode(t) || rho
 /// 6. dk_pke = encode(s)
 pub fn k_pke_keygen<const K: usize, const ETA1: usize>(d: &[u8; 32]) -> (Vec<u8>, Vec<u8>) {
+    let () = EtaCheck::<ETA1>::SUPPORTED;
+
     // 1. (rho, sigma) = G(d || k) with domain separation
     // FIPS 203 Algorithm 13 specifies G(d || k) where:
     // - d is the 32-byte seed
@@ -141,6 +175,11 @@ pub fn k_pke_encrypt<
     m: &[u8; 32],
     r: &[u8; 32],
 ) -> Vec<u8> {
+    let () = EtaCheck::<ETA1>::SUPPORTED;
+    let () = EtaCheck::<ETA2>::SUPPORTED;
+    let () = CompressCheck::<DU>::SUPPORTED;
+    let () = CompressCheck::<DV>::SUPPORTED;
+
     // 1. Parse ek_pke as (t, rho)
     let t_bytes = &ek_pke[..K * 384];
     let rho: &[u8; 32] = ek_pke[K * 384..K * 384 + 32]
@@ -249,6 +288,9 @@ pub fn k_pke_decrypt<const K: usize, const DU: usize, const DV: usize>(
     dk_pke: &[u8],
     c: &[u8],
 ) -> [u8; 32] {
+    let () = CompressCheck::<DU>::SUPPORTED;
+    let () = CompressCheck::<DV>::SUPPORTED;
+
     // 1. Parse ciphertext as (c1, c2)
     let c1_len = K * 32 * DU;
     let c1 = &c[..c1_len];

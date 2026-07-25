@@ -89,6 +89,13 @@ fn mgf1<D: Digest + Clone>(seed_parts: &[&[u8]], mask_len: usize) -> Vec<u8> {
 }
 
 /// Buffer-write MGF1 mask generation function, generic over hash algorithm.
+///
+/// # Panics
+///
+/// Panics if `out.len()` needs more than `u32::MAX` hash blocks. This is a
+/// genuine runtime bound rather than a parameter-set check: MGF1's counter is
+/// 4 bytes wide by definition (FIPS 205, Section 10.2), so the limit cannot be
+/// lifted. No FIPS 205 parameter set comes close to it.
 fn mgf1_to<D: Digest + Clone>(out: &mut [u8], seed_parts: &[&[u8]]) {
     let hash_len = <D as Digest>::output_size();
     let num_blocks = out.len().div_ceil(hash_len);
