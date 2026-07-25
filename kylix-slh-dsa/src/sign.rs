@@ -48,16 +48,22 @@ impl<const N: usize, const SIZE: usize> BufferShape<N, SIZE> {
 /// erased from memory when the key is dropped. `ZeroizeOnDrop` is derived
 /// rather than hand-rolled as a `Drop` impl so downstream code can rely on the
 /// marker trait as a bound.
+///
+/// The fields are private: handing out `[u8; N]` copies of `sk_seed`/`sk_prf`
+/// would put secret material outside the zeroize-on-drop guarantee. Use
+/// [`write_to`](Self::write_to) or [`to_bytes`](Self::to_bytes) to serialize
+/// and [`from_bytes`](Self::from_bytes) to reconstruct; the wire layout is
+/// unchanged.
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct SecretKey<const N: usize> {
     /// Secret seed for key generation.
-    pub sk_seed: [u8; N],
+    sk_seed: [u8; N],
     /// Secret PRF key for randomness generation.
-    pub sk_prf: [u8; N],
+    sk_prf: [u8; N],
     /// Public seed.
-    pub pk_seed: [u8; N],
+    pk_seed: [u8; N],
     /// Public key root.
-    pub pk_root: [u8; N],
+    pk_root: [u8; N],
 }
 
 impl<const N: usize> SecretKey<N> {
@@ -795,6 +801,39 @@ mod tests {
         assert_eq!(sk1.pk_root, sk2.pk_root);
         assert_eq!(pk1.pk_seed, pk2.pk_seed);
         assert_eq!(pk1.pk_root, pk2.pk_root);
+    }
+
+    /// Golden test pinning the SecretKey wire layout to
+    /// sk_seed || sk_prf || pk_seed || pk_root, so a future change to the
+    /// struct (field privacy, reordering, added accessors) cannot silently
+    /// alter the bytes that to_bytes/from_bytes/write_to produce and accept.
+    #[test]
+    fn test_secret_key_golden_byte_layout() {
+        const SK_SEED: [u8; N] = [0xA1; N];
+        const SK_PRF: [u8; N] = [0xB2; N];
+        const PK_SEED: [u8; N] = [0xC3; N];
+        const PK_ROOT: [u8; N] = [0xD4; N];
+
+        let mut golden = [0u8; 4 * N];
+        golden[..N].copy_from_slice(&SK_SEED);
+        golden[N..2 * N].copy_from_slice(&SK_PRF);
+        golden[2 * N..3 * N].copy_from_slice(&PK_SEED);
+        golden[3 * N..].copy_from_slice(&PK_ROOT);
+
+        let sk = SecretKey::<N>::from_bytes(&golden).expect("golden length is 4*N");
+        assert_eq!(sk.sk_seed, SK_SEED);
+        assert_eq!(sk.sk_prf, SK_PRF);
+        assert_eq!(sk.pk_seed, PK_SEED);
+        assert_eq!(sk.pk_root, PK_ROOT);
+
+        assert_eq!(&sk.to_bytes()[..], &golden[..]);
+
+        let mut written = [0u8; 4 * N];
+        sk.write_to(&mut written);
+        assert_eq!(written, golden);
+
+        assert!(SecretKey::<N>::from_bytes(&golden[..4 * N - 1]).is_none());
+        assert!(SecretKey::<N>::from_bytes(&[0u8; 4 * N + 1]).is_none());
     }
 
     #[test]
