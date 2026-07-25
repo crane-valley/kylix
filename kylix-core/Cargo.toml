@@ -13,10 +13,9 @@ description = "Core traits and utilities for the Kylix post-quantum cryptography
 
 [features]
 default = ["std"]
-std = ["thiserror"]
+std = []
 
 [dependencies]
-thiserror = { workspace = true, optional = true }
 zeroize.workspace = true
 rand_core.workspace = true
 subtle.workspace = true
