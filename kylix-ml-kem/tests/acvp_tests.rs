@@ -14,44 +14,15 @@
 //! Note: These tests are skipped when the test vectors are not present
 //! (e.g., when running from crates.io package where they are excluded).
 
+use kylix_test_util::acvp::{hex_decode, load_json, AcvpFile, ExpectedGroup};
+use kylix_test_util::skip_if_no_vectors;
 use serde::Deserialize;
-use std::fs;
-use std::path::Path;
-
-/// Path to the ACVP test vectors directory
-const ACVP_DIR: &str = "tests/acvp";
-
-/// Check if ACVP test vectors are available.
-/// Returns false when running from crates.io package where vectors are excluded.
-fn acvp_vectors_available() -> bool {
-    Path::new(ACVP_DIR).exists()
-}
-
-/// Macro to skip test if ACVP vectors are not available
-macro_rules! skip_if_no_vectors {
-    () => {
-        if !acvp_vectors_available() {
-            eprintln!(
-                "Skipping ACVP test: test vectors not available (excluded from crates.io package)"
-            );
-            return;
-        }
-    };
-}
 
 /// ACVP prompt file structure
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct AcvpPromptFile {
-    test_groups: Vec<PromptTestGroup>,
-}
+type AcvpPromptFile = AcvpFile<PromptTestGroup>;
 
 /// ACVP expected results file structure
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct AcvpExpectedFile {
-    test_groups: Vec<ExpectedTestGroup>,
-}
+type AcvpExpectedFile = AcvpFile<ExpectedGroup<serde_json::Value>>;
 
 /// Test group in prompt file (has parameterSet)
 #[derive(Debug, Deserialize)]
@@ -61,14 +32,6 @@ struct PromptTestGroup {
     parameter_set: String,
     #[serde(default)]
     function: Option<String>,
-    tests: Vec<serde_json::Value>,
-}
-
-/// Test group in expected results file (no parameterSet)
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ExpectedTestGroup {
-    tg_id: u32,
     tests: Vec<serde_json::Value>,
 }
 
@@ -125,18 +88,12 @@ struct DecapsExpected {
     k: String,
 }
 
-fn hex_decode(s: &str) -> Vec<u8> {
-    hex::decode(s).expect("Invalid hex string")
-}
-
 fn load_prompt_file(path: &str) -> AcvpPromptFile {
-    let content = fs::read_to_string(path).expect("Failed to read ACVP prompt file");
-    serde_json::from_str(&content).expect("Failed to parse ACVP prompt JSON")
+    load_json(path)
 }
 
 fn load_expected_file(path: &str) -> AcvpExpectedFile {
-    let content = fs::read_to_string(path).expect("Failed to read ACVP expected file");
-    serde_json::from_str(&content).expect("Failed to parse ACVP expected JSON")
+    load_json(path)
 }
 
 // ============================================================================

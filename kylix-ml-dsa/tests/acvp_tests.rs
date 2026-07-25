@@ -10,44 +10,18 @@
 //! Note: These tests are skipped when the test vectors are not present
 //! (e.g., when running from crates.io package where they are excluded).
 
+use kylix_test_util::acvp::{
+    hex_decode, load_json, AcvpFile, ExpectedGroup, KeyGenExpected, SigVerExpected,
+    SigVerInternalPrompt,
+};
+use kylix_test_util::skip_if_no_vectors;
 use serde::Deserialize;
-use std::fs;
-use std::path::Path;
-
-/// Path to the ACVP test vectors directory
-const ACVP_DIR: &str = "tests/acvp";
-
-/// Check if ACVP test vectors are available.
-/// Returns false when running from crates.io package where vectors are excluded.
-fn acvp_vectors_available() -> bool {
-    Path::new(ACVP_DIR).exists()
-}
-
-/// Macro to skip test if ACVP vectors are not available
-macro_rules! skip_if_no_vectors {
-    () => {
-        if !acvp_vectors_available() {
-            eprintln!(
-                "Skipping ACVP test: test vectors not available (excluded from crates.io package)"
-            );
-            return;
-        }
-    };
-}
 
 /// ACVP prompt file structure for KeyGen
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct AcvpKeyGenPromptFile {
-    test_groups: Vec<KeyGenPromptGroup>,
-}
+type AcvpKeyGenPromptFile = AcvpFile<KeyGenPromptGroup>;
 
 /// ACVP expected results file structure for KeyGen
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct AcvpKeyGenExpectedFile {
-    test_groups: Vec<KeyGenExpectedGroup>,
-}
+type AcvpKeyGenExpectedFile = AcvpFile<ExpectedGroup<KeyGenExpected>>;
 
 /// KeyGen test group in prompt file
 #[derive(Debug, Deserialize)]
@@ -58,14 +32,6 @@ struct KeyGenPromptGroup {
     tests: Vec<KeyGenPrompt>,
 }
 
-/// KeyGen test group in expected results file
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct KeyGenExpectedGroup {
-    tg_id: u32,
-    tests: Vec<KeyGenExpected>,
-}
-
 /// KeyGen prompt test case
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -74,28 +40,11 @@ struct KeyGenPrompt {
     seed: String,
 }
 
-/// KeyGen expected result
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct KeyGenExpected {
-    tc_id: u32,
-    pk: String,
-    sk: String,
-}
-
 /// ACVP prompt file structure for SigVer
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct AcvpSigVerPromptFile {
-    test_groups: Vec<SigVerPromptGroup>,
-}
+type AcvpSigVerPromptFile = AcvpFile<SigVerPromptGroup>;
 
 /// ACVP expected results file structure for SigVer
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct AcvpSigVerExpectedFile {
-    test_groups: Vec<SigVerExpectedGroup>,
-}
+type AcvpSigVerExpectedFile = AcvpFile<ExpectedGroup<SigVerExpected>>;
 
 /// SigVer test group in prompt file
 #[derive(Debug, Deserialize)]
@@ -112,45 +61,11 @@ struct SigVerPromptGroup {
     tests: Vec<serde_json::Value>,
 }
 
-/// SigVer test group in expected results file
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SigVerExpectedGroup {
-    tg_id: u32,
-    tests: Vec<SigVerExpected>,
-}
-
-/// SigVer prompt test case (internal interface with message)
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SigVerInternalPrompt {
-    tc_id: u32,
-    pk: String,
-    message: String,
-    signature: String,
-}
-
-/// SigVer expected result
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SigVerExpected {
-    tc_id: u32,
-    test_passed: bool,
-}
-
 /// ACVP prompt file structure for SigGen
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct AcvpSigGenPromptFile {
-    test_groups: Vec<SigGenPromptGroup>,
-}
+type AcvpSigGenPromptFile = AcvpFile<SigGenPromptGroup>;
 
 /// ACVP expected results file structure for SigGen
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct AcvpSigGenExpectedFile {
-    test_groups: Vec<SigGenExpectedGroup>,
-}
+type AcvpSigGenExpectedFile = AcvpFile<ExpectedGroup<SigGenExpected>>;
 
 /// SigGen test group in prompt file
 #[derive(Debug, Deserialize)]
@@ -163,14 +78,6 @@ struct SigGenPromptGroup {
     #[serde(default)]
     external_mu: bool,
     tests: Vec<serde_json::Value>,
-}
-
-/// SigGen test group in expected results file
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SigGenExpectedGroup {
-    tg_id: u32,
-    tests: Vec<SigGenExpected>,
 }
 
 /// SigGen prompt test case (internal interface with raw message)
@@ -190,38 +97,28 @@ struct SigGenExpected {
     signature: String,
 }
 
-fn hex_decode(s: &str) -> Vec<u8> {
-    hex::decode(s).expect("Invalid hex string")
-}
-
 fn load_keygen_prompt_file(path: &str) -> AcvpKeyGenPromptFile {
-    let content = fs::read_to_string(path).expect("Failed to read ACVP prompt file");
-    serde_json::from_str(&content).expect("Failed to parse ACVP prompt JSON")
+    load_json(path)
 }
 
 fn load_keygen_expected_file(path: &str) -> AcvpKeyGenExpectedFile {
-    let content = fs::read_to_string(path).expect("Failed to read ACVP expected file");
-    serde_json::from_str(&content).expect("Failed to parse ACVP expected JSON")
+    load_json(path)
 }
 
 fn load_sigver_prompt_file(path: &str) -> AcvpSigVerPromptFile {
-    let content = fs::read_to_string(path).expect("Failed to read ACVP prompt file");
-    serde_json::from_str(&content).expect("Failed to parse ACVP prompt JSON")
+    load_json(path)
 }
 
 fn load_sigver_expected_file(path: &str) -> AcvpSigVerExpectedFile {
-    let content = fs::read_to_string(path).expect("Failed to read ACVP expected file");
-    serde_json::from_str(&content).expect("Failed to parse ACVP expected JSON")
+    load_json(path)
 }
 
 fn load_siggen_prompt_file(path: &str) -> AcvpSigGenPromptFile {
-    let content = fs::read_to_string(path).expect("Failed to read ACVP prompt file");
-    serde_json::from_str(&content).expect("Failed to parse ACVP prompt JSON")
+    load_json(path)
 }
 
 fn load_siggen_expected_file(path: &str) -> AcvpSigGenExpectedFile {
-    let content = fs::read_to_string(path).expect("Failed to read ACVP expected file");
-    serde_json::from_str(&content).expect("Failed to parse ACVP expected JSON")
+    load_json(path)
 }
 
 // ============================================================================

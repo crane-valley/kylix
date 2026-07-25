@@ -66,3 +66,5 @@ sha3 = "0.10"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 proptest = "1.10"
+# Path-only (no version key) so cargo strips it from the published manifest.
+kylix-test-util = { path = "../kylix-test-util" }

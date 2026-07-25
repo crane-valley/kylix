@@ -1,0 +1,18 @@
+[package]
+name = "kylix-test-util"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Internal test scaffolding shared by the Kylix algorithm crates (not published)"
+# Dev-only crate: consumed via path-only dev-dependencies, never uploaded.
+publish = false
+
+[dependencies]
+hex = "0.4"
+proptest = "1.10"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

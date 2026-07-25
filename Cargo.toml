@@ -6,6 +6,7 @@ members = [
     "kylix-ml-kem",
     "kylix-ml-dsa",
     "kylix-slh-dsa",
+    "kylix-test-util",
 ]
 exclude = [
     "kylix-ml-kem/fuzz",

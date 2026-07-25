@@ -195,6 +195,7 @@ version = "0.4.5"
 dependencies = [
  "hex",
  "kylix-core",
+ "kylix-test-util",
  "proptest",
  "rand",
  "rand_core",
@@ -211,6 +212,7 @@ version = "0.4.5"
 dependencies = [
  "hex",
  "kylix-core",
+ "kylix-test-util",
  "proptest",
  "rand",
  "rand_core",
@@ -239,6 +241,7 @@ dependencies = [
  "hex",
  "hmac",
  "kylix-core",
+ "kylix-test-util",
  "proptest",
  "rand",
  "rand_chacha",
@@ -251,6 +254,16 @@ dependencies = [
  "sha3",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "kylix-test-util"
+version = "0.4.5"
+dependencies = [
+ "hex",
+ "proptest",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
