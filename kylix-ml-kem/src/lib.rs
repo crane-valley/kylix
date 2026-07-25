@@ -30,8 +30,9 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
 #![warn(clippy::all)]
-// Note: unsafe_code is allowed for SIMD optimizations in the simd module
-#![cfg_attr(not(feature = "simd"), deny(unsafe_code))]
+// Denied unconditionally: only the simd module opts back in with a narrow
+// allow, so enabling the simd feature no longer lifts the lint crate-wide.
+#![deny(unsafe_code)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![deny(clippy::unwrap_used, clippy::expect_used)]
 

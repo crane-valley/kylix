@@ -40,6 +40,11 @@ const BARRETT_V: i16 = 20159;
 /// Compute high 16 bits of signed 16x16->32 multiply for 8 values.
 ///
 /// Returns (a * b) >> 16 for each pair.
+///
+/// # Safety
+///
+/// The caller must ensure the `neon` target feature is available on the
+/// executing CPU.
 #[cfg(target_arch = "aarch64")]
 #[target_feature(enable = "neon")]
 #[inline]

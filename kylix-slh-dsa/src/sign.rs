@@ -21,16 +21,18 @@ use crate::fors::fors_pk_from_sig_to;
 use crate::fors::fors_sign_to;
 
 use rand_core::CryptoRng;
-use zeroize::{Zeroize, Zeroizing};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 #[cfg(not(feature = "std"))]
 use alloc::{vec, vec::Vec};
 
 /// Secret key components.
 ///
-/// Implements `Zeroize` via derive and manual `Drop` to ensure secret material
-/// is securely erased from memory when the key is dropped.
-#[derive(Clone, Zeroize)]
+/// Implements `Zeroize` and `ZeroizeOnDrop` so secret material is securely
+/// erased from memory when the key is dropped. `ZeroizeOnDrop` is derived
+/// rather than hand-rolled as a `Drop` impl so downstream code can rely on the
+/// marker trait as a bound.
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct SecretKey<const N: usize> {
     /// Secret seed for key generation.
     pub sk_seed: [u8; N],
@@ -90,13 +92,6 @@ impl<const N: usize> SecretKey<N> {
         key.pk_seed.copy_from_slice(&bytes[2 * N..3 * N]);
         key.pk_root.copy_from_slice(&bytes[3 * N..]);
         Some(key)
-    }
-}
-
-impl<const N: usize> Drop for SecretKey<N> {
-    fn drop(&mut self) {
-        // Zeroize all fields using the derived Zeroize impl
-        self.zeroize();
     }
 }
 
