@@ -128,7 +128,7 @@ fn load_siggen_expected_file(path: &str) -> AcvpSigGenExpectedFile {
 #[cfg(feature = "ml-dsa-44")]
 mod keygen_44 {
     use super::*;
-    use kylix_ml_dsa::dsa44::{SigningKey, VerificationKey};
+    use kylix_ml_dsa::ml_dsa_44::{SigningKey, VerificationKey};
 
     #[test]
     fn test_acvp_keygen_ml_dsa_44() {
@@ -186,7 +186,7 @@ mod keygen_44 {
 #[cfg(feature = "ml-dsa-65")]
 mod keygen_65 {
     use super::*;
-    use kylix_ml_dsa::dsa65::{SigningKey, VerificationKey};
+    use kylix_ml_dsa::ml_dsa_65::{SigningKey, VerificationKey};
 
     #[test]
     fn test_acvp_keygen_ml_dsa_65() {
@@ -242,7 +242,7 @@ mod keygen_65 {
 #[cfg(feature = "ml-dsa-87")]
 mod keygen_87 {
     use super::*;
-    use kylix_ml_dsa::dsa87::{SigningKey, VerificationKey};
+    use kylix_ml_dsa::ml_dsa_87::{SigningKey, VerificationKey};
 
     #[test]
     fn test_acvp_keygen_ml_dsa_87() {

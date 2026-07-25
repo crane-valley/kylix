@@ -107,11 +107,11 @@ mod types;
 pub(crate) mod simd;
 
 #[cfg(feature = "ml-dsa-44")]
-mod ml_dsa_44;
+pub mod ml_dsa_44;
 #[cfg(feature = "ml-dsa-65")]
-mod ml_dsa_65;
+pub mod ml_dsa_65;
 #[cfg(feature = "ml-dsa-87")]
-mod ml_dsa_87;
+pub mod ml_dsa_87;
 
 #[cfg(feature = "ml-dsa-44")]
 pub use ml_dsa_44::MlDsa44;
@@ -120,21 +120,37 @@ pub use ml_dsa_65::MlDsa65;
 #[cfg(feature = "ml-dsa-87")]
 pub use ml_dsa_87::MlDsa87;
 
-// Re-export variant modules for access to specific types
-/// ML-DSA-44 (NIST Security Level 2) - 128-bit classical security.
+// Legacy aliases for the variant modules, kept so existing `dsa*` paths keep
+// resolving. They re-export everything the `ml_dsa_*` modules expose.
+//
+// The `#[deprecated]` attribute only fires when the module is named as an item
+// (`use kylix_ml_dsa::dsa65;`). rustc does not report it for a path that merely
+// passes through the module (`use kylix_ml_dsa::dsa65::SigningKey;`), so most
+// downstream code gets no warning. The attribute is kept anyway for the cases
+// it does cover; do not assume it flags every legacy use site.
+/// Deprecated alias for [`ml_dsa_44`].
 #[cfg(feature = "ml-dsa-44")]
+#[deprecated(since = "0.5.0", note = "renamed to `ml_dsa_44`")]
 pub mod dsa44 {
     pub use crate::ml_dsa_44::*;
 }
 
-/// ML-DSA-65 (NIST Security Level 3) - 192-bit classical security.
+/// Deprecated alias for [`ml_dsa_65`].
+///
+/// ```no_run
+/// #[allow(deprecated)]
+/// use kylix_ml_dsa::dsa65; // prefer `kylix_ml_dsa::ml_dsa_65`
+/// let _: Option<dsa65::SigningKey> = None;
+/// ```
 #[cfg(feature = "ml-dsa-65")]
+#[deprecated(since = "0.5.0", note = "renamed to `ml_dsa_65`")]
 pub mod dsa65 {
     pub use crate::ml_dsa_65::*;
 }
 
-/// ML-DSA-87 (NIST Security Level 5) - 256-bit classical security.
+/// Deprecated alias for [`ml_dsa_87`].
 #[cfg(feature = "ml-dsa-87")]
+#[deprecated(since = "0.5.0", note = "renamed to `ml_dsa_87`")]
 pub mod dsa87 {
     pub use crate::ml_dsa_87::*;
 }

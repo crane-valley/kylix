@@ -67,7 +67,7 @@ let sk_bytes = sk.as_bytes();
 let pk_bytes = pk.as_bytes();
 let sig_bytes = signature.as_bytes();
 
-use kylix_ml_dsa::dsa65::{SigningKey, VerificationKey, Signature};
+use kylix_ml_dsa::ml_dsa_65::{SigningKey, VerificationKey, Signature};
 let sk = SigningKey::from_bytes(sk_bytes).unwrap();
 let pk = VerificationKey::from_bytes(pk_bytes).unwrap();
 let sig = Signature::from_bytes(sig_bytes).unwrap();
