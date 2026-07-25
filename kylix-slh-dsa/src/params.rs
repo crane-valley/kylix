@@ -16,60 +16,6 @@ pub mod common {
     pub const ADRS_BYTES: usize = 32;
 }
 
-/// Trait for SLH-DSA parameter sets.
-pub trait Params {
-    /// Security parameter n (hash output length in bytes).
-    const N: usize;
-
-    /// Height of each XMSS tree (h' = h/d).
-    const H_PRIME: usize;
-
-    /// Total Hypertree height.
-    const H: usize;
-
-    /// Number of Hypertree layers.
-    const D: usize;
-
-    /// FORS tree height.
-    const A: usize;
-
-    /// Number of FORS trees.
-    const K: usize;
-
-    /// WOTS+ len1 = ceil(8n / lg(w)).
-    const WOTS_LEN1: usize;
-
-    /// WOTS+ len2 = floor(lg(len1 * (w-1)) / lg(w)) + 1.
-    const WOTS_LEN2: usize;
-
-    /// Total WOTS+ signature length: len = len1 + len2.
-    const WOTS_LEN: usize = Self::WOTS_LEN1 + Self::WOTS_LEN2;
-
-    /// Public key size in bytes.
-    const PK_BYTES: usize = 2 * Self::N;
-
-    /// Secret key size in bytes.
-    const SK_BYTES: usize = 4 * Self::N;
-
-    /// Signature size in bytes.
-    /// SIG = R (n bytes) + SIG_FORS + SIG_HT
-    /// SIG_FORS = k * (a+1) * n bytes
-    /// SIG_HT = (h + d * len) * n bytes
-    const SIG_BYTES: usize = Self::N
-        + Self::K * (Self::A + 1) * Self::N
-        + (Self::H + Self::D * Self::WOTS_LEN) * Self::N;
-
-    /// Message digest length for FORS: ceil((k*a + 7)/8) + ceil((h - h'/d + 7)/8) + ceil((h'/8))
-    /// Simplified: we need k*a bits for FORS indices and h bits for tree/leaf addressing.
-    const MD_BYTES: usize;
-
-    /// Tree address bits.
-    const TREE_BITS: usize = Self::H - Self::H_PRIME;
-
-    /// Leaf address bits.
-    const LEAF_BITS: usize = Self::H_PRIME;
-}
-
 // =============================================================================
 // SHAKE-128s: Small signatures, slower signing
 // =============================================================================
@@ -105,21 +51,6 @@ pub mod slh_dsa_shake_128s {
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes.
     pub const MD_BYTES: usize = (K * A + H).div_ceil(8);
-
-    /// Parameter set marker type.
-    pub struct Params128s;
-
-    impl super::Params for Params128s {
-        const N: usize = N;
-        const H_PRIME: usize = H_PRIME;
-        const H: usize = H;
-        const D: usize = D;
-        const A: usize = A;
-        const K: usize = K;
-        const WOTS_LEN1: usize = WOTS_LEN1;
-        const WOTS_LEN2: usize = WOTS_LEN2;
-        const MD_BYTES: usize = MD_BYTES;
-    }
 }
 
 // =============================================================================
@@ -157,21 +88,6 @@ pub mod slh_dsa_shake_128f {
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes.
     pub const MD_BYTES: usize = (K * A + H).div_ceil(8);
-
-    /// Parameter set marker type.
-    pub struct Params128f;
-
-    impl super::Params for Params128f {
-        const N: usize = N;
-        const H_PRIME: usize = H_PRIME;
-        const H: usize = H;
-        const D: usize = D;
-        const A: usize = A;
-        const K: usize = K;
-        const WOTS_LEN1: usize = WOTS_LEN1;
-        const WOTS_LEN2: usize = WOTS_LEN2;
-        const MD_BYTES: usize = MD_BYTES;
-    }
 }
 
 // =============================================================================
@@ -209,21 +125,6 @@ pub mod slh_dsa_shake_192s {
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes.
     pub const MD_BYTES: usize = (K * A + H).div_ceil(8);
-
-    /// Parameter set marker type.
-    pub struct Params192s;
-
-    impl super::Params for Params192s {
-        const N: usize = N;
-        const H_PRIME: usize = H_PRIME;
-        const H: usize = H;
-        const D: usize = D;
-        const A: usize = A;
-        const K: usize = K;
-        const WOTS_LEN1: usize = WOTS_LEN1;
-        const WOTS_LEN2: usize = WOTS_LEN2;
-        const MD_BYTES: usize = MD_BYTES;
-    }
 }
 
 // =============================================================================
@@ -261,21 +162,6 @@ pub mod slh_dsa_shake_192f {
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes.
     pub const MD_BYTES: usize = (K * A + H).div_ceil(8);
-
-    /// Parameter set marker type.
-    pub struct Params192f;
-
-    impl super::Params for Params192f {
-        const N: usize = N;
-        const H_PRIME: usize = H_PRIME;
-        const H: usize = H;
-        const D: usize = D;
-        const A: usize = A;
-        const K: usize = K;
-        const WOTS_LEN1: usize = WOTS_LEN1;
-        const WOTS_LEN2: usize = WOTS_LEN2;
-        const MD_BYTES: usize = MD_BYTES;
-    }
 }
 
 // =============================================================================
@@ -313,21 +199,6 @@ pub mod slh_dsa_shake_256s {
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes.
     pub const MD_BYTES: usize = (K * A + H).div_ceil(8);
-
-    /// Parameter set marker type.
-    pub struct Params256s;
-
-    impl super::Params for Params256s {
-        const N: usize = N;
-        const H_PRIME: usize = H_PRIME;
-        const H: usize = H;
-        const D: usize = D;
-        const A: usize = A;
-        const K: usize = K;
-        const WOTS_LEN1: usize = WOTS_LEN1;
-        const WOTS_LEN2: usize = WOTS_LEN2;
-        const MD_BYTES: usize = MD_BYTES;
-    }
 }
 
 // =============================================================================
@@ -365,21 +236,6 @@ pub mod slh_dsa_shake_256f {
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes.
     pub const MD_BYTES: usize = (K * A + H).div_ceil(8);
-
-    /// Parameter set marker type.
-    pub struct Params256f;
-
-    impl super::Params for Params256f {
-        const N: usize = N;
-        const H_PRIME: usize = H_PRIME;
-        const H: usize = H;
-        const D: usize = D;
-        const A: usize = A;
-        const K: usize = K;
-        const WOTS_LEN1: usize = WOTS_LEN1;
-        const WOTS_LEN2: usize = WOTS_LEN2;
-        const MD_BYTES: usize = MD_BYTES;
-    }
 }
 
 // =============================================================================
@@ -419,21 +275,6 @@ pub mod slh_dsa_sha2_128s {
     /// FIPS 205 Section 11.1: m = ceil(k*a/8) + ceil(tree_bits/8) + ceil(leaf_bits/8)
     pub const MD_BYTES: usize =
         (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
-
-    /// Parameter set marker type.
-    pub struct Params128s;
-
-    impl super::Params for Params128s {
-        const N: usize = N;
-        const H_PRIME: usize = H_PRIME;
-        const H: usize = H;
-        const D: usize = D;
-        const A: usize = A;
-        const K: usize = K;
-        const WOTS_LEN1: usize = WOTS_LEN1;
-        const WOTS_LEN2: usize = WOTS_LEN2;
-        const MD_BYTES: usize = MD_BYTES;
-    }
 }
 
 // =============================================================================
@@ -472,21 +313,6 @@ pub mod slh_dsa_sha2_128f {
     /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
     pub const MD_BYTES: usize =
         (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
-
-    /// Parameter set marker type.
-    pub struct Params128f;
-
-    impl super::Params for Params128f {
-        const N: usize = N;
-        const H_PRIME: usize = H_PRIME;
-        const H: usize = H;
-        const D: usize = D;
-        const A: usize = A;
-        const K: usize = K;
-        const WOTS_LEN1: usize = WOTS_LEN1;
-        const WOTS_LEN2: usize = WOTS_LEN2;
-        const MD_BYTES: usize = MD_BYTES;
-    }
 }
 
 // =============================================================================
@@ -525,21 +351,6 @@ pub mod slh_dsa_sha2_192s {
     /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
     pub const MD_BYTES: usize =
         (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
-
-    /// Parameter set marker type.
-    pub struct Params192s;
-
-    impl super::Params for Params192s {
-        const N: usize = N;
-        const H_PRIME: usize = H_PRIME;
-        const H: usize = H;
-        const D: usize = D;
-        const A: usize = A;
-        const K: usize = K;
-        const WOTS_LEN1: usize = WOTS_LEN1;
-        const WOTS_LEN2: usize = WOTS_LEN2;
-        const MD_BYTES: usize = MD_BYTES;
-    }
 }
 
 // =============================================================================
@@ -578,21 +389,6 @@ pub mod slh_dsa_sha2_192f {
     /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
     pub const MD_BYTES: usize =
         (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
-
-    /// Parameter set marker type.
-    pub struct Params192f;
-
-    impl super::Params for Params192f {
-        const N: usize = N;
-        const H_PRIME: usize = H_PRIME;
-        const H: usize = H;
-        const D: usize = D;
-        const A: usize = A;
-        const K: usize = K;
-        const WOTS_LEN1: usize = WOTS_LEN1;
-        const WOTS_LEN2: usize = WOTS_LEN2;
-        const MD_BYTES: usize = MD_BYTES;
-    }
 }
 
 // =============================================================================
@@ -631,21 +427,6 @@ pub mod slh_dsa_sha2_256s {
     /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
     pub const MD_BYTES: usize =
         (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
-
-    /// Parameter set marker type.
-    pub struct Params256s;
-
-    impl super::Params for Params256s {
-        const N: usize = N;
-        const H_PRIME: usize = H_PRIME;
-        const H: usize = H;
-        const D: usize = D;
-        const A: usize = A;
-        const K: usize = K;
-        const WOTS_LEN1: usize = WOTS_LEN1;
-        const WOTS_LEN2: usize = WOTS_LEN2;
-        const MD_BYTES: usize = MD_BYTES;
-    }
 }
 
 // =============================================================================
@@ -684,21 +465,6 @@ pub mod slh_dsa_sha2_256f {
     /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
     pub const MD_BYTES: usize =
         (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
-
-    /// Parameter set marker type.
-    pub struct Params256f;
-
-    impl super::Params for Params256f {
-        const N: usize = N;
-        const H_PRIME: usize = H_PRIME;
-        const H: usize = H;
-        const D: usize = D;
-        const A: usize = A;
-        const K: usize = K;
-        const WOTS_LEN1: usize = WOTS_LEN1;
-        const WOTS_LEN2: usize = WOTS_LEN2;
-        const MD_BYTES: usize = MD_BYTES;
-    }
 }
 
 #[cfg(all(test, feature = "any-variant"))]
