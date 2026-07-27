@@ -72,6 +72,6 @@ fuzz_target!(|input: KeygenInput| {
     let (sk, pk) = result.unwrap();
 
     // Keys should have correct sizes
-    assert_eq!(sk.to_bytes().len(), SlhDsaShake128f::SIGNING_KEY_SIZE);
-    assert_eq!(pk.to_bytes().len(), SlhDsaShake128f::VERIFICATION_KEY_SIZE);
+    assert_eq!(sk.as_bytes().len(), SlhDsaShake128f::SIGNING_KEY_SIZE);
+    assert_eq!(pk.as_bytes().len(), SlhDsaShake128f::VERIFICATION_KEY_SIZE);
 });

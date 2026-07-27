@@ -18,10 +18,6 @@
 #![allow(clippy::cast_sign_loss)]
 // Use explicit a = a + b form for consistency with ntt.rs scalar implementation
 #![allow(clippy::assign_op_pattern)]
-// Allow dead_code for poly_add/poly_sub which are implemented but not yet
-// integrated into the main poly.rs. These will be used in a future PR to
-// accelerate polynomial arithmetic throughout the crate.
-#![allow(dead_code)]
 
 #[cfg(target_arch = "x86_64")]
 use core::arch::x86_64::*;
@@ -641,50 +637,6 @@ unsafe fn interleave_16(even: __m256i, odd: __m256i) -> __m256i {
 }
 
 // ============================================================================
-// Polynomial arithmetic
-// ============================================================================
-
-/// Polynomial addition using AVX2.
-///
-/// Computes r[i] = a[i] + b[i] for all 256 coefficients.
-///
-/// # Safety
-///
-/// Requires AVX2 support.
-#[cfg(target_arch = "x86_64")]
-#[target_feature(enable = "avx2")]
-pub unsafe fn poly_add(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) {
-    for i in (0..N).step_by(16) {
-        let va = _mm256_loadu_si256(a.as_ptr().add(i).cast());
-        let vb = _mm256_loadu_si256(b.as_ptr().add(i).cast());
-
-        let vr = _mm256_add_epi16(va, vb);
-
-        _mm256_storeu_si256(r.as_mut_ptr().add(i).cast(), vr);
-    }
-}
-
-/// Polynomial subtraction using AVX2.
-///
-/// Computes r[i] = a[i] - b[i] for all 256 coefficients.
-///
-/// # Safety
-///
-/// Requires AVX2 support.
-#[cfg(target_arch = "x86_64")]
-#[target_feature(enable = "avx2")]
-pub unsafe fn poly_sub(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) {
-    for i in (0..N).step_by(16) {
-        let va = _mm256_loadu_si256(a.as_ptr().add(i).cast());
-        let vb = _mm256_loadu_si256(b.as_ptr().add(i).cast());
-
-        let vr = _mm256_sub_epi16(va, vb);
-
-        _mm256_storeu_si256(r.as_mut_ptr().add(i).cast(), vr);
-    }
-}
-
-// ============================================================================
 // Tests
 // ============================================================================
 
@@ -812,62 +764,6 @@ mod tests {
             let expected = crate::reduce::barrett_reduce_full(orig);
             assert_eq!(result, expected, "Roundtrip mismatch at index {}", i);
         }
-    }
-
-    #[test]
-    fn test_poly_add_equivalence() {
-        if !super::super::has_avx2() {
-            return;
-        }
-
-        let mut a = [0i16; N];
-        let mut b = [0i16; N];
-        for i in 0..N {
-            a[i] = (i as i16) % 3329;
-            b[i] = ((i * 2) as i16) % 3329;
-        }
-
-        // Scalar reference
-        let mut expected = [0i16; N];
-        for i in 0..N {
-            expected[i] = a[i].wrapping_add(b[i]);
-        }
-
-        // SIMD version
-        let mut result = [0i16; N];
-        unsafe {
-            poly_add(&mut result, &a, &b);
-        }
-
-        assert_eq!(expected, result);
-    }
-
-    #[test]
-    fn test_poly_sub_equivalence() {
-        if !super::super::has_avx2() {
-            return;
-        }
-
-        let mut a = [0i16; N];
-        let mut b = [0i16; N];
-        for i in 0..N {
-            a[i] = ((i + 100) as i16) % 3329;
-            b[i] = (i as i16) % 3329;
-        }
-
-        // Scalar reference
-        let mut expected = [0i16; N];
-        for i in 0..N {
-            expected[i] = a[i].wrapping_sub(b[i]);
-        }
-
-        // SIMD version
-        let mut result = [0i16; N];
-        unsafe {
-            poly_sub(&mut result, &a, &b);
-        }
-
-        assert_eq!(expected, result);
     }
 
     #[test]
