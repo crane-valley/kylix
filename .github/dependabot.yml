@@ -18,6 +18,8 @@ updates:
         versions: [">=0.11.0"]
       - dependency-name: "sha3"
         versions: [">=0.11.0"]
+      - dependency-name: "zeroize"
+        versions: [">=1.9.0"]
     assignees:
       - "kiyoaki"
     labels:
