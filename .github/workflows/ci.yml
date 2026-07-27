@@ -161,7 +161,7 @@ jobs:
 
           # Get absolute value and check against threshold (4.5)
           # Values with |t| < 4.5 indicate constant-time behavior
-          ABS_T=$(echo "$MAX_T" | tr -d '-')
+          ABS_T=$(echo "$MAX_T" | tr -d '+-')
           echo "Absolute max t: $ABS_T"
 
           # Decision matrix:
