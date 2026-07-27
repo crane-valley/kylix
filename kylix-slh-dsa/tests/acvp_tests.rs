@@ -8,8 +8,7 @@
 //! These tests use official NIST test vectors from:
 //! https://github.com/usnistgov/ACVP-Server/tree/master/gen-val/json-files
 //!
-//! Note: These tests are skipped when the test vectors are not present
-//! (e.g., when running from crates.io package where they are excluded).
+//! These tests are skipped when a partial source archive omits the vectors.
 
 use kylix_test_util::acvp::{
     hex_decode, load_json, AcvpFile, ExpectedGroup, KeyGenExpected, SigVerExpected,

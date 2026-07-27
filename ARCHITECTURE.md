@@ -26,7 +26,7 @@ kylix-core provides:
 
 | Path | Package | Notes |
 |------|---------|-------|
-| `kylix/` | `kylix-pqc` | Facade crate published as `kylix-pqc` |
+| `kylix/` | `kylix-pqc` | Facade crate |
 | `kylix-core/` | `kylix-core` | Shared traits, errors, reduction/NTT/SIMD macros |
 | `kylix-ml-kem/` | `kylix-ml-kem` | ML-KEM implementation crate |
 | `kylix-ml-dsa/` | `kylix-ml-dsa` | ML-DSA implementation crate |
@@ -205,7 +205,7 @@ algorithm crate exposes per-variant SHA2 features such as
 All crates support `no_std` with `alloc`. Disable default features and select variants:
 
 ```toml
-kylix-ml-kem = { version = "0.5", default-features = false, features = ["ml-kem-768"] }
+kylix-ml-kem = { git = "https://github.com/crane-valley/kylix.git", default-features = false, features = ["ml-kem-768"] }
 ```
 
 ## Testing Strategy
@@ -219,7 +219,8 @@ kylix-ml-kem = { version = "0.5", default-features = false, features = ["ml-kem-
 | Unit tests | Built-in | Reduction, NTT, encoding, parameter validation |
 | Dependency audit | cargo-audit | CI integration |
 
-ACVP test vectors (1.4-30 MB) are excluded from crates.io but available in the git repository.
+ACVP test vectors (1.4-30 MB) are kept in the Git repository and omitted from
+ad-hoc Cargo package archives.
 
 ## Build Profiles
 

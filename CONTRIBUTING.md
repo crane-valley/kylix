@@ -34,4 +34,4 @@ affected crate builds without default features.
 
 - Use a clear title and describe the user-facing impact.
 - Call out feature-flag, security, and compatibility implications explicitly.
-- Maintainers handle merging and release flow.
+- Maintainers handle merging and repository maintenance.

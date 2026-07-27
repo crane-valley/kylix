@@ -1,7 +1,7 @@
 //! Test scaffolding shared by the Kylix algorithm crates.
 //!
 //! This crate is dev-only (`publish = false`) and is consumed through
-//! path-only dev-dependencies, so it never appears in published packages.
+//! path-only dev-dependencies, so it cannot become a registry dependency.
 //!
 //! It holds the parts of the ACVP harness that are identical across
 //! kylix-ml-kem, kylix-ml-dsa and kylix-slh-dsa: vector-directory

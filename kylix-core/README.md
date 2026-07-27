@@ -2,7 +2,9 @@
 
 Core traits, error types, and macros for the [Kylix](https://github.com/crane-valley/kylix) post-quantum cryptography library.
 
-This crate is an internal building block — most users should depend on [`kylix-pqc`](https://crates.io/crates/kylix-pqc) or individual algorithm crates instead.
+This crate is an internal building block — most users should depend on the
+[`kylix-pqc`](https://github.com/crane-valley/kylix) facade or individual
+algorithm crates instead.
 
 ## Contents
 
@@ -45,7 +47,7 @@ Compile-time code generation for lattice-based cryptography:
 ### no_std
 
 ```toml
-kylix-core = { version = "0.5", default-features = false }
+kylix-core = { git = "https://github.com/crane-valley/kylix.git", default-features = false }
 ```
 
 ## License
