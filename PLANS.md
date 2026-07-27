@@ -9,17 +9,20 @@ packaging, or audit readiness are deferred unless the project direction changes.
 
 ---
 
-## Current Status (v0.4.5)
+## Current Status
 
-### Completed
+- **Latest published release**: `v0.4.5`
+- **Workspace version on `main`**: `0.5.0` (unreleased; see `CHANGELOG.md`)
+
+### Completed on `main`
 
 - **Algorithms**: ML-KEM-512/768/1024 (FIPS 203), ML-DSA-44/65/87 (FIPS 204), SLH-DSA-SHAKE/SHA2 all variants (FIPS 205)
 - **Performance**: SIMD (AVX2/NEON) for NTT, basemul, Barrett reduction, pointwise mul; ML-DSA WASM-SIMD128 pointwise mul; ML-DSA expanded verification; SLH-DSA parallel feature; benchmark stability (kylix-cli)
 - **Quality**: ACVP tests, fuzz testing, no_std, constant-time (`subtle`/dudect), zeroization, proptest, clippy clean (`--all-features` and `--no-default-features`)
 - **Infrastructure**: Core shared macros (kylix-core), key type wrapper macros, buffer-write API (`_to` variants), dudect CI
 - **Security fixes**: Constant-time hypertree verify (`ct_eq`), constant-time polyvec `check_norm` (`Choice`), SHA-512 for SHA2 category 3/5 (FIPS 205 §10.2), FIPS 203 §7.2 ek modulus check in `ml_kem_encaps`/`ml_kem_decaps`, `ml_dsa_verify` public-key length check (commit 212c030)
-- **API**: `as_bytes()` on all key types via the shared `kylix_core::impl_fixed_bytes!` macro. Not yet unified in return type: ML-KEM and SLH-DSA return `&[u8]`, ML-DSA still returns fixed-size array references (`&[u8; N]`). Unifying ML-DSA is a public-surface change reserved for 0.5.0.
-- **Refactoring**: ML-DSA sign.rs function splitting (PR #143) — extracted helpers, removed debug `eprintln!`, added zeroization on failure path
+- **API**: Unified `as_bytes() -> &[u8]` across ML-KEM, ML-DSA, and SLH-DSA key and signature types. The ML-DSA return-type change is part of the unreleased 0.5.0 compatibility notes in `CHANGELOG.md`.
+- **Refactoring**: ML-DSA sign.rs function splitting (PR #143); checked ML-DSA mask-nonce conversion with an overflow boundary test; unified plain/expanded ML-DSA verification; a single SLH-DSA signing body with feature-specific dispatch; and WOTS+ `wots_pk_gen_to` / `wots_pk_from_sig_to` buffer-write paths
 
 > See `CHANGELOG.md` for full release history and `BENCHMARKS.md` for performance data.
 
@@ -36,10 +39,7 @@ packaging, or audit readiness are deferred unless the project direction changes.
 
 | Component | Priority | Impact | Notes |
 |-----------|----------|--------|-------|
-| ML-DSA: Nonce u16 Overflow at High Iteration Count | LOW | Correctness | In `ml_dsa_sign`, `nonce as u16` truncates for ML-DSA-87 (L=7) when `kappa > 9362` (nonce = kappa\*L+i > 65535). Astronomically unlikely to reach but technically incorrect. Consider using `u32` nonces or lowering `MAX_ATTEMPTS`. Pre-existing issue, not introduced by sign.rs refactor. |
 | Poly API Consistency | LOW | Ergonomics | ML-KEM uses module functions (`poly_add()`), ML-DSA uses methods (`.add()`). Standardize only if the API churn is worth it. |
-| SLH-DSA: parallel/sequential Sign Dedup | LOW | Code quality | `slh_sign_impl()` has parallel and sequential versions (~90 lines each) that differ only in trait bounds (`Send + Sync`), FORS sign function call, and address mutability semantics. Unification is non-trivial due to Rust's inability to conditionally apply trait bounds. |
-| SLH-DSA: wots_pk_gen_to / wots_pk_from_sig_to | LOW | Performance | Add `_to` buffer-write variants for `wots_pk_gen` and `wots_pk_from_sig` to eliminate their single Vec return allocation. Low priority since these are called once per WOTS+ operation (not in hot loops). |
 
 ---
 
