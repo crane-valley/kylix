@@ -43,7 +43,7 @@ jobs:
         run: cargo install cargo-fuzz
 
       - name: Download corpus
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: kylix-ml-kem/fuzz/corpus/${{ matrix.target }}
           key: fuzz-corpus-ml-kem-${{ matrix.target }}-${{ github.run_id }}
@@ -177,7 +177,7 @@ jobs:
         run: cargo install cargo-fuzz
 
       - name: Download corpus
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: kylix-ml-dsa/fuzz/corpus/${{ matrix.target }}
           key: fuzz-corpus-ml-dsa-${{ matrix.target }}-${{ github.run_id }}
@@ -299,7 +299,7 @@ jobs:
           - fuzz_verify
           - fuzz_roundtrip
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@nightly
 
@@ -311,7 +311,7 @@ jobs:
         run: cargo install cargo-fuzz
 
       - name: Download corpus
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: kylix-slh-dsa/fuzz/corpus/${{ matrix.target }}
           key: fuzz-corpus-slh-dsa-${{ matrix.target }}-${{ github.run_id }}
@@ -388,7 +388,7 @@ jobs:
         # Only report a real crash: a bare failure() also fires on infra
         # failures (checkout, toolchain, cargo-fuzz install, build).
         if: failure() && steps.fuzz.outputs.crash_count > 0
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const target = 'slh-dsa/${{ matrix.target }}';
