@@ -388,7 +388,7 @@ jobs:
         # Only report a real crash: a bare failure() also fires on infra
         # failures (checkout, toolchain, cargo-fuzz install, build).
         if: failure() && steps.fuzz.outputs.crash_count > 0
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const target = 'slh-dsa/${{ matrix.target }}';
