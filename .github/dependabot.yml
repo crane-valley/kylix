@@ -9,6 +9,15 @@ updates:
       time: "09:00"
       timezone: "Asia/Tokyo"
     open-pull-requests-limit: 5
+    # These major lines require Rust 1.85, while Kylix supports Rust 1.75.
+    # Remove the matching constraint when the workspace MSRV is raised.
+    ignore:
+      - dependency-name: "hmac"
+        versions: [">=0.13.0"]
+      - dependency-name: "sha2"
+        versions: [">=0.11.0"]
+      - dependency-name: "sha3"
+        versions: [">=0.11.0"]
     assignees:
       - "kiyoaki"
     labels:
