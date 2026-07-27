@@ -21,7 +21,7 @@ Part of the [Kylix](https://github.com/crane-valley/kylix) post-quantum cryptogr
 
 ```toml
 [dependencies]
-kylix-ml-kem = "0.4"
+kylix-ml-kem = "0.5"
 rand = "0.9"
 ```
 
@@ -78,7 +78,7 @@ let dk = DecapsulationKey::from_bytes(dk_bytes).unwrap();
 ### no_std
 
 ```toml
-kylix-ml-kem = { version = "0.4", default-features = false, features = ["ml-kem-768"] }
+kylix-ml-kem = { version = "0.5", default-features = false, features = ["ml-kem-768"] }
 ```
 
 ## License

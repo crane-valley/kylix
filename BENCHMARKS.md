@@ -1,10 +1,19 @@
 # Kylix Benchmark Results
 
+> Measurement provenance: the tables below come from several separate
+> benchmark runs recorded between 2026-01-22 and 2026-01-25, and none of
+> them has been re-measured since. Each table is labelled with the commit
+> that recorded it. Figures from different runs are not comparable with
+> each other, and several tables disagree on the same operation. Treat the
+> absolute numbers as stale and re-run the benchmarks before quoting them.
+
 ## SLH-DSA Performance
 
 Benchmarks for SLH-DSA "fast" variants only. The "small" variants are significantly slower.
 
 ### Summary
+
+Run: commit 5a41db3 (2026-01-24).
 
 | Algorithm | KeyGen | Sign | Verify |
 |-----------|--------|------|--------|
@@ -21,6 +30,9 @@ Benchmarks for SLH-DSA "fast" variants only. The "small" variants are significan
 | SLH-DSA-SHAKE-256f | 64 bytes | 128 bytes | 49,856 bytes |
 
 ### Library Comparison (SLH-DSA-SHAKE-128f)
+
+Run: commit 57c10df (2026-01-25). Separate run from the Summary above, which
+reports different Kylix figures for the same operations.
 
 | Library | KeyGen | Sign | Verify |
 |---------|--------|------|--------|
@@ -43,6 +55,8 @@ Benchmarks run with `cargo bench -p kylix-bench --bench ml_dsa` (in the [kylix-c
 
 ### Summary
 
+Run: commit 30d7429 (2026-01-25).
+
 | Algorithm | KeyGen | Sign | Verify |
 |-----------|--------|------|--------|
 | ML-DSA-44 | 60 µs | 115 µs | 60 µs |
@@ -59,6 +73,9 @@ Benchmarks run with `cargo bench -p kylix-bench --bench ml_dsa` (in the [kylix-c
 
 ### Performance vs Targets
 
+Kylix column reuses the Summary run above (commit 30d7429). The target column
+records historical goals that are no longer tracked in `PLANS.md`.
+
 | Operation | Kylix | Target | Status |
 |-----------|-------|--------|--------|
 | ML-DSA-65 KeyGen | 97 µs | - | ✅ |
@@ -66,6 +83,11 @@ Benchmarks run with `cargo bench -p kylix-bench --bench ml_dsa` (in the [kylix-c
 | ML-DSA-65 Verify | 102 µs | < 100 µs | ⚠️ Close |
 
 ### Library Comparison (ML-DSA-65)
+
+Run: commit 57c10df (2026-01-25). Separate run from the Summary above and not
+comparable with it: the two disagree on ML-DSA-65 sign (165 there, 274.8 here)
+and on keygen and verify. Use this table only for the relative ordering between
+libraries within it.
 
 | Library | KeyGen | Sign | Verify |
 |---------|--------|------|--------|
@@ -77,6 +99,9 @@ Benchmarks run with `cargo bench -p kylix-bench --bench ml_dsa` (in the [kylix-c
 ### Expanded Verification (Pre-computed Keys)
 
 For repeated verification with the same public key, use `expand()` + `verify_expanded()`:
+
+Run: commit 356c723 (2026-01-25). Its `regular` column is a separate
+measurement from the Summary run above.
 
 | Variant | expand() | regular | expanded | Speedup |
 |---------|----------|---------|----------|---------|
@@ -102,6 +127,8 @@ Benchmarks run with `cargo bench -p kylix-bench` (in the [kylix-cli](https://git
 
 ### Summary
 
+Run: commit 85e3b23 (2026-01-25).
+
 | Algorithm | KeyGen | Encaps | Decaps | Roundtrip |
 |-----------|--------|--------|--------|-----------|
 | ML-KEM-512 | 18.1 µs | 15.1 µs | 20.5 µs | 53.0 µs |
@@ -118,7 +145,8 @@ Benchmarks run with `cargo bench -p kylix-bench` (in the [kylix-cli](https://git
 
 ### Performance vs Targets
 
-Based on [PLANS.md](PLANS.md) performance goals:
+Kylix column reuses the Summary run above (commit 85e3b23). The target column
+records historical goals that `PLANS.md` no longer defines.
 
 | Operation | Kylix | Target | Status |
 |-----------|-------|--------|--------|
@@ -127,6 +155,10 @@ Based on [PLANS.md](PLANS.md) performance goals:
 | ML-KEM-768 Decaps | 31.2 µs | < 50 µs | ✅ Pass |
 
 ### Library Comparison (ML-KEM-768)
+
+Run: commit 57c10df (2026-01-25) for the Kylix and libcrux rows, commit 85e3b23
+for the RustCrypto and pqcrypto rows. Not comparable with the Summary above,
+which reports different Kylix figures (encaps 27.4 there, 22.6 here).
 
 | Library | KeyGen | Encaps | Decaps |
 |---------|--------|--------|--------|
@@ -143,6 +175,9 @@ Based on [PLANS.md](PLANS.md) performance goals:
 > - Kylix is faster than RustCrypto and pqcrypto, ~2.5x slower than libcrux (which uses formally verified, platform-specific assembly)
 
 ### Throughput
+
+Derived as the reciprocal of the Summary run timings (commit 85e3b23), not a
+separate measurement.
 
 | Algorithm | KeyGen | Encaps | Decaps |
 |-----------|--------|--------|--------|

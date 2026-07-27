@@ -16,9 +16,9 @@
 
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::cast_sign_loss)]
-// Intentional scaffolding for future SIMD implementation; some functions
-// (poly_add, poly_sub, caddq_wasm) are prepared but not yet exposed.
-#![allow(dead_code)]
+// Without the simd128 target feature the dispatch arms in simd/mod.rs are
+// compiled out, which leaves every function here unreferenced.
+#![cfg_attr(not(target_feature = "simd128"), allow(dead_code))]
 
 #[cfg(target_arch = "wasm32")]
 use core::arch::wasm32::*;
@@ -121,6 +121,8 @@ pub unsafe fn pointwise_mul_acc(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) {
 ///
 /// - Requires WASM SIMD128 support
 /// - All arrays must have exactly N (256) elements
+// Not wired into the scalar poly paths yet; kept as prepared SIMD scaffolding.
+#[allow(dead_code)]
 #[cfg(target_arch = "wasm32")]
 #[target_feature(enable = "simd128")]
 pub unsafe fn poly_add(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) {
@@ -142,6 +144,8 @@ pub unsafe fn poly_add(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) {
 ///
 /// - Requires WASM SIMD128 support
 /// - All arrays must have exactly N (256) elements
+// Not wired into the scalar poly paths yet; kept as prepared SIMD scaffolding.
+#[allow(dead_code)]
 #[cfg(target_arch = "wasm32")]
 #[target_feature(enable = "simd128")]
 pub unsafe fn poly_sub(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) {
@@ -162,6 +166,8 @@ pub unsafe fn poly_sub(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) {
 /// # Safety
 ///
 /// Requires WASM SIMD128 support.
+// Not wired into the scalar poly paths yet; kept as prepared SIMD scaffolding.
+#[allow(dead_code)]
 #[cfg(target_arch = "wasm32")]
 #[target_feature(enable = "simd128")]
 pub unsafe fn caddq_wasm(a: &mut [i32; N]) {

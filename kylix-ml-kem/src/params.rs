@@ -1,7 +1,6 @@
 //! ML-KEM parameter sets as defined in FIPS 203.
 
 /// Common parameters for all ML-KEM variants.
-#[allow(dead_code)]
 pub mod common {
     /// Polynomial ring dimension (n).
     pub const N: usize = 256;
@@ -10,9 +9,13 @@ pub mod common {
     pub const Q: u16 = 3329;
 
     /// Shared secret size in bytes.
+    // Unused when no parameter-set feature is enabled.
+    #[allow(dead_code)]
     pub const SHARED_SECRET_SIZE: usize = 32;
 
     /// Seed size for key generation.
+    // Currently unused; kept as part of the complete FIPS 203 primitive set.
+    #[allow(dead_code)]
     pub const SEED_SIZE: usize = 32;
 }
 
@@ -45,6 +48,8 @@ pub mod ml_kem_512 {
     pub const CIPHERTEXT_SIZE: usize = 768;
 
     /// Shared secret size in bytes.
+    // Unused when no parameter-set feature is enabled.
+    #[allow(dead_code)]
     pub const SHARED_SECRET_SIZE: usize = super::common::SHARED_SECRET_SIZE;
 }
 
@@ -77,6 +82,8 @@ pub mod ml_kem_768 {
     pub const CIPHERTEXT_SIZE: usize = 1088;
 
     /// Shared secret size in bytes.
+    // Unused when no parameter-set feature is enabled.
+    #[allow(dead_code)]
     pub const SHARED_SECRET_SIZE: usize = super::common::SHARED_SECRET_SIZE;
 }
 
@@ -109,5 +116,7 @@ pub mod ml_kem_1024 {
     pub const CIPHERTEXT_SIZE: usize = 1568;
 
     /// Shared secret size in bytes.
+    // Unused when no parameter-set feature is enabled.
+    #[allow(dead_code)]
     pub const SHARED_SECRET_SIZE: usize = super::common::SHARED_SECRET_SIZE;
 }

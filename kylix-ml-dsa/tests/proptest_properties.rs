@@ -9,16 +9,12 @@
 //! - Wrong key: verification with wrong public key fails
 //! - Tampered message: verification with tampered message fails
 
+use kylix_test_util::proptest_util::arb_seed;
 use proptest::prelude::*;
-
-/// Generate arbitrary 32-byte seeds for testing
-fn arb_seed() -> impl Strategy<Value = [u8; 32]> {
-    prop::array::uniform32(any::<u8>())
-}
 
 /// Generate arbitrary messages (0-256 bytes)
 fn arb_message() -> impl Strategy<Value = Vec<u8>> {
-    prop::collection::vec(any::<u8>(), 0..256)
+    kylix_test_util::proptest_util::arb_message(256)
 }
 
 macro_rules! ml_dsa_proptest {

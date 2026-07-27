@@ -21,7 +21,7 @@ Part of the [Kylix](https://github.com/crane-valley/kylix) post-quantum cryptogr
 
 ```toml
 [dependencies]
-kylix-ml-dsa = "0.4"
+kylix-ml-dsa = "0.5"
 rand = "0.9"
 ```
 
@@ -67,7 +67,7 @@ let sk_bytes = sk.as_bytes();
 let pk_bytes = pk.as_bytes();
 let sig_bytes = signature.as_bytes();
 
-use kylix_ml_dsa::dsa65::{SigningKey, VerificationKey, Signature};
+use kylix_ml_dsa::ml_dsa_65::{SigningKey, VerificationKey, Signature};
 let sk = SigningKey::from_bytes(sk_bytes).unwrap();
 let pk = VerificationKey::from_bytes(pk_bytes).unwrap();
 let sig = Signature::from_bytes(sig_bytes).unwrap();
@@ -94,7 +94,7 @@ let sig = Signature::from_bytes(sig_bytes).unwrap();
 ### no_std
 
 ```toml
-kylix-ml-dsa = { version = "0.4", default-features = false, features = ["ml-dsa-65"] }
+kylix-ml-dsa = { version = "0.5", default-features = false, features = ["ml-dsa-65"] }
 ```
 
 ## License

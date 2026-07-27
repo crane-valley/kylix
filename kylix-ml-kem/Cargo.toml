@@ -10,9 +10,16 @@ homepage.workspace = true
 categories.workspace = true
 keywords.workspace = true
 description = "ML-KEM (FIPS 203) implementation for the Kylix post-quantum cryptography library"
-# Exclude large ACVP test vectors from published crate (1.4MB)
+# Exclude large ACVP test vectors from published crate (1.4MB), plus the test
+# harnesses that depend on the unpublished kylix-test-util crate: cargo strips
+# its path-only dev-dependency when packaging, so packaged copies of these files
+# would fail to compile from the crates.io tarball.
 # Tests can still run from git repository
-exclude = ["tests/acvp/"]
+exclude = [
+    "tests/acvp/",
+    "tests/acvp_tests.rs",
+    "tests/proptest_properties.rs",
+]
 
 [features]
 default = ["std", "ml-kem-768", "simd"]
@@ -39,3 +46,5 @@ hex = "0.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 proptest = "1.10"
+# Path-only (no version key) so cargo strips it from the published manifest.
+kylix-test-util = { path = "../kylix-test-util" }

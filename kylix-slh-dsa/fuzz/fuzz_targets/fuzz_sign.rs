@@ -75,5 +75,5 @@ fuzz_target!(|input: SignInput| {
     let sig = result.unwrap();
 
     // Signature should have correct size
-    assert_eq!(sig.to_bytes().len(), SlhDsaShake128f::SIGNATURE_SIZE);
+    assert_eq!(sig.as_bytes().len(), SlhDsaShake128f::SIGNATURE_SIZE);
 });

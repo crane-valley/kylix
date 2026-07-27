@@ -12,17 +12,10 @@
 //! - Basic properties: roundtrip (encaps/decaps), key sizes, ciphertext size
 //! - Determinism: same seed produces same keys
 
+// Encapsulation randomness has the same shape as a keygen seed.
+use kylix_test_util::proptest_util::arb_seed;
+use kylix_test_util::proptest_util::arb_seed as arb_randomness;
 use proptest::prelude::*;
-
-/// Generate arbitrary 32-byte seeds for testing
-fn arb_seed() -> impl Strategy<Value = [u8; 32]> {
-    prop::array::uniform32(any::<u8>())
-}
-
-/// Generate arbitrary randomness for encapsulation
-fn arb_randomness() -> impl Strategy<Value = [u8; 32]> {
-    prop::array::uniform32(any::<u8>())
-}
 
 macro_rules! ml_kem_proptest {
     ($mod_name:ident, $variant:ident, $feature:literal, $cases:expr) => {

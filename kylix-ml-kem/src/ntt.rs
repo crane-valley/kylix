@@ -5,8 +5,6 @@
 //!
 //! All operations are constant-time.
 
-// NTT internals used by polynomial multiplication; not directly exposed.
-#![allow(dead_code)]
 #![allow(clippy::manual_range_contains)]
 
 use crate::params::common::N;

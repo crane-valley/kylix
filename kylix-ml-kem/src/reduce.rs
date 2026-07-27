@@ -5,9 +5,6 @@
 //!
 //! This module uses macros from kylix-core to generate the reduction functions.
 
-// Reduction functions include both Barrett and Montgomery; not all always used.
-#![allow(dead_code)]
-
 use crate::params::common::Q;
 use kylix_core::{define_barrett_reduce_rounded, define_montgomery_mul, define_montgomery_reduce};
 
@@ -15,6 +12,8 @@ use kylix_core::{define_barrett_reduce_rounded, define_montgomery_mul, define_mo
 pub const QINV: i32 = -3327;
 
 /// Montgomery constant: 2^16 mod q = 2285
+// Not called from production paths; exercised by this module's unit tests.
+#[allow(dead_code)]
 pub const MONT: i16 = 2285;
 
 /// R^2 mod q for Montgomery: (2^16)^2 mod q = 1353
@@ -59,6 +58,8 @@ define_montgomery_mul! {
 ///
 /// If r >= q, returns r - q; otherwise returns r unchanged.
 /// Uses bitwise selection to avoid data-dependent branches.
+// Currently unused; kept as part of the complete FIPS 203 primitive set.
+#[allow(dead_code)]
 #[inline]
 pub const fn cond_reduce(r: i16) -> i16 {
     let r_minus_q = r - Q as i16;

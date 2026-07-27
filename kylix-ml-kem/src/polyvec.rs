@@ -3,8 +3,6 @@
 //! This module provides the `PolyVec` type representing a vector of K polynomials,
 //! along with arithmetic operations, NTT transforms, and serialization.
 
-// Vector operations are used internally; some methods unused in certain configurations.
-#![allow(dead_code)]
 #![allow(clippy::wrong_self_convention)]
 
 #[cfg(not(feature = "std"))]
@@ -100,6 +98,8 @@ impl<const K: usize> PolyVec<K> {
     }
 
     /// Add two polynomial vectors element-wise.
+    // Not called from production paths; exercised by this module's unit tests.
+    #[allow(dead_code)]
     pub fn add(&self, other: &Self) -> Self {
         let mut result = Self::new();
         for i in 0..K {
