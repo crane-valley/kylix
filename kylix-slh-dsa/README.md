@@ -20,7 +20,7 @@ Part of the [Kylix](https://github.com/crane-valley/kylix) post-quantum cryptogr
 
 ```toml
 [dependencies]
-kylix-slh-dsa = "0.4"
+kylix-slh-dsa = "0.5"
 rand = "0.9"
 ```
 
@@ -47,7 +47,7 @@ assert!(SlhDsaShake128f::verify(&pk, message, &signature).is_ok());
 Enable the `parallel` feature for faster signing via multi-threaded FORS computation:
 
 ```toml
-kylix-slh-dsa = { version = "0.4", features = ["parallel"] }
+kylix-slh-dsa = { version = "0.5", features = ["parallel"] }
 ```
 
 ### Serialization
@@ -96,7 +96,7 @@ such as `slh-dsa-sha2-128f` or `slh-dsa-sha2-256s`.
 ### no_std
 
 ```toml
-kylix-slh-dsa = { version = "0.4", default-features = false, features = ["slh-dsa-shake-128f"] }
+kylix-slh-dsa = { version = "0.5", default-features = false, features = ["slh-dsa-shake-128f"] }
 ```
 
 ## License

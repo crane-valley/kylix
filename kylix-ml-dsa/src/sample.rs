@@ -14,11 +14,10 @@ const REJECTION_BOUND: i32 = Q;
 /// Used for expanding matrix A.
 pub fn sample_ntt(xof: &mut Shake128Xof) -> Poly {
     let mut poly = Poly::zero();
-    let mut buf = [0u8; 3];
     let mut ctr = 0;
 
     while ctr < N {
-        xof.squeeze(&mut buf);
+        let buf = xof.squeeze_three();
 
         // Extract two 12-bit values from 3 bytes (for compatibility)
         // Actually for q=8380417, we need 23 bits
@@ -34,10 +33,31 @@ pub fn sample_ntt(xof: &mut Shake128Xof) -> Poly {
     poly
 }
 
+/// Compile-time guard for the secret-vector noise parameter.
+///
+/// Without it, an `ETA` outside the FIPS 204 table would fall through both
+/// branches of `sample_eta` and yield an all-zero secret polynomial. The
+/// associated-constant form is used because inline `const { .. }` blocks are
+/// not available on the MSRV (1.75) and a `const _: () = ..` item inside a
+/// generic function cannot see the function's generic parameters.
+pub(crate) struct EtaCheck<const ETA: usize>;
+
+impl<const ETA: usize> EtaCheck<ETA> {
+    pub(crate) const SUPPORTED: () = assert!(
+        ETA == 2 || ETA == 4,
+        "unsupported eta: FIPS 204 defines only eta = 2 or 4"
+    );
+}
+
 /// Sample polynomial with coefficients in [-eta, eta] from SHAKE256.
 ///
 /// Used for sampling secret vectors s1, s2.
+///
+/// Branching on `ETA` is a branch on a compile-time constant, not on secret
+/// data, so it carries no timing risk.
 pub fn sample_eta<const ETA: usize>(seed: &[u8], nonce: u16) -> Poly {
+    let () = EtaCheck::<ETA>::SUPPORTED;
+
     let mut poly = Poly::zero();
 
     // Compute input: seed || nonce (little-endian)
@@ -111,6 +131,10 @@ pub fn sample_eta<const ETA: usize>(seed: &[u8], nonce: u16) -> Poly {
                 }
             }
         }
+    } else {
+        // Unreachable given EtaCheck above; kept so that removing the const
+        // guard degrades to a loud panic instead of a silent all-zero secret.
+        unreachable!("sample_eta: unsupported eta");
     }
 
     poly

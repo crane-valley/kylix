@@ -105,8 +105,13 @@ mod xmss;
 #[cfg(feature = "parallel")]
 mod parallel;
 
-// Main signing module
-/// Core SLH-DSA signing algorithms.
+/// Low-level SLH-DSA signing algorithms, kept public only for ACVP vectors and
+/// timing harnesses that need deterministic entry points.
+///
+/// Use the `slh_dsa_*` variant modules instead. This module is hidden from
+/// rustdoc to discourage use; it is still part of the public API surface, so
+/// changes to it remain semver-breaking.
+#[doc(hidden)]
 pub mod sign;
 
 // Variant-specific modules (public for access to SigningKey, VerificationKey, Signature types)

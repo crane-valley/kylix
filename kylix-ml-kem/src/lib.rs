@@ -30,8 +30,9 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
 #![warn(clippy::all)]
-// Note: unsafe_code is allowed for SIMD optimizations in the simd module
-#![cfg_attr(not(feature = "simd"), deny(unsafe_code))]
+// Denied unconditionally: only the simd module opts back in with a narrow
+// allow, so enabling the simd feature no longer lifts the lint crate-wide.
+#![deny(unsafe_code)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![deny(clippy::unwrap_used, clippy::expect_used)]
 
@@ -43,8 +44,13 @@ mod hash;
 mod k_pke;
 #[cfg(test)]
 mod kat;
-/// Internal KEM functions for deterministic testing.
-/// For normal use, prefer the `MlKem512`, `MlKem768`, or `MlKem1024` types.
+/// Low-level KEM functions, kept public only for ACVP vectors and timing
+/// harnesses that need deterministic entry points.
+///
+/// Use `MlKem512`, `MlKem768`, or `MlKem1024` instead. This module is hidden
+/// from rustdoc to discourage use; it is still part of the public API surface,
+/// so changes to it remain semver-breaking.
+#[doc(hidden)]
 pub mod kem;
 mod matrix;
 mod ntt;

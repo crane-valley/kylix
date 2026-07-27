@@ -6,10 +6,6 @@
 //!
 //! FIPS 205, Algorithms 15-17.
 
-// When parallel feature is enabled, the sign module uses parallel versions
-// from the parallel module. These functions are still used in tests.
-#![cfg_attr(feature = "parallel", allow(dead_code))]
-
 use crate::address::{Address, AdrsType};
 use crate::hash::{HashSuite, MAX_N};
 use crate::utils::base_2b;
@@ -129,6 +125,9 @@ pub(crate) fn fors_tree_node_to<H: HashSuite>(
 ///
 /// # Panics
 /// Panics if `out` is not exactly `k * (1 + a) * n` bytes.
+// With the `parallel` feature the signing path calls `fors_sign_parallel_to`
+// instead, leaving this reachable only from tests.
+#[cfg_attr(feature = "parallel", allow(dead_code))]
 pub fn fors_sign_to<H: HashSuite>(
     out: &mut [u8],
     md: &[u8],

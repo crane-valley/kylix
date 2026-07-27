@@ -2,12 +2,11 @@
 
 - Source code, comments, logs, error messages: English
 - PR titles, summaries, and comments: English
-- Create feature branch -> commit -> push -> PR (merge is done by humans)
+- Create feature branch -> commit -> push -> PR
 
 ## CI Notes
 
 - CI uses `-Dwarnings` so all warnings are treated as errors
-- For WIP modules, add `#![allow(dead_code)]` at module top
 - Doc comments: `[X]` is interpreted as a link reference by rustdoc; escape as `\[X\]`
 
 ## Code Quality Rules
@@ -17,10 +16,6 @@ Before committing or creating a PR, always run:
 2. `cargo clippy --all-targets --all-features -- -D warnings` - Check for lints
 3. `cargo clippy --all-targets --no-default-features -- -D warnings` - Check for lints (no default features)
 4. `cargo test --workspace --all-features` - Run all tests
-
-Note: CLI-related tests are in the separate [kylix-cli repository](https://github.com/crane-valley/kylix-cli).
-
-During development, run `cargo fmt --all` frequently (for example, after each edit) to keep formatting consistent and get fast feedback.
 
 ## Security: Handling Sensitive Data
 
@@ -57,7 +52,7 @@ All sensitive key types must implement `Zeroize` and `ZeroizeOnDrop` to ensure a
 
 When adding a new crate to the workspace:
 
-1. **Update `.github/workflows/release.yml`**: Add a publish step for the new crate in the correct dependency order (before crates that depend on it)
+1. **Update `.github/workflows/publish.yml`**: Add a publish step for the new crate in the correct dependency order (before crates that depend on it)
 2. **Exclude large files**: crates.io has a 10MB upload limit. Add `exclude` in `Cargo.toml` to exclude:
    - ACVP test vectors (`tests/acvp/`)
    - Fuzz corpora
@@ -111,7 +106,7 @@ Three dispatch flavors (macros in kylix-core):
 ## Workspace Crate Graph
 
 ```
-kylix-core (shared: NTT macros, SIMD dispatch, Barrett reduction, zeroize/subtle re-exports)
+kylix-core (shared: NTT macros, SIMD dispatch, Barrett reduction, zeroize re-exports)
   |
   +-- kylix-ml-kem  (FIPS 203: ML-KEM-512/768/1024)
   +-- kylix-ml-dsa  (FIPS 204: ML-DSA-44/65/87)
