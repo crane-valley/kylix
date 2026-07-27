@@ -10,14 +10,21 @@ homepage.workspace = true
 categories.workspace = true
 keywords.workspace = true
 description = "SLH-DSA (FIPS 205) implementation for the Kylix post-quantum cryptography library"
-# Exclude large ACVP test vectors from published crate (30MB)
+# Exclude large ACVP test vectors from published crate (30MB), plus the test
+# harnesses that depend on the unpublished kylix-test-util crate: cargo strips
+# its path-only dev-dependency when packaging, so packaged copies of these files
+# would fail to compile from the crates.io tarball.
 # Tests can still run from git repository
-exclude = ["tests/acvp/"]
+exclude = [
+    "tests/acvp/",
+    "tests/acvp_tests.rs",
+    "tests/proptest_properties.rs",
+]
 
 [features]
 default = ["std", "slh-dsa-shake-128f"]
 std = ["kylix-core/std"]
-parallel = ["std", "rayon"]
+parallel = ["std", "rayon", "dep:rayon-core"]
 
 # Internal meta-features (not for direct use)
 any-variant = []
@@ -60,6 +67,11 @@ rustdoc-args = ["--cfg", "docsrs"]
 rand = "0.9"
 rand_chacha = "0.9"
 hex = "0.4"
+# Same version as the crate dependency above; the deterministic fixture tests
+# need SHAKE256 from an integration test target.
+sha3 = "0.10"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 proptest = "1.10"
+# Path-only (no version key) so cargo strips it from the published manifest.
+kylix-test-util = { path = "../kylix-test-util" }

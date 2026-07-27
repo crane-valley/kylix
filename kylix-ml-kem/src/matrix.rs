@@ -3,8 +3,6 @@
 //! This module provides functions for sampling the public matrix A
 //! and computing matrix-vector products.
 
-// Matrix operations are used internally; public API is via variant modules.
-#![allow(dead_code)]
 #![allow(clippy::needless_range_loop)]
 
 use crate::poly::{poly_basemul_acc, Poly};
@@ -59,32 +57,6 @@ pub fn matrix_vec_mul<const K: usize>(a: &[[Poly; K]; K], s: &PolyVec<K>) -> Pol
         // result[i] = sum_j(A[i][j] * s[j])
         for j in 0..K {
             poly_basemul_acc(&mut result.polys[i], &a[i][j], &s.polys[j]);
-        }
-    }
-
-    result
-}
-
-/// Multiply transpose of matrix A by vector r: result = A^T * r.
-///
-/// This is equivalent to sampling A^T and multiplying, but can be done
-/// more efficiently by reordering the multiplication.
-///
-/// Both A and r must be in NTT domain. The result is also in NTT domain.
-///
-/// # Arguments
-/// * `a` - K x K matrix in NTT domain (will be transposed)
-/// * `r` - K-vector in NTT domain
-///
-/// # Returns
-/// K-vector result = A^T * r in NTT domain
-pub fn matrix_vec_mul_transpose<const K: usize>(a: &[[Poly; K]; K], r: &PolyVec<K>) -> PolyVec<K> {
-    let mut result = PolyVec::new();
-
-    for i in 0..K {
-        // result[i] = sum_j(A^T[i][j] * r[j]) = sum_j(A[j][i] * r[j])
-        for j in 0..K {
-            poly_basemul_acc(&mut result.polys[i], &a[j][i], &r.polys[j]);
         }
     }
 
@@ -165,37 +137,6 @@ mod tests {
         for i in 0..2 {
             for k in 0..256 {
                 assert_eq!(result.polys[i].coeffs[k], 0);
-            }
-        }
-    }
-
-    #[test]
-    fn test_matrix_vec_mul_transpose_equivalence() {
-        let rho = [0x42u8; 32];
-        let a: [[Poly; 2]; 2] = sample_matrix(&rho, false);
-        let at: [[Poly; 2]; 2] = sample_matrix(&rho, true);
-
-        // Create a test vector
-        let mut r: PolyVec<2> = PolyVec::new();
-        for i in 0..2 {
-            for j in 0..256 {
-                r.polys[i].coeffs[j] = ((i * 256 + j) % 100) as i16;
-            }
-        }
-        // Put in NTT domain
-        r.ntt();
-
-        // A^T * r computed two ways should be the same
-        let result1 = matrix_vec_mul(&at, &r);
-        let result2 = matrix_vec_mul_transpose(&a, &r);
-
-        for i in 0..2 {
-            for k in 0..256 {
-                assert_eq!(
-                    result1.polys[i].coeffs[k], result2.polys[i].coeffs[k],
-                    "Mismatch at [{}][{}]",
-                    i, k
-                );
             }
         }
     }

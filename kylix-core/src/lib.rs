@@ -29,6 +29,3 @@ pub use traits::{Kem, Signer};
 
 /// Re-export zeroize for convenience.
 pub use zeroize::{Zeroize, ZeroizeOnDrop};
-
-/// Re-export subtle for constant-time operations.
-pub use subtle;

@@ -22,7 +22,11 @@ macro_rules! define_slh_dsa_variant {
         sig_size: $sig_size:expr
     ) => {
         extern crate alloc;
-        use crate::sign::{slh_keygen, slh_sign, slh_verify, PublicKey, SecretKey};
+        use crate::sign::{
+            slh_keygen, slh_sign_with_prefix, slh_verify_with_prefix, PublicKey, SecretKey,
+        };
+        #[cfg(test)]
+        use crate::sign::slh_verify;
         use alloc::vec::Vec;
 
         use kylix_core::{Error, Result, Signer};
@@ -167,12 +171,17 @@ macro_rules! define_slh_dsa_variant {
                 let secret_key = SecretKey::<N>::from_bytes(&sk.bytes)
                     .expect("infallible: SigningKey has correct size");
 
-                let sig_vec =
-                    slh_sign::<$hash_type, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
-                        &secret_key,
-                        message,
-                        None,
-                    );
+                let sig_vec = slh_sign_with_prefix::<
+                    $hash_type,
+                    N,
+                    WOTS_LEN,
+                    WOTS_LEN1,
+                    H_PRIME,
+                    D,
+                    K,
+                    A,
+                    MD_BYTES,
+                >(&secret_key, &[0, 0], message, None);
 
                 Ok(Signature(sig_vec))
             }
@@ -187,9 +196,18 @@ macro_rules! define_slh_dsa_variant {
                 // This conversion is infallible since pk.bytes has the correct fixed size
                 let public_key = PublicKey::<N>::from_bytes(&pk.bytes)
                     .expect("infallible: VerificationKey has correct size");
-
-                if slh_verify::<$hash_type, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(
+                if slh_verify_with_prefix::<
+                    $hash_type,
+                    N,
+                    WOTS_LEN,
+                    WOTS_LEN1,
+                    H_PRIME,
+                    D,
+                    K,
+                    A,
+                >(
                     &public_key,
+                    &[0, 0],
                     message,
                     &signature.0,
                 ) {
@@ -216,6 +234,43 @@ macro_rules! define_slh_dsa_variant {
                 let signature = $variant_name::sign(&sk, message).unwrap();
 
                 assert!($variant_name::verify(&pk, message, &signature).is_ok());
+            }
+
+            #[test]
+            fn test_signer_uses_pure_slh_dsa_domain_separation() {
+                let mut rng = ChaCha20Rng::seed_from_u64(42);
+                let (sk, pk) = $variant_name::keygen(&mut rng).unwrap();
+                let message = b"domain-separated message";
+                let signature = $variant_name::sign(&sk, message).unwrap();
+
+                let mut pure_message = Vec::with_capacity(message.len() + 2);
+                pure_message.extend_from_slice(&[0, 0]);
+                pure_message.extend_from_slice(message);
+                let public_key = PublicKey::<N>::from_bytes(pk.as_bytes()).unwrap();
+
+                let raw_valid = slh_verify::<
+                    $hash_type,
+                    N,
+                    WOTS_LEN,
+                    WOTS_LEN1,
+                    H_PRIME,
+                    D,
+                    K,
+                    A,
+                >(&public_key, message, signature.as_bytes());
+                let pure_valid = slh_verify::<
+                    $hash_type,
+                    N,
+                    WOTS_LEN,
+                    WOTS_LEN1,
+                    H_PRIME,
+                    D,
+                    K,
+                    A,
+                >(&public_key, &pure_message, signature.as_bytes());
+
+                assert!(!raw_valid);
+                assert!(pure_valid);
             }
 
             #[test]

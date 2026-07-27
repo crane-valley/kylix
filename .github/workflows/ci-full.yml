@@ -30,8 +30,10 @@ jobs:
         with:
           toolchain: "1.75"
       - uses: Swatinem/rust-cache@v2
-      # MSRV check only - dev-dependencies (proptest, criterion) require newer Rust
-      - run: cargo check --workspace --exclude kylix-bench --all-features
+      # MSRV check only - dev-dependencies (proptest, criterion) require newer Rust.
+      # kylix-test-util is a dev-only, unpublished crate depending on proptest,
+      # so it is excluded like in ci.yml's msrv job.
+      - run: cargo check --workspace --exclude kylix-bench --exclude kylix-test-util --all-features
 
   test-macos:
     name: Test (macos, stable)

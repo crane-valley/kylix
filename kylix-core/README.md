@@ -35,18 +35,17 @@ Compile-time code generation for lattice-based cryptography:
 ### Re-exports
 
 - `zeroize::{Zeroize, ZeroizeOnDrop}` — Secure memory erasure
-- `subtle` — Constant-time comparison primitives
 
 ## Feature Flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `std` | Yes | Enables `thiserror` for `std::error::Error` impl |
+| `std` | Yes | Enables the `std::error::Error` impl for `Error` |
 
 ### no_std
 
 ```toml
-kylix-core = { version = "0.4", default-features = false }
+kylix-core = { version = "0.5", default-features = false }
 ```
 
 ## License
