@@ -15,7 +15,6 @@
 
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::cast_sign_loss)]
-#![allow(dead_code)]
 
 #[cfg(target_arch = "x86_64")]
 use core::arch::x86_64::*;
@@ -154,6 +153,8 @@ pub unsafe fn pointwise_mul_acc(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) {
 ///
 /// - Requires AVX2 support
 /// - All arrays must have exactly N (256) elements
+// Not wired into the scalar poly paths yet; kept as prepared SIMD scaffolding.
+#[allow(dead_code)]
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
 pub unsafe fn poly_add(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) {
@@ -175,6 +176,8 @@ pub unsafe fn poly_add(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) {
 ///
 /// - Requires AVX2 support
 /// - All arrays must have exactly N (256) elements
+// Not wired into the scalar poly paths yet; kept as prepared SIMD scaffolding.
+#[allow(dead_code)]
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
 pub unsafe fn poly_sub(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) {

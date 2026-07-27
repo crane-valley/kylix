@@ -6,8 +6,6 @@
 //! The primary encoding used is d=12 (384 bytes for 256 coefficients),
 //! which is used for public key (t) and secret key (s) polynomials.
 
-// Internal helper functions for byte encoding; not all variants are used by every parameter set.
-#![allow(dead_code)]
 #![allow(clippy::needless_range_loop)]
 
 use crate::params::common::Q;
@@ -160,6 +158,8 @@ pub fn poly_to_msg(poly: &Poly) -> [u8; 32] {
 /// * `poly` - Polynomial to encode
 /// * `d` - Bits per coefficient (1, 4, 5, 10, 11, or 12)
 /// * `out` - Output buffer (must have length >= 32*d)
+// Not called from production paths; exercised by this module's unit tests.
+#[allow(dead_code)]
 pub fn byte_encode(poly: &Poly, d: usize, out: &mut [u8]) {
     match d {
         1 => byte_encode_1(poly, out),
@@ -188,6 +188,8 @@ pub fn byte_encode(poly: &Poly, d: usize, out: &mut [u8]) {
 ///
 /// # Returns
 /// Decoded polynomial
+// Not called from production paths; exercised by this module's unit tests.
+#[allow(dead_code)]
 pub fn byte_decode(bytes: &[u8], d: usize) -> Poly {
     match d {
         1 => byte_decode_1(bytes),

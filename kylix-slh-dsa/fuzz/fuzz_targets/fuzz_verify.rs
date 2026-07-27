@@ -89,7 +89,7 @@ fuzz_target!(|input: VerifyInput| {
     // Test with different key (generate another keypair)
     let mut rng2 = FuzzRng::new(&[input.key_seed.as_slice(), &[0xFF]].concat());
     let (_, pk2) = SlhDsaShake128f::keygen(&mut rng2).unwrap();
-    if pk.to_bytes() != pk2.to_bytes() {
+    if pk.as_bytes() != pk2.as_bytes() {
         let result = SlhDsaShake128f::verify(&pk2, &input.message, &sig);
         assert!(result.is_err(), "verification should fail with wrong key");
     }

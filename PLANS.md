@@ -17,8 +17,8 @@ packaging, or audit readiness are deferred unless the project direction changes.
 - **Performance**: SIMD (AVX2/NEON) for NTT, basemul, Barrett reduction, pointwise mul; ML-DSA WASM-SIMD128 pointwise mul; ML-DSA expanded verification; SLH-DSA parallel feature; benchmark stability (kylix-cli)
 - **Quality**: ACVP tests, fuzz testing, no_std, constant-time (`subtle`/dudect), zeroization, proptest, clippy clean (`--all-features` and `--no-default-features`)
 - **Infrastructure**: Core shared macros (kylix-core), key type wrapper macros, buffer-write API (`_to` variants), dudect CI
-- **Security fixes**: Constant-time hypertree verify (`ct_eq`), constant-time polyvec `check_norm` (`Choice`), SHA-512 for SHA2 category 3/5 (FIPS 205 §10.2), FIPS 203 §7.2 ek modulus check in `ml_kem_encaps`/`ml_kem_decaps`
-- **API**: Unified `as_bytes() -> &[u8]` across all crates (ML-KEM, ML-DSA, SLH-DSA)
+- **Security fixes**: Constant-time hypertree verify (`ct_eq`), constant-time polyvec `check_norm` (`Choice`), SHA-512 for SHA2 category 3/5 (FIPS 205 §10.2), FIPS 203 §7.2 ek modulus check in `ml_kem_encaps`/`ml_kem_decaps`, `ml_dsa_verify` public-key length check (commit 212c030)
+- **API**: `as_bytes()` on all key types via the shared `kylix_core::impl_fixed_bytes!` macro. Not yet unified in return type: ML-KEM and SLH-DSA return `&[u8]`, ML-DSA still returns fixed-size array references (`&[u8; N]`). Unifying ML-DSA is a public-surface change reserved for 0.5.0.
 - **Refactoring**: ML-DSA sign.rs function splitting (PR #143) — extracted helpers, removed debug `eprintln!`, added zeroization on failure path
 
 > See `CHANGELOG.md` for full release history and `BENCHMARKS.md` for performance data.
@@ -29,7 +29,6 @@ packaging, or audit readiness are deferred unless the project direction changes.
 |-----------|----------|-------|
 | SHA3/SHAKE SIMD Optimization | HIGH | Keccak permutation AVX2 — SHA3/SHAKE is 40-50% of ML-KEM total time. No Rust PQC lib has this yet (differentiation opportunity). |
 | Fuzz Targets for Error/Validation Paths | HIGH | Add coverage for malformed and invalid-length inputs to encaps/decaps and related parsing paths. High-value quality work that is easy to automate and verify in CI. |
-| ML-DSA: `ml_dsa_verify` pk Length Check | HIGH | Prevent panic-on-short-input behavior in an internal verifier entry point. Small change, clear value, easy to test. |
 | k_pke Internal Validation | HIGH | Prevent short-input panics in internal encryption/decryption helpers. Good defense-in-depth with limited implementation cost. |
 | SIMD NTT (WASM) | LOW | ML-DSA pointwise mul done; NTT not yet WASM-optimized. ML-KEM has no WASM SIMD. |
 

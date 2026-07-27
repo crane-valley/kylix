@@ -21,25 +21,49 @@ use crate::fors::fors_pk_from_sig_to;
 use crate::fors::fors_sign_to;
 
 use rand_core::CryptoRng;
-use zeroize::{Zeroize, Zeroizing};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 #[cfg(not(feature = "std"))]
 use alloc::{vec, vec::Vec};
 
+// The `write_to` buffer-shape invariants below were `debug_assert_eq!`, i.e.
+// compiled out in release builds. Both `SIZE` and `N` are const generics, so
+// the check belongs at compile time instead.
+//
+// The associated-constant form is deliberate: inline `const { .. }` blocks are
+// not available on the MSRV (1.75), and a `const _: () = ..` item inside a
+// generic function cannot see the function's generic parameters.
+
+/// Compile-time guard for the `write_to` output buffer shape.
+struct BufferShape<const N: usize, const SIZE: usize>;
+
+impl<const N: usize, const SIZE: usize> BufferShape<N, SIZE> {
+    const IS_4N: () = assert!(SIZE == N * 4, "secret key buffer size must be 4*N");
+    const IS_2N: () = assert!(SIZE == N * 2, "public key buffer size must be 2*N");
+}
+
 /// Secret key components.
 ///
-/// Implements `Zeroize` via derive and manual `Drop` to ensure secret material
-/// is securely erased from memory when the key is dropped.
-#[derive(Clone, Zeroize)]
+/// Implements `Zeroize` and `ZeroizeOnDrop` so secret material is securely
+/// erased from memory when the key is dropped. `ZeroizeOnDrop` is derived
+/// rather than hand-rolled as a `Drop` impl so downstream code can rely on the
+/// marker trait as a bound.
+///
+/// The fields are private: handing out `[u8; N]` copies of `sk_seed`/`sk_prf`
+/// would put secret material outside the zeroize-on-drop guarantee. Use
+/// [`write_to`](Self::write_to) or [`to_bytes`](Self::to_bytes) to serialize
+/// and [`from_bytes`](Self::from_bytes) to reconstruct; the wire layout is
+/// unchanged.
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct SecretKey<const N: usize> {
     /// Secret seed for key generation.
-    pub sk_seed: [u8; N],
+    sk_seed: [u8; N],
     /// Secret PRF key for randomness generation.
-    pub sk_prf: [u8; N],
+    sk_prf: [u8; N],
     /// Public seed.
-    pub pk_seed: [u8; N],
+    pk_seed: [u8; N],
     /// Public key root.
-    pub pk_root: [u8; N],
+    pk_root: [u8; N],
 }
 
 impl<const N: usize> SecretKey<N> {
@@ -48,7 +72,7 @@ impl<const N: usize> SecretKey<N> {
     /// This avoids heap allocation by writing directly to the provided buffer.
     /// Layout: sk_seed || sk_prf || pk_seed || pk_root
     pub fn write_to<const SIZE: usize>(&self, out: &mut [u8; SIZE]) {
-        debug_assert_eq!(SIZE, N * 4, "Output buffer size must be 4*N");
+        let () = BufferShape::<N, SIZE>::IS_4N;
         out[..N].copy_from_slice(&self.sk_seed);
         out[N..2 * N].copy_from_slice(&self.sk_prf);
         out[2 * N..3 * N].copy_from_slice(&self.pk_seed);
@@ -93,13 +117,6 @@ impl<const N: usize> SecretKey<N> {
     }
 }
 
-impl<const N: usize> Drop for SecretKey<N> {
-    fn drop(&mut self) {
-        // Zeroize all fields using the derived Zeroize impl
-        self.zeroize();
-    }
-}
-
 /// Public key components.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PublicKey<const N: usize> {
@@ -115,7 +132,7 @@ impl<const N: usize> PublicKey<N> {
     /// This avoids heap allocation by writing directly to the provided buffer.
     /// Layout: pk_seed || pk_root
     pub fn write_to<const SIZE: usize>(&self, out: &mut [u8; SIZE]) {
-        debug_assert_eq!(SIZE, N * 2, "Output buffer size must be 2*N");
+        let () = BufferShape::<N, SIZE>::IS_2N;
         out[..N].copy_from_slice(&self.pk_seed);
         out[N..].copy_from_slice(&self.pk_root);
     }
@@ -168,15 +185,24 @@ pub fn slh_keygen<
 >(
     rng: &mut impl CryptoRng,
 ) -> (SecretKey<N>, PublicKey<N>) {
-    let mut sk_seed = [0u8; N];
-    let mut sk_prf = [0u8; N];
-    let mut pk_seed = [0u8; N];
+    let mut sk = SecretKey {
+        sk_seed: [0u8; N],
+        sk_prf: [0u8; N],
+        pk_seed: [0u8; N],
+        pk_root: [0u8; N],
+    };
+    rng.fill_bytes(&mut sk.sk_seed);
+    rng.fill_bytes(&mut sk.sk_prf);
+    rng.fill_bytes(&mut sk.pk_seed);
 
-    rng.fill_bytes(&mut sk_seed);
-    rng.fill_bytes(&mut sk_prf);
-    rng.fill_bytes(&mut pk_seed);
+    let pk_root = ht_root::<H, WOTS_LEN>(&sk.sk_seed, &sk.pk_seed, H_PRIME, D);
+    sk.pk_root.copy_from_slice(&pk_root);
 
-    slh_keygen_internal::<H, N, WOTS_LEN, H_PRIME, D>(sk_seed, sk_prf, pk_seed)
+    let pk = PublicKey {
+        pk_seed: sk.pk_seed,
+        pk_root: sk.pk_root,
+    };
+    (sk, pk)
 }
 
 /// Internal key generation with deterministic seeds.
@@ -204,8 +230,8 @@ pub fn slh_keygen_internal<
     const H_PRIME: usize,
     const D: usize,
 >(
-    sk_seed: [u8; N],
-    sk_prf: [u8; N],
+    mut sk_seed: [u8; N],
+    mut sk_prf: [u8; N],
     pk_seed: [u8; N],
 ) -> (SecretKey<N>, PublicKey<N>) {
     // Compute pk_root using hypertree
@@ -219,6 +245,8 @@ pub fn slh_keygen_internal<
         pk_seed,
         pk_root,
     };
+    sk_seed.zeroize();
+    sk_prf.zeroize();
 
     let pk = PublicKey { pk_seed, pk_root };
 
@@ -322,7 +350,38 @@ pub fn slh_sign<
     message: &[u8],
     opt_rand: Option<&[u8]>,
 ) -> Vec<u8> {
-    slh_sign_impl::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(sk, message, opt_rand)
+    slh_sign_with_prefix::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
+        sk,
+        &[],
+        message,
+        opt_rand,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+#[cfg(feature = "parallel")]
+pub(crate) fn slh_sign_with_prefix<
+    H: HashSuite + Send + Sync,
+    const N: usize,
+    const WOTS_LEN: usize,
+    const WOTS_LEN1: usize,
+    const H_PRIME: usize,
+    const D: usize,
+    const K: usize,
+    const A: usize,
+    const MD_BYTES: usize,
+>(
+    sk: &SecretKey<N>,
+    message_prefix: &[u8],
+    message: &[u8],
+    opt_rand: Option<&[u8]>,
+) -> Vec<u8> {
+    slh_sign_impl::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
+        sk,
+        message_prefix,
+        message,
+        opt_rand,
+    )
 }
 
 /// Sign a message using SLH-DSA (sequential version).
@@ -343,13 +402,18 @@ pub fn slh_sign<
     message: &[u8],
     opt_rand: Option<&[u8]>,
 ) -> Vec<u8> {
-    slh_sign_impl::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(sk, message, opt_rand)
+    slh_sign_with_prefix::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
+        sk,
+        &[],
+        message,
+        opt_rand,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
-#[cfg(feature = "parallel")]
-fn slh_sign_impl<
-    H: HashSuite + Send + Sync,
+#[cfg(not(feature = "parallel"))]
+pub(crate) fn slh_sign_with_prefix<
+    H: HashSuite,
     const N: usize,
     const WOTS_LEN: usize,
     const WOTS_LEN1: usize,
@@ -360,6 +424,75 @@ fn slh_sign_impl<
     const MD_BYTES: usize,
 >(
     sk: &SecretKey<N>,
+    message_prefix: &[u8],
+    message: &[u8],
+    opt_rand: Option<&[u8]>,
+) -> Vec<u8> {
+    slh_sign_impl::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A, MD_BYTES>(
+        sk,
+        message_prefix,
+        message,
+        opt_rand,
+    )
+}
+
+/// Hash-suite bound required by the signing body.
+///
+/// The parallel FORS backend needs `Send + Sync`, the sequential one does not.
+/// Selecting the bound here lets a single `slh_sign_impl` body serve both
+/// feature arms. The public wrappers keep their own spelled-out bounds, which
+/// are part of the public API and must not be unified.
+#[cfg(feature = "parallel")]
+trait SignHashSuite: HashSuite + Send + Sync {}
+
+#[cfg(feature = "parallel")]
+impl<H: HashSuite + Send + Sync> SignHashSuite for H {}
+
+#[cfg(not(feature = "parallel"))]
+trait SignHashSuite: HashSuite {}
+
+#[cfg(not(feature = "parallel"))]
+impl<H: HashSuite> SignHashSuite for H {}
+
+/// FORS signing step of `slh_sign_impl`.
+///
+/// Takes `adrs` by shared reference in both arms: the sequential backend
+/// mutates the address it is given, so that mutation is confined to a local
+/// copy here and the caller regenerates the address for FORS pk recovery. This
+/// keeps the byte output of the two arms identical.
+fn fors_sign_dispatch<H: SignHashSuite>(
+    out: &mut [u8],
+    md: &[u8],
+    sk_seed: &[u8],
+    pk_seed: &[u8],
+    adrs: &Address,
+    k: usize,
+    a: usize,
+) {
+    #[cfg(feature = "parallel")]
+    fors_sign_parallel_to::<H>(out, md, sk_seed, pk_seed, adrs, k, a);
+
+    #[cfg(not(feature = "parallel"))]
+    {
+        let mut adrs = *adrs;
+        fors_sign_to::<H>(out, md, sk_seed, pk_seed, &mut adrs, k, a);
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn slh_sign_impl<
+    H: SignHashSuite,
+    const N: usize,
+    const WOTS_LEN: usize,
+    const WOTS_LEN1: usize,
+    const H_PRIME: usize,
+    const D: usize,
+    const K: usize,
+    const A: usize,
+    const MD_BYTES: usize,
+>(
+    sk: &SecretKey<N>,
+    message_prefix: &[u8],
     message: &[u8],
     opt_rand: Option<&[u8]>,
 ) -> Vec<u8> {
@@ -368,7 +501,7 @@ fn slh_sign_impl<
 
     // Generate randomness R
     let mut r = Zeroizing::new([0u8; MAX_N]);
-    H::prf_msg_to(&mut r[..N], &sk.sk_prf, randomness, message);
+    H::prf_msg_parts_to(&mut r[..N], &sk.sk_prf, randomness, message_prefix, message);
 
     let (md_bytes, digest_len) = digest_lengths::<K, A, H_PRIME, D>();
 
@@ -376,7 +509,14 @@ fn slh_sign_impl<
     let mut digest_stack = [0u8; MAX_M_DIGEST_BYTES];
     let mut digest_heap = Vec::new();
     let digest = scratch_slice(&mut digest_stack, &mut digest_heap, digest_len);
-    H::h_msg_to(digest, &r[..N], &sk.pk_seed, &sk.pk_root, message);
+    H::h_msg_parts_to(
+        digest,
+        &r[..N],
+        &sk.pk_seed,
+        &sk.pk_root,
+        message_prefix,
+        message,
+    );
 
     // Parse digest into (md, idx_tree, idx_leaf)
     let mut md_stack = [0u8; MAX_M_DIGEST_BYTES];
@@ -393,8 +533,8 @@ fn slh_sign_impl<
     // Write R
     signature[..N].copy_from_slice(&r[..N]);
 
-    // Generate FORS signature (parallel) directly into buffer
-    fors_sign_parallel_to::<H>(
+    // Generate FORS signature directly into buffer
+    fors_sign_dispatch::<H>(
         &mut signature[N..N + fors_sig_len],
         &md[..md_len],
         &sk.sk_seed,
@@ -404,94 +544,10 @@ fn slh_sign_impl<
         A,
     );
 
-    // Compute FORS public key for hypertree signing
-    // Use sequential version - pk recovery is fast and parallel overhead hurts
-    let mut adrs_pk = adrs;
-    let mut pk_fors = [0u8; MAX_N];
-    fors_pk_from_sig_to::<H>(
-        &mut pk_fors[..N],
-        &signature[N..N + fors_sig_len],
-        &md[..md_len],
-        &sk.pk_seed,
-        &mut adrs_pk,
-        K,
-        A,
-    );
-
-    // Generate hypertree signature directly into buffer
-    ht_sign_to::<H, WOTS_LEN, WOTS_LEN1>(
-        &mut signature[N + fors_sig_len..],
-        &pk_fors[..N],
-        &sk.sk_seed,
-        &sk.pk_seed,
-        idx_tree,
-        idx_leaf,
-        H_PRIME,
-        D,
-    );
-
-    signature
-}
-
-#[allow(clippy::too_many_arguments)]
-#[cfg(not(feature = "parallel"))]
-fn slh_sign_impl<
-    H: HashSuite,
-    const N: usize,
-    const WOTS_LEN: usize,
-    const WOTS_LEN1: usize,
-    const H_PRIME: usize,
-    const D: usize,
-    const K: usize,
-    const A: usize,
-    const MD_BYTES: usize,
->(
-    sk: &SecretKey<N>,
-    message: &[u8],
-    opt_rand: Option<&[u8]>,
-) -> Vec<u8> {
-    // Use pk_seed as opt_rand for deterministic signing if not provided
-    let randomness = opt_rand.unwrap_or(&sk.pk_seed);
-
-    // Generate randomness R
-    let mut r = Zeroizing::new([0u8; MAX_N]);
-    H::prf_msg_to(&mut r[..N], &sk.sk_prf, randomness, message);
-
-    let (md_bytes, digest_len) = digest_lengths::<K, A, H_PRIME, D>();
-
-    // Compute message digest
-    let mut digest_stack = [0u8; MAX_M_DIGEST_BYTES];
-    let mut digest_heap = Vec::new();
-    let digest = scratch_slice(&mut digest_stack, &mut digest_heap, digest_len);
-    H::h_msg_to(digest, &r[..N], &sk.pk_seed, &sk.pk_root, message);
-
-    // Parse digest into (md, idx_tree, idx_leaf)
-    let mut md_stack = [0u8; MAX_M_DIGEST_BYTES];
-    let mut md_heap = Vec::new();
-    let md = scratch_slice(&mut md_stack, &mut md_heap, md_bytes);
-    let (md_len, idx_tree, idx_leaf) = parse_digest_to::<K, A, H_PRIME, D>(md, digest);
-
-    let mut adrs = fors_tree_address(idx_tree, idx_leaf);
-
-    // Pre-allocate single signature buffer: R || SIG_FORS || SIG_HT
-    let (fors_sig_len, sig_len) = signature_lengths::<N, WOTS_LEN, H_PRIME, D, K, A>();
-    let mut signature = vec![0u8; sig_len];
-
-    // Write R
-    signature[..N].copy_from_slice(&r[..N]);
-
-    // Generate FORS signature (sequential) directly into buffer
-    fors_sign_to::<H>(
-        &mut signature[N..N + fors_sig_len],
-        &md[..md_len],
-        &sk.sk_seed,
-        &sk.pk_seed,
-        &mut adrs,
-        K,
-        A,
-    );
-
-    // Compute FORS public key for hypertree signing (sequential)
+    // Compute FORS public key for hypertree signing.
+    // Always sequential: pk recovery is fast and parallel overhead hurts.
+    // The address is regenerated rather than reused so both FORS backends see
+    // the same input regardless of whether they mutated their own copy.
     let mut adrs_pk = fors_tree_address(idx_tree, idx_leaf);
     let mut pk_fors = [0u8; MAX_N];
     fors_pk_from_sig_to::<H>(
@@ -558,7 +614,36 @@ pub fn slh_verify<
     message: &[u8],
     signature: &[u8],
 ) -> bool {
-    slh_verify_impl::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(pk, message, signature)
+    slh_verify_with_prefix::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(
+        pk,
+        &[],
+        message,
+        signature,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn slh_verify_with_prefix<
+    H: HashSuite,
+    const N: usize,
+    const WOTS_LEN: usize,
+    const WOTS_LEN1: usize,
+    const H_PRIME: usize,
+    const D: usize,
+    const K: usize,
+    const A: usize,
+>(
+    pk: &PublicKey<N>,
+    message_prefix: &[u8],
+    message: &[u8],
+    signature: &[u8],
+) -> bool {
+    slh_verify_impl::<H, N, WOTS_LEN, WOTS_LEN1, H_PRIME, D, K, A>(
+        pk,
+        message_prefix,
+        message,
+        signature,
+    )
 }
 
 // Unified verify implementation - always uses sequential FORS pk recovery
@@ -575,6 +660,7 @@ fn slh_verify_impl<
     const A: usize,
 >(
     pk: &PublicKey<N>,
+    message_prefix: &[u8],
     message: &[u8],
     signature: &[u8],
 ) -> bool {
@@ -596,7 +682,7 @@ fn slh_verify_impl<
     let mut digest_stack = [0u8; MAX_M_DIGEST_BYTES];
     let mut digest_heap = Vec::new();
     let digest = scratch_slice(&mut digest_stack, &mut digest_heap, digest_len);
-    H::h_msg_to(digest, r, &pk.pk_seed, &pk.pk_root, message);
+    H::h_msg_parts_to(digest, r, &pk.pk_seed, &pk.pk_root, message_prefix, message);
 
     // Parse digest into (md, idx_tree, idx_leaf)
     let mut md_stack = [0u8; MAX_M_DIGEST_BYTES];
@@ -715,6 +801,39 @@ mod tests {
         assert_eq!(sk1.pk_root, sk2.pk_root);
         assert_eq!(pk1.pk_seed, pk2.pk_seed);
         assert_eq!(pk1.pk_root, pk2.pk_root);
+    }
+
+    /// Golden test pinning the SecretKey wire layout to
+    /// sk_seed || sk_prf || pk_seed || pk_root, so a future change to the
+    /// struct (field privacy, reordering, added accessors) cannot silently
+    /// alter the bytes that to_bytes/from_bytes/write_to produce and accept.
+    #[test]
+    fn test_secret_key_golden_byte_layout() {
+        const SK_SEED: [u8; N] = [0xA1; N];
+        const SK_PRF: [u8; N] = [0xB2; N];
+        const PK_SEED: [u8; N] = [0xC3; N];
+        const PK_ROOT: [u8; N] = [0xD4; N];
+
+        let mut golden = [0u8; 4 * N];
+        golden[..N].copy_from_slice(&SK_SEED);
+        golden[N..2 * N].copy_from_slice(&SK_PRF);
+        golden[2 * N..3 * N].copy_from_slice(&PK_SEED);
+        golden[3 * N..].copy_from_slice(&PK_ROOT);
+
+        let sk = SecretKey::<N>::from_bytes(&golden).expect("golden length is 4*N");
+        assert_eq!(sk.sk_seed, SK_SEED);
+        assert_eq!(sk.sk_prf, SK_PRF);
+        assert_eq!(sk.pk_seed, PK_SEED);
+        assert_eq!(sk.pk_root, PK_ROOT);
+
+        assert_eq!(&sk.to_bytes()[..], &golden[..]);
+
+        let mut written = [0u8; 4 * N];
+        sk.write_to(&mut written);
+        assert_eq!(written, golden);
+
+        assert!(SecretKey::<N>::from_bytes(&golden[..4 * N - 1]).is_none());
+        assert!(SecretKey::<N>::from_bytes(&[0u8; 4 * N + 1]).is_none());
     }
 
     #[test]

@@ -13,16 +13,12 @@
 //! Note: SLH-DSA is significantly slower than lattice-based schemes,
 //! so we use fewer test cases (4-8 per property).
 
+use kylix_test_util::proptest_util::arb_seed;
 use proptest::prelude::*;
-
-/// Generate arbitrary 32-byte seeds for testing
-fn arb_seed() -> impl Strategy<Value = [u8; 32]> {
-    prop::array::uniform32(any::<u8>())
-}
 
 /// Generate arbitrary messages (0-128 bytes)
 fn arb_message() -> impl Strategy<Value = Vec<u8>> {
-    prop::collection::vec(any::<u8>(), 0..128)
+    kylix_test_util::proptest_util::arb_message(128)
 }
 
 macro_rules! slh_dsa_proptest {

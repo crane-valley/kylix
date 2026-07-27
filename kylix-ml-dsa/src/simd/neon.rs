@@ -15,9 +15,6 @@
 
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::cast_sign_loss)]
-// Intentional scaffolding for future SIMD implementation; some functions
-// (poly_add, poly_sub, caddq_neon) are prepared but not yet exposed.
-#![allow(dead_code)]
 
 #[cfg(target_arch = "aarch64")]
 use core::arch::aarch64::*;
@@ -121,6 +118,8 @@ pub unsafe fn pointwise_mul_acc(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) {
 ///
 /// - Requires NEON support
 /// - All arrays must have exactly N (256) elements
+// Not wired into the scalar poly paths yet; kept as prepared SIMD scaffolding.
+#[allow(dead_code)]
 #[cfg(target_arch = "aarch64")]
 #[target_feature(enable = "neon")]
 pub unsafe fn poly_add(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) {
@@ -142,6 +141,8 @@ pub unsafe fn poly_add(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) {
 ///
 /// - Requires NEON support
 /// - All arrays must have exactly N (256) elements
+// Not wired into the scalar poly paths yet; kept as prepared SIMD scaffolding.
+#[allow(dead_code)]
 #[cfg(target_arch = "aarch64")]
 #[target_feature(enable = "neon")]
 pub unsafe fn poly_sub(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) {
@@ -162,6 +163,8 @@ pub unsafe fn poly_sub(r: &mut [i32; N], a: &[i32; N], b: &[i32; N]) {
 /// # Safety
 ///
 /// Requires NEON support.
+// Not wired into the scalar poly paths yet; kept as prepared SIMD scaffolding.
+#[allow(dead_code)]
 #[cfg(target_arch = "aarch64")]
 #[target_feature(enable = "neon")]
 pub unsafe fn caddq_neon(a: &mut [i32; N]) {

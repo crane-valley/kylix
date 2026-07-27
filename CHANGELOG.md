@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+This release contains breaking API changes. Every item under **Changed** and
+**Removed** below requires source changes in dependent code.
+
+### Changed
+
+- **BREAKING — ML-DSA `as_bytes` return type**: `as_bytes` on ML-DSA key and signature types now returns `&[u8]` instead of `&[u8; N]`. Callers that relied on the fixed-size array (for example passing it where `[u8; N]` was expected, or indexing past the slice API) must convert explicitly with `try_into()`.
+- **BREAKING — `HashSuite` required methods**: The `*_to` methods of `kylix_slh_dsa::HashSuite` are now the required methods of the trait, and the `Vec`-returning methods are provided defaults implemented in terms of them. External implementors must implement the `*_to` methods; implementations that only provided the `Vec`-returning methods no longer compile.
+- **BREAKING — SLH-DSA `sign::SecretKey` fields are private**: The fields of `kylix_slh_dsa::sign::SecretKey` are no longer public. Code that built the key with a struct literal or read its fields directly must go through the serialization methods instead: `from_bytes` to construct, and `to_bytes` or `write_to` to read. The byte layout is unchanged (`sk_seed || sk_prf || pk_seed || pk_root`), so a round-trip through these methods reproduces the previous field access.
+- **BREAKING — ML-DSA variant module names**: The ML-DSA variant modules are renamed to `ml_dsa_44`, `ml_dsa_65`, and `ml_dsa_87`. The old `dsa44`, `dsa65`, and `dsa87` names remain as deprecated aliases and will be removed in a future release.
+- **BREAKING — internal `kem` and `sign` modules are hidden**: The internal `kem` module of `kylix-ml-kem` and the `sign` modules of `kylix-ml-dsa` and `kylix-slh-dsa` are now `#[doc(hidden)]`. They are kept public only for ACVP vectors and timing harnesses. They remain `pub` and part of the public API surface, so changes to them remain semver-breaking; they are simply no longer documented and their use is discouraged.
+- **BREAKING — `kylix-pqc` facade narrowed to explicit re-exports**: The facade modules re-export each item individually instead of globbing the algorithm crates, so future internal `pub` items no longer leak into the `kylix-pqc` API. Within `kylix_pqc::slh_dsa`, the SHA2 hash suites and variants are re-exported only when the `slh-dsa-sha2` feature is enabled.
+
+  Facade retention:
+
+  | Facade module | Kept | Removed |
+  |---------------|------|---------|
+  | `kylix_pqc::ml_kem` | `Kem`; `ml_kem_512`, `ml_kem_768`, `ml_kem_1024`; `MlKem512`, `MlKem768`, `MlKem1024`; `kem` (`#[doc(hidden)]`) | `Poly` |
+  | `kylix_pqc::ml_dsa` | `Signer`; `ml_dsa_44`, `ml_dsa_65`, `ml_dsa_87`; deprecated `dsa44`, `dsa65`, `dsa87`; `MlDsa44`, `MlDsa65`, `MlDsa87`; `Error`, `Result`; `sign` (`#[doc(hidden)]`) | `params` |
+  | `kylix_pqc::slh_dsa` | `Signer`; `Address`, `AdrsType`, `HashSuite`, `Error`, `Result`; `hash_shake` with `Shake128Hash`, `Shake192Hash`, `Shake256Hash`; `hash_sha2` with `Sha2_128Hash`, `Sha2_192Hash`, `Sha2_256Hash` (under `slh-dsa-sha2`); all 12 `slh_dsa_*` variant modules and `SlhDsa*` types; `sign` (`#[doc(hidden)]`) | `params` |
+
+### Removed
+
+- **BREAKING — SLH-DSA `Params` trait and marker structs**: The `Params` trait and its 12 parameter-set marker structs are removed from `kylix-slh-dsa`. Use the per-variant modules and the concrete `SlhDsa*` types instead.
+- **BREAKING — `kylix_core::subtle` re-export**: `kylix-core` no longer re-exports the `subtle` crate and no longer depends on `subtle` or `thiserror`. The implicit `kylix-core/thiserror` feature is gone with them. Depend on `subtle` directly if you used the re-export.
+- **BREAKING — facade re-exports of internal items**: `kylix_pqc::ml_kem::Poly`, `kylix_pqc::ml_dsa::params`, and `kylix_pqc::slh_dsa::params` are no longer reachable through the facade. They remain available from `kylix-ml-kem`, `kylix-ml-dsa`, and `kylix-slh-dsa` directly.
+
+### Security
+
+- **ML-KEM decapsulation-key validation**: Enforce the FIPS 203 §7.3 hash check before decapsulation and reject keys whose embedded `H(ek)` does not match the embedded encapsulation key.
+- **SLH-DSA key generation cleanup**: Generate random secret seeds directly in the returned secret-key structure and zeroize deterministic key-generation seed parameters after copying them into protected storage.
+
+### Fixed
+
+- **Pure-signature domain separation**: Apply the required empty-context domain prefix in the public ML-DSA and SLH-DSA `Signer` implementations. Signatures created by earlier releases through these high-level APIs used the internal-algorithm message format and are not compatible with the corrected high-level verification path.
+
 ## [0.4.5] - 2026-02-11
 
 ### Security
