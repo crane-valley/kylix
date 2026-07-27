@@ -10,11 +10,9 @@ homepage.workspace = true
 categories.workspace = true
 keywords.workspace = true
 description = "ML-DSA (FIPS 204) implementation for the Kylix post-quantum cryptography library"
-# Exclude large ACVP test vectors from published crate (12MB), plus the test
-# harnesses that depend on the unpublished kylix-test-util crate: cargo strips
-# its path-only dev-dependency when packaging, so packaged copies of these files
-# would fail to compile from the crates.io tarball.
-# Tests can still run from git repository
+publish = false
+# Keep large ACVP fixtures and tests that require path-only scaffolding out of
+# ad-hoc Cargo package archives.
 exclude = [
     "tests/acvp/",
     "tests/acvp_tests.rs",
@@ -46,5 +44,5 @@ hex = "0.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 proptest = "1.10"
-# Path-only (no version key) so cargo strips it from the published manifest.
+# This internal test scaffolding must never become a registry dependency.
 kylix-test-util = { path = "../kylix-test-util" }

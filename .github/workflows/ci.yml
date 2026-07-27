@@ -23,6 +23,10 @@ jobs:
         with:
           components: rustfmt
       - run: cargo fmt --all --check
+      - name: Verify workspace packages are not publishable
+        run: |
+          cargo metadata --no-deps --format-version 1 |
+            jq -e '.packages | all(.publish == [])'
 
   clippy:
     name: Clippy

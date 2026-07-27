@@ -1,8 +1,7 @@
 //! Shared NIST ACVP vector-loading scaffolding.
 //!
-//! Official vectors live under `<crate>/tests/acvp/` and are excluded from
-//! the published packages, so every ACVP test must degrade to a skip when
-//! the directory is missing.
+//! Official vectors live under `<crate>/tests/acvp/`. Every ACVP test degrades
+//! to a skip when a partial source archive omits that directory.
 
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
@@ -13,7 +12,7 @@ use std::path::Path;
 pub const ACVP_DIR: &str = "tests/acvp";
 
 /// Check if ACVP test vectors are available.
-/// Returns false when running from crates.io package where vectors are excluded.
+/// Returns false when the source tree does not include the vector fixtures.
 pub fn vectors_available() -> bool {
     Path::new(ACVP_DIR).exists()
 }
@@ -23,9 +22,7 @@ pub fn vectors_available() -> bool {
 macro_rules! skip_if_no_vectors {
     () => {
         if !$crate::acvp::vectors_available() {
-            eprintln!(
-                "Skipping ACVP test: test vectors not available (excluded from crates.io package)"
-            );
+            eprintln!("Skipping ACVP test: test vectors are not present in this source tree");
             return;
         }
     };

@@ -41,11 +41,13 @@ See [SECURITY.md](SECURITY.md) for security policy and vulnerability reporting.
 
 ## Installation
 
-Add to your `Cargo.toml`:
+The workspace is distributed from this repository rather than crates.io. Add
+the Git dependency to your `Cargo.toml` (and pin a `rev` for reproducible
+builds):
 
 ```toml
 [dependencies]
-kylix-pqc = "0.5"
+kylix-pqc = { git = "https://github.com/crane-valley/kylix.git" }
 rand = "0.9"
 ```
 
@@ -53,7 +55,7 @@ To enable SHA2-based SLH-DSA variants alongside the default algorithms:
 
 ```toml
 [dependencies]
-kylix-pqc = { version = "0.5", features = ["slh-dsa-sha2"] }
+kylix-pqc = { git = "https://github.com/crane-valley/kylix.git", features = ["slh-dsa-sha2"] }
 rand = "0.9"
 ```
 
@@ -62,7 +64,7 @@ If using SHA2-based SLH-DSA with `default-features = false`, enable both
 
 ```toml
 [dependencies]
-kylix-pqc = { version = "0.5", default-features = false, features = ["slh-dsa", "slh-dsa-sha2"] }
+kylix-pqc = { git = "https://github.com/crane-valley/kylix.git", default-features = false, features = ["slh-dsa", "slh-dsa-sha2"] }
 ```
 
 ## Usage

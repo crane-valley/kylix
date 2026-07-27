@@ -41,22 +41,22 @@ For types that implement `from_bytes()` for secret keys:
 
 All sensitive key types must implement `Zeroize` and `ZeroizeOnDrop` to ensure automatic cleanup.
 
-## Release
+## Distribution
 
-- Main crate is `kylix-pqc` (not `kylix` - that name was taken on crates.io)
-- Create a GitHub Release with tag `vX.Y.Z` to auto-publish to crates.io
-- Ensure `Cargo.toml` version matches the tag before release
+- This workspace is source-only and consumed directly from this repository
+- Keep every workspace package `publish = false`
+- Do not add crates.io publishing workflows or GitHub Release automation
 - CLI is in a separate repository: [crane-valley/kylix-cli](https://github.com/crane-valley/kylix-cli)
 
 ### Adding a New Crate
 
 When adding a new crate to the workspace:
 
-1. **Update `.github/workflows/publish.yml`**: Add a publish step for the new crate in the correct dependency order (before crates that depend on it)
-2. **Exclude large files**: crates.io has a 10MB upload limit. Add `exclude` in `Cargo.toml` to exclude:
+1. **Disable publication**: Set `publish = false` in the crate's `[package]` table
+2. **Keep source archives focused**: Add `exclude` in `Cargo.toml` for:
    - ACVP test vectors (`tests/acvp/`)
    - Fuzz corpora
-   - Other files not needed by library users
+   - Other large files not needed by library users
 
    Example:
    ```toml
@@ -65,7 +65,7 @@ When adding a new crate to the workspace:
    ```
 
 3. **Verify package contents**: Run `cargo package --list -p <crate>` to confirm large files are excluded
-4. **Gate excluded tests**: If tests depend on excluded files, add skip logic so tests pass when running from crates.io tarball
+4. **Gate excluded tests**: If tests depend on excluded files, add skip logic for partial source archives
 
 ## SIMD Development
 
@@ -112,7 +112,7 @@ kylix-core (shared: NTT macros, SIMD dispatch, Barrett reduction, zeroize re-exp
   +-- kylix-ml-dsa  (FIPS 204: ML-DSA-44/65/87)
   +-- kylix-slh-dsa (FIPS 205: SLH-DSA all SHAKE/SHA2 variants)
   |
-  +-- kylix-pqc (re-export facade, published as kylix-pqc on crates.io)
+  +-- kylix-pqc (re-export facade)
 ```
 
 ## Performance Notes

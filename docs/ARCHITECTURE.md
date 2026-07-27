@@ -6,7 +6,7 @@ Kylix is a pure-Rust implementation of NIST Post-Quantum Cryptography standards.
 It provides ML-KEM (key encapsulation), ML-DSA (digital signatures), and
 SLH-DSA (stateless hash-based signatures) with hardware-accelerated SIMD support.
 
-Published as `kylix-pqc` on crates.io. MSRV: 1.75.
+The workspace is distributed directly from this source repository. MSRV: 1.75.
 
 ## Workspace Structure
 
@@ -16,7 +16,7 @@ Published as `kylix-pqc` on crates.io. MSRV: 1.75.
 | kylix-ml-kem | 203 | ML-KEM (Kyber): key encapsulation mechanism |
 | kylix-ml-dsa | 204 | ML-DSA (Dilithium): digital signature scheme |
 | kylix-slh-dsa | 205 | SLH-DSA (SPHINCS+): hash-based signatures |
-| kylix-pqc | -- | Re-export facade (directory: `kylix/`, published as `kylix-pqc`) |
+| kylix-pqc | -- | Re-export facade (directory: `kylix/`) |
 
 Excluded from workspace: `timing/` (dudect tests), per-crate `*/fuzz/` dirs (cargo-fuzz targets, e.g. `kylix-ml-kem/fuzz`)
 
