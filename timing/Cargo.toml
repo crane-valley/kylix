@@ -20,3 +20,10 @@ path = "src/bin/ml_kem.rs"
 [[bin]]
 name = "ml_dsa"
 path = "src/bin/ml_dsa.rs"
+
+# timing/ is its own workspace, so the root release profile does not apply;
+# mirror it so the measured code matches what users build.
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"

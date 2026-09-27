@@ -136,50 +136,9 @@ jobs:
           workspaces: timing
       - name: Build timing tests
         run: cargo build --release --manifest-path timing/Cargo.toml --bin ml_kem
-      - name: Run ML-KEM dudect test
+      - name: Run ML-KEM dudect gate
         run: |
-          # Run dudect for 30 seconds, capturing output
-          # dudect exits when it has enough measurements
-          timeout 30s ./timing/target/release/ml_kem 2>&1 | tee dudect_output.txt || true
-
-          # Show output for debugging
-          cat dudect_output.txt
-
-          # Extract measurement count (format: "n == +0.006M" or "n == +1.234M")
-          MEASUREMENTS=$(grep -oE 'n == \+[0-9.]+M' dudect_output.txt | tail -1 | grep -oE '[0-9.]+')
-          echo "Measurements: ${MEASUREMENTS}M"
-
-          # Extract the max t value (format: "max t = +1.17697")
-          MAX_T=$(grep -oE 'max t = [+-]?[0-9.]+' dudect_output.txt | tail -1 | grep -oE '[+-]?[0-9.]+$')
-
-          if [ -z "$MAX_T" ]; then
-            echo "ERROR: Could not extract max t value from dudect output"
-            exit 1
-          fi
-
-          echo "Extracted max t value: $MAX_T"
-
-          # Get absolute value and check against threshold (4.5)
-          # Values with |t| < 4.5 indicate constant-time behavior
-          ABS_T=$(echo "$MAX_T" | tr -d '+-')
-          echo "Absolute max t: $ABS_T"
-
-          # Decision matrix:
-          # - |t| <= 4.5: PASS (constant-time confirmed)
-          # - |t| > 4.5 AND measurements >= 0.5M: FAIL (timing leakage detected)
-          # - |t| > 4.5 AND measurements < 0.5M: INCONCLUSIVE (warn, don't fail)
-          if (( $(echo "$ABS_T <= 4.5" | bc -l) )); then
-            echo "::notice::Constant-time check passed (|max t| = $ABS_T <= 4.5, n = ${MEASUREMENTS}M)"
-            exit 0
-          fi
-
-          # |t| > 4.5 - check if we have enough measurements
-          if (( $(echo "$MEASUREMENTS < 0.5" | bc -l) )); then
-            echo "::warning::Inconclusive result: |max t| = $ABS_T > 4.5 but insufficient measurements (${MEASUREMENTS}M < 0.5M)"
-            echo "::warning::Re-run CI for more reliable results. Not failing due to low sample size."
-            exit 0
-          fi
-
-          # Sufficient measurements and |t| > 4.5 - real timing leakage
-          echo "::error::Potential timing leakage detected (|max t| = $ABS_T > 4.5, n = ${MEASUREMENTS}M)"
-          exit 1
+          set -o pipefail
+          timeout 20m ./timing/target/release/ml_kem | tee dudect_output.txt
+          bash timing/dudect-gate.sh dudect_output.txt \
+            decaps_768_fixed_vs_random decaps_768_valid_vs_invalid

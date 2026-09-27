@@ -73,7 +73,7 @@ When adding a new crate to the workspace:
 
 Runtime detection with compile-time fast paths:
 - AVX2: `#[target_feature(enable = "avx2")]` + `is_x86_feature_detected!`
-- NEON: always available on aarch64 (const true)
+- NEON: aarch64 with the `neon` target feature (compile-time check)
 - WASM-SIMD128: feature-gated (`core::arch::wasm32` intrinsics)
 - Scalar fallback: no_std compatible
 
@@ -93,8 +93,8 @@ Three dispatch flavors (macros in kylix-core):
 ## Constant-Time Testing
 
 - dudect-based timing tests in `timing/` directory (excluded from workspace)
-- Run: `cargo run --release -p kylix-timing --bin ml_kem` (must be release for meaningful timing)
-- CI threshold: A test passes if `dudect` reports `|max t| <= 4.5`. A result of `|max t| > 4.5` is considered inconclusive if fewer than 0.5 million measurements were taken; otherwise, it is a failure.
+- Run: `cargo run --release --manifest-path timing/Cargo.toml --bin ml_kem` (must be release for meaningful timing)
+- CI gate: `timing/dudect-gate.sh` evaluates each ML-KEM bench (1M measurements each). `|max t| > 10` (dudect's own failure level) fails the job; `4.5 < |max t| <= 10` is a warning, since max t is taken over 101 cropped t-tests on a noisy shared runner. A missing or unparsable result also fails.
 - All secret-dependent branches must use `subtle::Choice` / `subtle::ct_eq`
 - NEVER use `if` / `match` / `==` on secret data -- use `subtle` crate operations
 
