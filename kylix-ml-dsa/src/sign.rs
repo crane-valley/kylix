@@ -467,7 +467,7 @@ fn parse_and_validate_signature<
 /// Mathematical half of ML-DSA verification, shared by the plain and
 /// pre-expanded entry points.
 ///
-/// `t1_2d_hat` is t1 * 2^D in the NTT domain; `tr` is H(pk).
+/// `t1_2d_hat` is t1 * 2^D in the NTT domain.
 fn verify_core<
     const K: usize,
     const L: usize,
@@ -476,17 +476,12 @@ fn verify_core<
     const OMEGA: usize,
     const C_TILDE_BYTES: usize,
 >(
-    tr: &[u8; 64],
+    mu: &[u8; 64],
     a_hat: &Matrix<K, L>,
     t1_2d_hat: &PolyVecK<K>,
     parsed: &ParsedSignature<'_, L>,
-    message_prefix: &[u8],
-    message: &[u8],
 ) -> bool {
     let () = Gamma2Check::<GAMMA2>::SUPPORTED;
-
-    // mu = H(tr || M)
-    let mu = hash_message_parts(tr, message_prefix, message);
 
     // c = SampleInBall(c_tilde)
     let c = sample_in_ball(parsed.c_tilde, TAU);
@@ -519,7 +514,7 @@ fn verify_core<
 
     // c_tilde' = H(mu || w1Encode(w'1))
     let mut c_tilde_prime = [0u8; 64];
-    h2(&mu, &w1_encoded, &mut c_tilde_prime);
+    h2(mu, &w1_encoded, &mut c_tilde_prime);
 
     // Verify c_tilde == c_tilde'
     parsed.c_tilde == &c_tilde_prime[..C_TILDE_BYTES]
@@ -547,13 +542,12 @@ pub(crate) fn ml_dsa_verify_expanded_with_prefix<
         return false;
     };
 
+    let mu = hash_message_parts(&expanded.tr, message_prefix, message);
     verify_core::<K, L, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-        &expanded.tr,
+        &mu,
         &expanded.a_hat,
         &expanded.t1_2d_hat,
         &parsed,
-        message_prefix,
-        message,
     )
 }
 
@@ -754,6 +748,50 @@ pub(crate) fn ml_dsa_sign_with_prefix<
     message: &[u8],
     rnd: &[u8; 32],
 ) -> Option<Vec<u8>> {
+    sign_internal::<K, L, ETA, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
+        sk,
+        |tr| hash_message_parts(tr, message_prefix, message),
+        rnd,
+    )
+}
+
+/// ML-DSA.Sign_internal on a caller-supplied mu (FIPS 204 external mu).
+///
+/// Not part of the supported API: exists for ACVP `externalMu` vectors.
+#[doc(hidden)]
+pub fn ml_dsa_sign_mu<
+    const K: usize,
+    const L: usize,
+    const ETA: usize,
+    const BETA: i32,
+    const GAMMA1: i32,
+    const GAMMA2: i32,
+    const TAU: usize,
+    const OMEGA: usize,
+    const C_TILDE_BYTES: usize,
+>(
+    sk: &[u8],
+    mu: &[u8; 64],
+    rnd: &[u8; 32],
+) -> Option<Vec<u8>> {
+    sign_internal::<K, L, ETA, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(sk, |_| *mu, rnd)
+}
+
+fn sign_internal<
+    const K: usize,
+    const L: usize,
+    const ETA: usize,
+    const BETA: i32,
+    const GAMMA1: i32,
+    const GAMMA2: i32,
+    const TAU: usize,
+    const OMEGA: usize,
+    const C_TILDE_BYTES: usize,
+>(
+    sk: &[u8],
+    mu_from_tr: impl FnOnce(&[u8; 64]) -> [u8; 64],
+    rnd: &[u8; 32],
+) -> Option<Vec<u8>> {
     let () = EtaCheck::<ETA>::SUPPORTED;
     let () = Gamma1Check::<GAMMA1>::SUPPORTED;
     let () = Gamma2Check::<GAMMA2>::SUPPORTED;
@@ -809,8 +847,7 @@ pub(crate) fn ml_dsa_sign_with_prefix<
     rho_arr.copy_from_slice(rho);
     let a = expand_a::<K, L>(&rho_arr);
 
-    // Compute mu = H(tr || M)
-    let mu = hash_message_parts(tr, message_prefix, message);
+    let mu = mu_from_tr(tr);
 
     // Compute rho'' = H(K || rnd || mu)
     // Use h3 directly to avoid heap allocation with secret key material
@@ -983,7 +1020,7 @@ pub fn ml_dsa_verify<
     )
 }
 
-#[allow(clippy::too_many_arguments, clippy::expect_used)]
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn ml_dsa_verify_with_prefix<
     const K: usize,
     const L: usize,
@@ -998,6 +1035,47 @@ pub(crate) fn ml_dsa_verify_with_prefix<
     message_prefix: &[u8],
     message: &[u8],
     sig: &[u8],
+) -> bool {
+    verify_internal::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(pk, sig, |tr| {
+        hash_message_parts(tr, message_prefix, message)
+    })
+}
+
+/// ML-DSA.Verify_internal on a caller-supplied mu (FIPS 204 external mu).
+///
+/// Not part of the supported API: exists for ACVP `externalMu` vectors.
+#[doc(hidden)]
+pub fn ml_dsa_verify_mu<
+    const K: usize,
+    const L: usize,
+    const BETA: i32,
+    const GAMMA1: i32,
+    const GAMMA2: i32,
+    const TAU: usize,
+    const OMEGA: usize,
+    const C_TILDE_BYTES: usize,
+>(
+    pk: &[u8],
+    mu: &[u8; 64],
+    sig: &[u8],
+) -> bool {
+    verify_internal::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(pk, sig, |_| *mu)
+}
+
+#[allow(clippy::expect_used)]
+fn verify_internal<
+    const K: usize,
+    const L: usize,
+    const BETA: i32,
+    const GAMMA1: i32,
+    const GAMMA2: i32,
+    const TAU: usize,
+    const OMEGA: usize,
+    const C_TILDE_BYTES: usize,
+>(
+    pk: &[u8],
+    sig: &[u8],
+    mu_from_tr: impl FnOnce(&[u8; 64]) -> [u8; 64],
 ) -> bool {
     // All cheap structural rejections happen first: an invalid signature or a
     // wrong-sized public key must never reach the SHAKE-heavy key expansion
@@ -1039,14 +1117,8 @@ pub(crate) fn ml_dsa_verify_with_prefix<
     }
     t1_2d_hat.ntt();
 
-    verify_core::<K, L, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-        &tr,
-        &a,
-        &t1_2d_hat,
-        &parsed,
-        message_prefix,
-        message,
-    )
+    let mu = mu_from_tr(&tr);
+    verify_core::<K, L, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(&mu, &a, &t1_2d_hat, &parsed)
 }
 
 #[cfg(test)]

@@ -15,6 +15,7 @@ use kylix_test_util::acvp::{
 };
 use kylix_test_util::skip_if_no_vectors;
 use serde::Deserialize;
+use std::collections::BTreeMap;
 
 /// ACVP prompt file structure for KeyGen
 type AcvpKeyGenPromptFile = AcvpFile<KeyGenPromptGroup>;
@@ -53,7 +54,6 @@ struct SigVerPromptGroup {
     parameter_set: String,
     signature_interface: String,
     #[serde(default)]
-    #[allow(dead_code)]
     pre_hash: Option<String>,
     #[serde(default)]
     external_mu: bool,
@@ -75,17 +75,40 @@ struct SigGenPromptGroup {
     deterministic: bool,
     signature_interface: String,
     #[serde(default)]
+    pre_hash: Option<String>,
+    #[serde(default)]
     external_mu: bool,
     tests: Vec<serde_json::Value>,
 }
 
-/// SigGen prompt test case (internal interface with raw message)
+/// Per-case signer input; which fields are present depends on the group.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct SigGenInternalPrompt {
+struct MessageFields {
+    message: Option<String>,
+    mu: Option<String>,
+    context: Option<String>,
+    hash_alg: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SigGenPrompt {
     tc_id: u32,
     sk: String,
-    message: String,
+    rnd: Option<String>,
+    #[serde(flatten)]
+    input: MessageFields,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SigVerPrompt {
+    tc_id: u32,
+    pk: String,
+    signature: String,
+    #[serde(flatten)]
+    input: MessageFields,
 }
 
 /// SigGen expected result
@@ -505,20 +528,115 @@ mod sigver_87 {
 }
 
 // ============================================================================
-// SigGen Tests
+// SigGen / SigVer over every ACVP group
 //
-// Scope: only vector groups the current internal API can drive without
-// guessing, i.e. signatureInterface == "internal" AND deterministic == true
-// AND externalMu == false. Deterministic internal signing is defined with
-// rnd = 0^32. External / context / preHash / externalMu groups are counted
-// and reported as unsupported rather than silently dropped.
+// FIPS 204 reduces every signature interface to Sign_internal/Verify_internal:
+// the external pure and preHash interfaces pass M' (Algorithms 2-5), and the
+// externalMu groups pass mu itself. The harness builds that input per group,
+// so each group in the vector files runs; unknown group shapes panic.
 // ============================================================================
 
-/// Drive the in-scope ACVP SigGen groups for one parameter set.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum GroupKind {
+    Internal,
+    ExternalMu,
+    ExternalPure,
+    ExternalPreHash,
+}
+
+fn group_kind(signature_interface: &str, pre_hash: Option<&str>, external_mu: bool) -> GroupKind {
+    match (signature_interface, pre_hash, external_mu) {
+        ("internal", _, false) => GroupKind::Internal,
+        ("internal", _, true) => GroupKind::ExternalMu,
+        ("external", Some("pure"), false) => GroupKind::ExternalPure,
+        ("external", Some("preHash"), false) => GroupKind::ExternalPreHash,
+        other => panic!("unsupported ACVP group shape {other:?}"),
+    }
+}
+
+enum InternalInput {
+    Message(Vec<u8>),
+    Mu([u8; 64]),
+}
+
+fn required(field: &Option<String>, name: &str) -> Vec<u8> {
+    hex_decode(
+        field
+            .as_deref()
+            .unwrap_or_else(|| panic!("ACVP case is missing `{name}`")),
+    )
+}
+
+fn fixed_digest<D: sha2::Digest>(msg: &[u8]) -> Vec<u8> {
+    D::digest(msg).to_vec()
+}
+
+fn xof_digest<X>(msg: &[u8], len: usize) -> Vec<u8>
+where
+    X: Default + sha3::digest::Update + sha3::digest::ExtendableOutput,
+{
+    let mut xof = X::default();
+    sha3::digest::Update::update(&mut xof, msg);
+    let mut out = vec![0u8; len];
+    xof.finalize_xof_into(&mut out);
+    out
+}
+
+/// Last byte of the DER OID 2.16.840.1.101.3.4.2.x and PH(M) per FIPS 204
+/// Algorithm 4.
+fn pre_hash(hash_alg: &str, msg: &[u8]) -> (u8, Vec<u8>) {
+    match hash_alg {
+        "SHA2-256" => (0x01, fixed_digest::<sha2::Sha256>(msg)),
+        "SHA2-384" => (0x02, fixed_digest::<sha2::Sha384>(msg)),
+        "SHA2-512" => (0x03, fixed_digest::<sha2::Sha512>(msg)),
+        "SHA2-224" => (0x04, fixed_digest::<sha2::Sha224>(msg)),
+        "SHA2-512/224" => (0x05, fixed_digest::<sha2::Sha512_224>(msg)),
+        "SHA2-512/256" => (0x06, fixed_digest::<sha2::Sha512_256>(msg)),
+        "SHA3-224" => (0x07, fixed_digest::<sha3::Sha3_224>(msg)),
+        "SHA3-256" => (0x08, fixed_digest::<sha3::Sha3_256>(msg)),
+        "SHA3-384" => (0x09, fixed_digest::<sha3::Sha3_384>(msg)),
+        "SHA3-512" => (0x0a, fixed_digest::<sha3::Sha3_512>(msg)),
+        "SHAKE-128" => (0x0b, xof_digest::<sha3::Shake128>(msg, 32)),
+        "SHAKE-256" => (0x0c, xof_digest::<sha3::Shake256>(msg, 64)),
+        other => panic!("unsupported ACVP hashAlg {other}"),
+    }
+}
+
+fn internal_input(kind: GroupKind, fields: &MessageFields) -> InternalInput {
+    match kind {
+        GroupKind::Internal => InternalInput::Message(required(&fields.message, "message")),
+        GroupKind::ExternalMu => InternalInput::Mu(
+            required(&fields.mu, "mu")
+                .try_into()
+                .expect("mu must be 64 bytes"),
+        ),
+        GroupKind::ExternalPure | GroupKind::ExternalPreHash => {
+            let ctx = required(&fields.context, "context");
+            let msg = required(&fields.message, "message");
+            let mut m_prime = vec![
+                u8::from(kind == GroupKind::ExternalPreHash),
+                u8::try_from(ctx.len()).expect("context longer than 255 bytes"),
+            ];
+            m_prime.extend_from_slice(&ctx);
+            if kind == GroupKind::ExternalPure {
+                m_prime.extend_from_slice(&msg);
+            } else {
+                let hash_alg = fields.hash_alg.as_deref().expect("missing hashAlg");
+                let (oid_last, digest) = pre_hash(hash_alg, &msg);
+                m_prime.extend_from_slice(&[
+                    0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, oid_last,
+                ]);
+                m_prime.extend_from_slice(&digest);
+            }
+            InternalInput::Message(m_prime)
+        }
+    }
+}
+
+/// Drive every ACVP SigGen group for one parameter set.
 ///
-/// `expected_groups` / `expected_cases` / `expected_excluded` pin the
-/// vector-selection result so a filter that silently matches nothing (or too
-/// much, or quietly starts dropping groups) fails the test.
+/// `expected_groups` / `expected_cases` pin the vector-selection result so a
+/// loader that silently matches nothing (or drops groups) fails the test.
 fn run_acvp_siggen<
     const K: usize,
     const L: usize,
@@ -533,47 +651,23 @@ fn run_acvp_siggen<
     parameter_set: &str,
     expected_groups: usize,
     expected_cases: usize,
-    expected_excluded: usize,
 ) {
     let prompt_file = load_siggen_prompt_file("tests/acvp/siggen_prompt.json");
     let expected_file = load_siggen_expected_file("tests/acvp/siggen_expected.json");
 
-    let mut in_scope = Vec::new();
-    let mut excluded = 0usize;
-    for group in &prompt_file.test_groups {
-        if group.parameter_set != parameter_set {
-            continue;
-        }
-        if group.signature_interface == "internal" && group.deterministic && !group.external_mu {
-            in_scope.push(group);
-        } else {
-            excluded += 1;
-        }
-    }
-
-    println!(
-        "{} SigGen: {} in-scope group(s); {} group(s) excluded as unsupported by the current internal API (external interface, context, preHash, or externalMu)",
-        parameter_set,
-        in_scope.len(),
-        excluded
-    );
-    assert_eq!(
-        in_scope.len(),
-        expected_groups,
-        "{}: unexpected number of in-scope SigGen groups",
-        parameter_set
-    );
-    assert_eq!(
-        excluded, expected_excluded,
-        "{}: unexpected number of excluded SigGen groups",
-        parameter_set
-    );
-
-    // FIPS 204 deterministic variant of ML-DSA.Sign_internal.
-    let rnd = [0u8; 32];
-    let mut total_cases = 0usize;
-
-    for group in in_scope {
+    let mut groups = 0usize;
+    let mut per_kind = BTreeMap::<(GroupKind, bool), usize>::new();
+    for group in prompt_file
+        .test_groups
+        .iter()
+        .filter(|g| g.parameter_set == parameter_set)
+    {
+        groups += 1;
+        let kind = group_kind(
+            &group.signature_interface,
+            group.pre_hash.as_deref(),
+            group.external_mu,
+        );
         let expected_group = expected_file
             .test_groups
             .iter()
@@ -581,8 +675,8 @@ fn run_acvp_siggen<
             .unwrap_or_else(|| panic!("Expected SigGen group tgId={} not found", group.tg_id));
 
         for prompt_val in &group.tests {
-            let prompt: SigGenInternalPrompt = serde_json::from_value(prompt_val.clone())
-                .expect("Failed to parse SigGen internal prompt");
+            let prompt: SigGenPrompt =
+                serde_json::from_value(prompt_val.clone()).expect("Failed to parse SigGen prompt");
             let expected = expected_group
                 .tests
                 .iter()
@@ -595,20 +689,40 @@ fn run_acvp_siggen<
                 });
 
             let sk = hex_decode(&prompt.sk);
-            let message = hex_decode(&prompt.message);
+            // The deterministic variant of ML-DSA.Sign_internal uses rnd = 0^32.
+            let rnd: [u8; 32] = if group.deterministic {
+                [0u8; 32]
+            } else {
+                required(&prompt.rnd, "rnd")
+                    .try_into()
+                    .expect("rnd must be 32 bytes")
+            };
             let expected_sig = hex_decode(&expected.signature);
 
-            let signature = kylix_ml_dsa::sign::ml_dsa_sign::<
-                K,
-                L,
-                ETA,
-                BETA,
-                GAMMA1,
-                GAMMA2,
-                TAU,
-                OMEGA,
-                C_TILDE_BYTES,
-            >(&sk, &message, &rnd)
+            let signature = match internal_input(kind, &prompt.input) {
+                InternalInput::Message(m) => kylix_ml_dsa::sign::ml_dsa_sign::<
+                    K,
+                    L,
+                    ETA,
+                    BETA,
+                    GAMMA1,
+                    GAMMA2,
+                    TAU,
+                    OMEGA,
+                    C_TILDE_BYTES,
+                >(&sk, &m, &rnd),
+                InternalInput::Mu(mu) => kylix_ml_dsa::sign::ml_dsa_sign_mu::<
+                    K,
+                    L,
+                    ETA,
+                    BETA,
+                    GAMMA1,
+                    GAMMA2,
+                    TAU,
+                    OMEGA,
+                    C_TILDE_BYTES,
+                >(&sk, &mu, &rnd),
+            }
             .unwrap_or_else(|| {
                 panic!(
                     "{} SigGen tgId={} tcId={}: signing returned None",
@@ -618,21 +732,27 @@ fn run_acvp_siggen<
 
             assert_eq!(
                 signature, expected_sig,
-                "{} SigGen tgId={} tcId={}: signature mismatch",
-                parameter_set, group.tg_id, prompt.tc_id
+                "{} SigGen tgId={} tcId={} ({:?}): signature mismatch",
+                parameter_set, group.tg_id, prompt.tc_id, kind
             );
-            total_cases += 1;
+            *per_kind.entry((kind, group.deterministic)).or_default() += 1;
         }
     }
 
+    let total_cases: usize = per_kind.values().sum();
+    println!(
+        "{} SigGen: {} group(s), {} ACVP tests passed; (kind, deterministic) -> cases: {:?}",
+        parameter_set, groups, total_cases, per_kind
+    );
     assert_eq!(
-        total_cases, expected_cases,
-        "{}: unexpected number of in-scope SigGen cases",
+        groups, expected_groups,
+        "{}: unexpected number of SigGen groups",
         parameter_set
     );
-    println!(
-        "{} SigGen: {} ACVP tests passed",
-        parameter_set, total_cases
+    assert_eq!(
+        total_cases, expected_cases,
+        "{}: unexpected number of SigGen cases",
+        parameter_set
     );
 }
 
@@ -640,34 +760,30 @@ fn run_acvp_siggen<
 #[test]
 fn test_acvp_siggen_ml_dsa_44() {
     skip_if_no_vectors!();
-    run_acvp_siggen::<4, 4, 2, 78, { 1 << 17 }, 95232, 39, 80, 32>("ML-DSA-44", 1, 15, 7);
+    run_acvp_siggen::<4, 4, 2, 78, { 1 << 17 }, 95232, 39, 80, 32>("ML-DSA-44", 8, 120);
 }
 
 #[cfg(feature = "ml-dsa-65")]
 #[test]
 fn test_acvp_siggen_ml_dsa_65() {
     skip_if_no_vectors!();
-    run_acvp_siggen::<6, 5, 4, 196, { 1 << 19 }, 261888, 49, 55, 48>("ML-DSA-65", 1, 15, 7);
+    run_acvp_siggen::<6, 5, 4, 196, { 1 << 19 }, 261888, 49, 55, 48>("ML-DSA-65", 8, 120);
 }
 
 #[cfg(feature = "ml-dsa-87")]
 #[test]
 fn test_acvp_siggen_ml_dsa_87() {
     skip_if_no_vectors!();
-    run_acvp_siggen::<8, 7, 2, 120, { 1 << 19 }, 261888, 60, 75, 64>("ML-DSA-87", 1, 15, 7);
+    run_acvp_siggen::<8, 7, 2, 120, { 1 << 19 }, 261888, 60, 75, 64>("ML-DSA-87", 8, 120);
 }
 
-// ============================================================================
-// Expanded-verify equivalence characterization
-//
-// Pins that ml_dsa_verify_expanded agrees with ml_dsa_verify AND with the
-// ACVP expected result on every in-scope SigVer case, including the invalid
-// ones (malformed hints, non-canonical encodings, out-of-range z). Scoped like
-// SigGen: internal interface, externalMu == false, raw message present.
-// ============================================================================
-
-/// Drive the in-scope ACVP SigVer groups through both verification entry
-/// points for one parameter set.
+/// Drive every ACVP SigVer group for one parameter set through plain
+/// verification, and every group with a message through the pre-expanded
+/// entry point as well (it has no external-mu variant).
+///
+/// Pins that ml_dsa_verify_expanded agrees with ml_dsa_verify AND with the
+/// ACVP expected result, including the invalid cases (malformed hints,
+/// non-canonical encodings, out-of-range z).
 fn run_expanded_verify_equivalence<
     const K: usize,
     const L: usize,
@@ -681,45 +797,23 @@ fn run_expanded_verify_equivalence<
     parameter_set: &str,
     expected_groups: usize,
     expected_cases: usize,
-    expected_excluded: usize,
 ) {
     let prompt_file = load_sigver_prompt_file("tests/acvp/sigver_prompt.json");
     let expected_file = load_sigver_expected_file("tests/acvp/sigver_expected.json");
 
-    let mut in_scope = Vec::new();
-    let mut excluded = 0usize;
-    for group in &prompt_file.test_groups {
-        if group.parameter_set != parameter_set {
-            continue;
-        }
-        let has_message = group.tests.first().and_then(|t| t.get("message")).is_some();
-        if group.signature_interface == "internal" && !group.external_mu && has_message {
-            in_scope.push(group);
-        } else {
-            excluded += 1;
-        }
-    }
-
-    println!(
-        "{} expanded-verify equivalence: {} in-scope group(s); {} group(s) excluded as undrivable through the expanded API (external interface, context, preHash, or externalMu)",
-        parameter_set,
-        in_scope.len(),
-        excluded
-    );
-    assert_eq!(
-        in_scope.len(),
-        expected_groups,
-        "{}: unexpected number of in-scope SigVer groups",
-        parameter_set
-    );
-    assert_eq!(
-        excluded, expected_excluded,
-        "{}: unexpected number of excluded SigVer groups",
-        parameter_set
-    );
-
-    let mut total_cases = 0usize;
-    for group in in_scope {
+    let mut groups = 0usize;
+    let mut per_kind = BTreeMap::<GroupKind, usize>::new();
+    for group in prompt_file
+        .test_groups
+        .iter()
+        .filter(|g| g.parameter_set == parameter_set)
+    {
+        groups += 1;
+        let kind = group_kind(
+            &group.signature_interface,
+            group.pre_hash.as_deref(),
+            group.external_mu,
+        );
         let expected_group = expected_file
             .test_groups
             .iter()
@@ -727,8 +821,8 @@ fn run_expanded_verify_equivalence<
             .unwrap_or_else(|| panic!("Expected SigVer group tgId={} not found", group.tg_id));
 
         for prompt_val in &group.tests {
-            let prompt: SigVerInternalPrompt = serde_json::from_value(prompt_val.clone())
-                .expect("Failed to parse SigVer internal prompt");
+            let prompt: SigVerPrompt =
+                serde_json::from_value(prompt_val.clone()).expect("Failed to parse SigVer prompt");
             let expected = expected_group
                 .tests
                 .iter()
@@ -741,28 +835,11 @@ fn run_expanded_verify_equivalence<
                 });
 
             let pk = hex_decode(&prompt.pk);
-            let message = hex_decode(&prompt.message);
             let signature = hex_decode(&prompt.signature);
 
-            let plain = kylix_ml_dsa::sign::ml_dsa_verify::<
-                K,
-                L,
-                BETA,
-                GAMMA1,
-                GAMMA2,
-                TAU,
-                OMEGA,
-                C_TILDE_BYTES,
-            >(&pk, &message, &signature);
-            assert_eq!(
-                plain, expected.test_passed,
-                "{} SigVer tgId={} tcId={}: plain verify disagrees with ACVP",
-                parameter_set, group.tg_id, prompt.tc_id
-            );
-
-            match kylix_ml_dsa::sign::expand_verification_key::<K, L>(&pk) {
-                Some(exp_key) => {
-                    let expanded = kylix_ml_dsa::sign::ml_dsa_verify_expanded::<
+            match internal_input(kind, &prompt.input) {
+                InternalInput::Mu(mu) => {
+                    let plain = kylix_ml_dsa::sign::ml_dsa_verify_mu::<
                         K,
                         L,
                         BETA,
@@ -771,35 +848,79 @@ fn run_expanded_verify_equivalence<
                         TAU,
                         OMEGA,
                         C_TILDE_BYTES,
-                    >(&exp_key, &message, &signature);
+                    >(&pk, &mu, &signature);
                     assert_eq!(
-                        expanded, plain,
-                        "{} SigVer tgId={} tcId={}: expanded verify disagrees with plain verify",
-                        parameter_set, group.tg_id, prompt.tc_id
+                        plain, expected.test_passed,
+                        "{} SigVer tgId={} tcId={} ({:?}): verify disagrees with ACVP",
+                        parameter_set, group.tg_id, prompt.tc_id, kind
                     );
                 }
-                None => {
-                    // A public key the expanded path refuses to parse must also
-                    // be rejected by the plain path.
-                    assert!(
-                        !plain,
-                        "{} SigVer tgId={} tcId={}: plain verify accepted a pk the expanded path rejects",
-                        parameter_set, group.tg_id, prompt.tc_id
+                InternalInput::Message(message) => {
+                    let plain = kylix_ml_dsa::sign::ml_dsa_verify::<
+                        K,
+                        L,
+                        BETA,
+                        GAMMA1,
+                        GAMMA2,
+                        TAU,
+                        OMEGA,
+                        C_TILDE_BYTES,
+                    >(&pk, &message, &signature);
+                    assert_eq!(
+                        plain, expected.test_passed,
+                        "{} SigVer tgId={} tcId={} ({:?}): plain verify disagrees with ACVP",
+                        parameter_set, group.tg_id, prompt.tc_id, kind
                     );
+
+                    match kylix_ml_dsa::sign::expand_verification_key::<K, L>(&pk) {
+                        Some(exp_key) => {
+                            let expanded =
+                                kylix_ml_dsa::sign::ml_dsa_verify_expanded::<
+                                    K,
+                                    L,
+                                    BETA,
+                                    GAMMA1,
+                                    GAMMA2,
+                                    TAU,
+                                    OMEGA,
+                                    C_TILDE_BYTES,
+                                >(&exp_key, &message, &signature);
+                            assert_eq!(
+                                expanded, plain,
+                                "{} SigVer tgId={} tcId={}: expanded verify disagrees with plain verify",
+                                parameter_set, group.tg_id, prompt.tc_id
+                            );
+                        }
+                        None => {
+                            // A public key the expanded path refuses to parse must also
+                            // be rejected by the plain path.
+                            assert!(
+                                !plain,
+                                "{} SigVer tgId={} tcId={}: plain verify accepted a pk the expanded path rejects",
+                                parameter_set, group.tg_id, prompt.tc_id
+                            );
+                        }
+                    }
                 }
             }
-            total_cases += 1;
+            *per_kind.entry(kind).or_default() += 1;
         }
     }
 
+    let total_cases: usize = per_kind.values().sum();
+    println!(
+        "{} SigVer: {} group(s), {} ACVP cases agreed; kind -> cases: {:?}",
+        parameter_set, groups, total_cases, per_kind
+    );
     assert_eq!(
-        total_cases, expected_cases,
-        "{}: unexpected number of in-scope SigVer cases",
+        groups, expected_groups,
+        "{}: unexpected number of SigVer groups",
         parameter_set
     );
-    println!(
-        "{} expanded-verify equivalence: {} ACVP cases agreed",
-        parameter_set, total_cases
+    assert_eq!(
+        total_cases, expected_cases,
+        "{}: unexpected number of SigVer cases",
+        parameter_set
     );
 }
 
@@ -807,12 +928,7 @@ fn run_expanded_verify_equivalence<
 #[test]
 fn test_expanded_verify_equivalence_ml_dsa_44() {
     skip_if_no_vectors!();
-    run_expanded_verify_equivalence::<4, 4, 78, { 1 << 17 }, 95232, 39, 80, 32>(
-        "ML-DSA-44",
-        1,
-        15,
-        3,
-    );
+    run_expanded_verify_equivalence::<4, 4, 78, { 1 << 17 }, 95232, 39, 80, 32>("ML-DSA-44", 4, 60);
 }
 
 #[cfg(feature = "ml-dsa-65")]
@@ -821,9 +937,8 @@ fn test_expanded_verify_equivalence_ml_dsa_65() {
     skip_if_no_vectors!();
     run_expanded_verify_equivalence::<6, 5, 196, { 1 << 19 }, 261888, 49, 55, 48>(
         "ML-DSA-65",
-        1,
-        15,
-        3,
+        4,
+        60,
     );
 }
 
@@ -833,8 +948,7 @@ fn test_expanded_verify_equivalence_ml_dsa_87() {
     skip_if_no_vectors!();
     run_expanded_verify_equivalence::<8, 7, 120, { 1 << 19 }, 261888, 60, 75, 64>(
         "ML-DSA-87",
-        1,
-        15,
-        3,
+        4,
+        60,
     );
 }
