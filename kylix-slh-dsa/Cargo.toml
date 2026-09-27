@@ -62,7 +62,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dev-dependencies]
 rand = "0.9"
-rand_chacha = "0.9"
+rand_chacha = "0.10"
 hex = "0.4"
 # Same version as the crate dependency above; the deterministic fixture tests
 # need SHAKE256 from an integration test target.
