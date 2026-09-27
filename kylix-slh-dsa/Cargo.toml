@@ -26,7 +26,7 @@ parallel = ["std", "rayon", "dep:rayon-core"]
 
 # Internal meta-features (not for direct use)
 any-variant = []
-any-sha2-variant = ["any-variant", "dep:sha2", "dep:hmac"]
+any-sha2-variant = ["any-variant", "dep:sha2"]
 
 # SHAKE-based variants (recommended)
 slh-dsa-shake-128s = ["any-variant"]
@@ -49,9 +49,8 @@ kylix-core.workspace = true
 zeroize.workspace = true
 rand_core.workspace = true
 subtle.workspace = true
-sha2 = { version = "0.10", default-features = false, optional = true }
+sha2 = { version = "0.10.9", default-features = false, features = ["compress"], optional = true }
 sha3 = { version = "0.10.9", default-features = false, features = ["zeroize"] }
-hmac = { version = "0.12", default-features = false, optional = true }
 # Pin rayon and rayon-core for MSRV 1.75 compatibility
 # rayon-core 1.13+ requires Rust 1.80
 rayon = { version = ">=1.10, <1.11", optional = true }
@@ -70,6 +69,8 @@ hex = "0.4"
 sha3 = "0.10"
 # HashSLH-DSA pre-hash functions for the ACVP external/preHash groups.
 sha2 = "0.10"
+# Reference implementation for the wipeable HMAC differential tests.
+hmac = "0.12"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 proptest = "1.10"

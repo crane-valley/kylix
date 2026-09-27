@@ -124,7 +124,7 @@ ML-DSA (`kylix-ml-dsa/src/hash.rs`):
 - ExpandA (SHAKE128 over rho||j||i) stays on sha3: rho is part of pk.
 
 SLH-DSA call sites are unchanged here; only its sha3 `zeroize` feature is
-enabled (see the last consequence below).
+enabled. ADR 0002 moves its SHAKE secret inputs onto this sponge.
 
 ### Option 1: sha3 `zeroize` feature only
 
@@ -195,6 +195,6 @@ digest 0.11.2 and 0.11.3, sha2 0.11.0, hmac 0.13.0, block-buffer 0.11.0 and
     `inner_product` and `matrix_vec_mul`, in ML-DSA `mul_vec`, `pointwise_mul`
     and `Poly::add`. The compiler usually builds such results in the
     destination, but that is not guaranteed.
-- SHA-2 and HMAC secret inputs in SLH-DSA are not covered by this sponge; they
-  are handled in a follow-up change (wipeable SHA-256/SHA-512 and HMAC over the
-  sha2 block functions), recorded as an extension of this ADR or a new one.
+- SHA-2 and HMAC secret inputs in SLH-DSA are not covered by this sponge; ADR
+  0002 handles them with a wipeable SHA-256/SHA-512 and HMAC over the sha2
+  block functions.
