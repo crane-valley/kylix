@@ -97,15 +97,21 @@ const PADDING_SHA256_N32: [u8; 32] = [0u8; 32]; // 64 - 32, for n=32 (256-bit)
 const PADDING_SHA512_N24: [u8; 104] = [0u8; 104]; // 128 - 24, for n=24 (192-bit)
 const PADDING_SHA512_N32: [u8; 96] = [0u8; 96]; // 128 - 32, for n=32 (256-bit)
 
-fn secret_sha256_trunc_to(
-    out: &mut [u8],
-    pk_seed: &[u8],
-    padding: &[u8],
-    adrs: &Address,
-    m: &[u8],
-) {
+fn prf_sha256_trunc_to(out: &mut [u8], pk_seed: &[u8], padding: &[u8], adrs: &Address, m: &[u8]) {
     let adrs_c = adrs_compress(adrs);
     let mut hasher = wipe_sha2::Sha256::new();
+    hasher.update(pk_seed);
+    hasher.update(padding);
+    hasher.update(&adrs_c);
+    hasher.update(m);
+    hasher.finalize_into(out);
+}
+
+// F keeps the sha2 block function (SHA-NI where available): the in-crate one
+// made signing about 3.4 times slower (ADR 0002).
+fn f_sha256_trunc_to(out: &mut [u8], pk_seed: &[u8], padding: &[u8], adrs: &Address, m: &[u8]) {
+    let adrs_c = adrs_compress(adrs);
+    let mut hasher = wipe_sha2::Sha256Accel::new();
     hasher.update(pk_seed);
     hasher.update(padding);
     hasher.update(&adrs_c);
@@ -138,7 +144,7 @@ impl HashSuite for Sha2_128Hash {
     const N: usize = 16;
 
     fn prf_msg_to(out: &mut [u8], sk_prf: &[u8], opt_rand: &[u8], message: &[u8]) {
-        debug_assert_eq!(out.len(), 16);
+        assert_eq!(out.len(), 16);
         wipe_sha2::hmac_sha256_into(out, sk_prf, &[opt_rand, message]);
     }
 
@@ -149,7 +155,7 @@ impl HashSuite for Sha2_128Hash {
         message_prefix: &[u8],
         message: &[u8],
     ) {
-        debug_assert_eq!(out.len(), 16);
+        assert_eq!(out.len(), 16);
         wipe_sha2::hmac_sha256_into(out, sk_prf, &[opt_rand, message_prefix, message]);
     }
 
@@ -186,8 +192,8 @@ impl HashSuite for Sha2_128Hash {
     }
 
     fn f_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m1: &[u8]) {
-        debug_assert_eq!(out.len(), 16);
-        secret_sha256_trunc_to(out, pk_seed, &PADDING_SHA256_N16, adrs, m1);
+        assert_eq!(out.len(), 16);
+        f_sha256_trunc_to(out, pk_seed, &PADDING_SHA256_N16, adrs, m1);
     }
 
     fn h_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m1: &[u8], m2: &[u8]) {
@@ -199,8 +205,8 @@ impl HashSuite for Sha2_128Hash {
     }
 
     fn prf_to(out: &mut [u8], pk_seed: &[u8], sk_seed: &[u8], adrs: &Address) {
-        debug_assert_eq!(out.len(), 16);
-        secret_sha256_trunc_to(out, pk_seed, &PADDING_SHA256_N16, adrs, sk_seed);
+        assert_eq!(out.len(), 16);
+        prf_sha256_trunc_to(out, pk_seed, &PADDING_SHA256_N16, adrs, sk_seed);
     }
 }
 
@@ -245,7 +251,7 @@ macro_rules! impl_sha2_cat35_hash_suite {
             const N: usize = $n;
 
             fn prf_msg_to(out: &mut [u8], sk_prf: &[u8], opt_rand: &[u8], message: &[u8]) {
-                debug_assert_eq!(out.len(), $n);
+                assert_eq!(out.len(), $n);
                 wipe_sha2::hmac_sha512_into(out, sk_prf, &[opt_rand, message]);
             }
 
@@ -256,7 +262,7 @@ macro_rules! impl_sha2_cat35_hash_suite {
                 message_prefix: &[u8],
                 message: &[u8],
             ) {
-                debug_assert_eq!(out.len(), $n);
+                assert_eq!(out.len(), $n);
                 wipe_sha2::hmac_sha512_into(out, sk_prf, &[opt_rand, message_prefix, message]);
             }
 
@@ -294,8 +300,8 @@ macro_rules! impl_sha2_cat35_hash_suite {
 
             fn f_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m1: &[u8]) {
                 // F uses SHA-256
-                debug_assert_eq!(out.len(), $n);
-                secret_sha256_trunc_to(out, pk_seed, &$padding_256, adrs, m1);
+                assert_eq!(out.len(), $n);
+                f_sha256_trunc_to(out, pk_seed, &$padding_256, adrs, m1);
             }
 
             fn h_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m1: &[u8], m2: &[u8]) {
@@ -310,8 +316,8 @@ macro_rules! impl_sha2_cat35_hash_suite {
 
             fn prf_to(out: &mut [u8], pk_seed: &[u8], sk_seed: &[u8], adrs: &Address) {
                 // PRF uses SHA-256
-                debug_assert_eq!(out.len(), $n);
-                secret_sha256_trunc_to(out, pk_seed, &$padding_256, adrs, sk_seed);
+                assert_eq!(out.len(), $n);
+                prf_sha256_trunc_to(out, pk_seed, &$padding_256, adrs, sk_seed);
             }
         }
     };

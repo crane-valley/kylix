@@ -196,5 +196,4 @@ digest 0.11.2 and 0.11.3, sha2 0.11.0, hmac 0.13.0, block-buffer 0.11.0 and
     and `Poly::add`. The compiler usually builds such results in the
     destination, but that is not guaranteed.
 - SHA-2 and HMAC secret inputs in SLH-DSA are not covered by this sponge; ADR
-  0002 handles them with a wipeable SHA-256/SHA-512 and HMAC over the sha2
-  block functions.
+  0002 handles them with a wipeable SHA-256/SHA-512 and HMAC.
