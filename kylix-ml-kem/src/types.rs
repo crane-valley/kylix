@@ -218,6 +218,51 @@ macro_rules! define_ml_kem_variant {
                 let ss_bad = $variant_name::decaps(&dk, &ct_bad).unwrap();
                 assert_ne!(ss_sender.as_ref(), ss_bad.as_ref());
             }
+
+            #[test]
+            fn test_encaps_rejects_out_of_range_ek_coefficient() {
+                use crate::params::common::{N, Q};
+                use rand::rng;
+
+                fn set_coeff(ek: &mut [u8], i: usize, v: u16) {
+                    let b = &mut ek[3 * (i / 2)..3 * (i / 2) + 3];
+                    if i % 2 == 0 {
+                        b[0] = v as u8;
+                        b[1] = (b[1] & 0xF0) | (v >> 8) as u8;
+                    } else {
+                        b[1] = (b[1] & 0x0F) | ((v & 0x0F) << 4) as u8;
+                        b[2] = (v >> 4) as u8;
+                    }
+                }
+
+                let (_, ek_bytes) = ml_kem_keygen::<K, ETA1>(&[0x42; 32], &[0x43; 32]);
+                let ek = EncapsulationKey::from_bytes(&ek_bytes).unwrap();
+                assert!($variant_name::encaps(&ek, &mut rng()).is_ok());
+
+                let n = K * N;
+                for i in [0, n / 2 + 1, (K - 1) * N, n - 1] {
+                    let mut edge = ek_bytes.clone();
+                    set_coeff(&mut edge, i, Q - 1);
+                    let edge = EncapsulationKey::from_bytes(&edge).unwrap();
+                    assert!(
+                        $variant_name::encaps(&edge, &mut rng()).is_ok(),
+                        "coefficient {i} = q - 1 must be accepted"
+                    );
+
+                    for v in [Q, 0x0FFF] {
+                        let mut bad = ek_bytes.clone();
+                        set_coeff(&mut bad, i, v);
+                        let bad = EncapsulationKey::from_bytes(&bad).unwrap();
+                        assert!(
+                            matches!(
+                                $variant_name::encaps(&bad, &mut rng()),
+                                Err(Error::EncodingError)
+                            ),
+                            "coefficient {i} = {v} must be rejected"
+                        );
+                    }
+                }
+            }
         }
     };
 }
