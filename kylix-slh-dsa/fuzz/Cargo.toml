@@ -17,7 +17,7 @@ rand_core = "0.9"
 
 [dependencies.kylix-slh-dsa]
 path = ".."
-features = ["slh-dsa-shake-128f"]
+features = ["slh-dsa-shake-128f", "slh-dsa-sha2-128f"]
 
 [dependencies.kylix-core]
 path = "../../kylix-core"
@@ -46,6 +46,13 @@ bench = false
 [[bin]]
 name = "fuzz_roundtrip"
 path = "fuzz_targets/fuzz_roundtrip.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_verify_bytes"
+path = "fuzz_targets/fuzz_verify_bytes.rs"
 test = false
 doc = false
 bench = false

@@ -45,3 +45,10 @@ path = "fuzz_targets/fuzz_roundtrip.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_verify_bytes"
+path = "fuzz_targets/fuzz_verify_bytes.rs"
+test = false
+doc = false
+bench = false
