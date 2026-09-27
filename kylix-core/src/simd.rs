@@ -9,7 +9,7 @@
 ///
 /// Generates:
 /// - `has_avx2() -> bool` on x86_64 (compile-time fast path + runtime detection)
-/// - `has_neon() -> bool` on aarch64 (always true)
+/// - `has_neon() -> bool` on aarch64 (true when compiled with the `neon` target feature)
 ///
 /// # Example
 ///
@@ -43,12 +43,13 @@ macro_rules! define_has_avx2 {
 
         /// Check if NEON is available (aarch64).
         ///
-        /// NEON is always available on aarch64, so this returns true.
+        /// Returns true only when compiled with the `neon` target feature;
+        /// targets such as `aarch64-unknown-none-softfloat` lack it.
         #[cfg(target_arch = "aarch64")]
         #[inline]
         #[allow(dead_code)]
         pub const fn has_neon() -> bool {
-            true
+            cfg!(target_feature = "neon")
         }
     };
 }
@@ -100,14 +101,17 @@ macro_rules! define_simd_dispatch {
         }
 
         $(#[$attr])*
-        #[cfg(target_arch = "aarch64")]
+        #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
         pub fn $name( $($arg : $argty),* ) -> bool {
             unsafe { $neon_call; }
             true
         }
 
         $(#[$attr])*
-        #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+        #[cfg(not(any(
+            target_arch = "x86_64",
+            all(target_arch = "aarch64", target_feature = "neon")
+        )))]
         #[allow(unused_variables)]
         pub fn $name( $($arg : $argty),* ) -> bool {
             false
@@ -134,7 +138,7 @@ macro_rules! define_simd_dispatch {
         }
 
         $(#[$attr])*
-        #[cfg(target_arch = "aarch64")]
+        #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
         pub fn $name( $($arg : $argty),* ) -> bool {
             unsafe { $neon_call; }
             true
@@ -150,7 +154,7 @@ macro_rules! define_simd_dispatch {
         $(#[$attr])*
         #[cfg(not(any(
             target_arch = "x86_64",
-            target_arch = "aarch64",
+            all(target_arch = "aarch64", target_feature = "neon"),
             all(target_arch = "wasm32", target_feature = "simd128")
         )))]
         #[allow(unused_variables)]

@@ -6,8 +6,3 @@
 #
 # [build]
 # rustflags = ["-C", "target-cpu=native"]
-
-# For benchmarks, use native CPU features for maximum performance
-[profile.bench]
-# LTO for better optimization
-lto = "thin"

@@ -94,7 +94,7 @@ Primary optimization opportunity: SHA3/SHAKE SIMD (HIGH priority, biggest single
 - [x] Constant-time operations
 - [x] Zeroization
 - [x] Dudect timing tests (ML-KEM passes, ML-DSA expected variance due to rejection sampling)
-- [x] Dudect CI integration (ML-KEM regression detection)
+- [x] Dudect CI integration (ML-KEM decaps gate: 1M measurements per bench, valid-vs-invalid and fixed-vs-random ciphertexts, fails at |max t| > 10, warns above 4.5)
 - [x] cargo-audit in CI
 - [x] `unsafe_op_in_unsafe_fn` denied across workspace (SIMD modules explicitly allowed)
 - [x] `clippy::unwrap_used` / `clippy::expect_used` denied across workspace (justified uses annotated)

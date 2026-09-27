@@ -2,6 +2,7 @@
 name = "kylix-timing"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.75"
 publish = false
 description = "Constant-time verification tests using dudect"
 
@@ -20,3 +21,10 @@ path = "src/bin/ml_kem.rs"
 [[bin]]
 name = "ml_dsa"
 path = "src/bin/ml_dsa.rs"
+
+# timing/ is its own workspace, so the root release profile does not apply;
+# mirror it so the measured code matches what users build.
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"

@@ -29,7 +29,7 @@ use crate::poly::Poly;
 #[cfg(target_arch = "x86_64")]
 mod avx2;
 
-#[cfg(target_arch = "aarch64")]
+#[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
 mod neon;
 
 // Generate has_avx2() / has_neon() detection functions
