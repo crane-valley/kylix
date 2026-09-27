@@ -9,8 +9,9 @@
 #![allow(clippy::needless_range_loop)]
 
 use crate::params::common::Q;
-use crate::poly::Poly;
-use subtle::{Choice, ConstantTimeLess};
+use crate::poly::{compress, Poly};
+use crate::reduce::cond_reduce;
+use subtle::{Choice, ConditionallySelectable, ConstantTimeLess};
 
 /// Unpack two 12-bit coefficients from a 3-byte chunk (ByteDecode12).
 ///
@@ -58,7 +59,8 @@ pub fn poly_to_bytes(poly: &Poly) -> [u8; 384] {
 /// Decode bytes to a polynomial using 12-bit coefficients.
 ///
 /// Decodes 384 bytes into 256 coefficients.
-/// Coefficients are reduced modulo q.
+/// Coefficients are reduced modulo q (constant-time).
+/// Panics if `bytes` is shorter than 384 bytes.
 ///
 /// # Arguments
 /// * `bytes` - 384-byte encoded polynomial
@@ -66,21 +68,19 @@ pub fn poly_to_bytes(poly: &Poly) -> [u8; 384] {
 /// # Returns
 /// Decoded polynomial with coefficients in [0, q-1]
 pub fn poly_from_bytes(bytes: &[u8]) -> Poly {
-    debug_assert!(
-        bytes.len() >= 384,
-        "poly_from_bytes requires at least 384 bytes"
-    );
     let mut poly = Poly::new();
 
-    // Decode exactly 128 coefficient pairs (256 coefficients) from the first
-    // 384 bytes. The .take(128) bound prevents OOB writes if bytes > 384.
-    for (i, chunk) in bytes.chunks_exact(3).take(128).enumerate() {
-        let (c0, c1) = unpack_12bit_coeffs(chunk);
+    // Direct indexing: chunks_exact would divide the (public) length by 3,
+    // leaving divide instructions in this secret-key decoder at some opt-levels.
+    for i in 0..128 {
+        let (c0, c1) = unpack_12bit_coeffs(&bytes[3 * i..3 * i + 3]);
 
-        // Reduce mod q — redundant for ek inputs pre-validated by check_ek_modulus,
-        // but necessary for other callers (e.g., secret key deserialization in k_pke_decrypt).
-        poly.coeffs[2 * i] = (c0 % Q) as i16;
-        poly.coeffs[2 * i + 1] = (c1 % Q) as i16;
+        // Reduce mod q: redundant for ek inputs pre-validated by check_ek_modulus,
+        // but necessary for the secret key in k_pke_decrypt. `% q` can compile
+        // to a variable-latency divide; a 12-bit value is below 2q, so one
+        // branchless conditional subtraction is exact.
+        poly.coeffs[2 * i] = cond_reduce(c0 as i16);
+        poly.coeffs[2 * i + 1] = cond_reduce(c1 as i16);
     }
 
     poly
@@ -100,13 +100,13 @@ pub fn poly_from_bytes(bytes: &[u8]) -> Poly {
 /// # Returns
 /// Polynomial with coefficients in {0, 1665}
 pub fn msg_to_poly(m: &[u8; 32]) -> Poly {
+    const HALF_Q: i16 = (Q as i16 + 1) / 2; // 1665
     let mut poly = Poly::new();
-    let half_q = ((Q as i16) + 1) / 2; // 1665
 
     for i in 0..32 {
         for j in 0..8 {
-            let bit = (m[i] >> j) & 1;
-            poly.coeffs[8 * i + j] = if bit == 1 { half_q } else { 0 };
+            let bit = Choice::from((m[i] >> j) & 1);
+            poly.coeffs[8 * i + j] = i16::conditional_select(&0, &HALF_Q, bit);
         }
     }
 
@@ -128,225 +128,14 @@ pub fn msg_to_poly(m: &[u8; 32]) -> Poly {
 /// 32-byte message
 pub fn poly_to_msg(poly: &Poly) -> [u8; 32] {
     let mut m = [0u8; 32];
-    let half_q = (Q as i16) / 2; // 1664
 
     for i in 0..32 {
         for j in 0..8 {
-            // Compress coefficient to 1 bit
-            // round(2 * c / q) mod 2
-            let c = poly.coeffs[8 * i + j];
-            // Normalize to [0, q-1]
-            let c = if c < 0 { c + Q as i16 } else { c };
-            // Check if closer to q/2 than to 0 or q
-            let bit = if c > half_q / 2 && c < Q as i16 - half_q / 2 {
-                1u8
-            } else {
-                0u8
-            };
-            m[i] |= bit << j;
+            m[i] |= (compress(poly.coeffs[8 * i + j], 1) as u8) << j;
         }
     }
 
     m
-}
-
-/// Generic byte encoding for d-bit coefficients.
-///
-/// Encodes 256 coefficients using d bits each, producing 32*d bytes.
-///
-/// # Arguments
-/// * `poly` - Polynomial to encode
-/// * `d` - Bits per coefficient (1, 4, 5, 10, 11, or 12)
-/// * `out` - Output buffer (must have length >= 32*d)
-// Not called from production paths; exercised by this module's unit tests.
-#[allow(dead_code)]
-pub fn byte_encode(poly: &Poly, d: usize, out: &mut [u8]) {
-    match d {
-        1 => byte_encode_1(poly, out),
-        4 => byte_encode_4(poly, out),
-        5 => byte_encode_5(poly, out),
-        10 => byte_encode_10(poly, out),
-        11 => byte_encode_11(poly, out),
-        12 => {
-            let bytes = poly_to_bytes(poly);
-            out[..384].copy_from_slice(&bytes);
-        }
-        _ => panic!(
-            "Unsupported d value: {} (supported: 1, 4, 5, 10, 11, 12)",
-            d
-        ),
-    }
-}
-
-/// Generic byte decoding for d-bit coefficients.
-///
-/// Decodes 32*d bytes into 256 coefficients.
-///
-/// # Arguments
-/// * `bytes` - Input bytes (must have length >= 32*d)
-/// * `d` - Bits per coefficient (1, 4, 5, 10, 11, or 12)
-///
-/// # Returns
-/// Decoded polynomial
-// Not called from production paths; exercised by this module's unit tests.
-#[allow(dead_code)]
-pub fn byte_decode(bytes: &[u8], d: usize) -> Poly {
-    match d {
-        1 => byte_decode_1(bytes),
-        4 => byte_decode_4(bytes),
-        5 => byte_decode_5(bytes),
-        10 => byte_decode_10(bytes),
-        11 => byte_decode_11(bytes),
-        12 => poly_from_bytes(bytes),
-        _ => panic!(
-            "Unsupported d value: {} (supported: 1, 4, 5, 10, 11, 12)",
-            d
-        ),
-    }
-}
-
-// d=1: 32 bytes for 256 coefficients (1 bit each)
-fn byte_encode_1(poly: &Poly, out: &mut [u8]) {
-    for i in 0..32 {
-        let mut byte = 0u8;
-        for j in 0..8 {
-            let c = poly.coeffs[8 * i + j];
-            // Compress to 1 bit: round(2*c/q) mod 2
-            let c = if c < 0 { c + Q as i16 } else { c };
-            let bit = ((((c as u32) << 1) + (Q as u32) / 2) / (Q as u32)) & 1;
-            byte |= (bit as u8) << j;
-        }
-        out[i] = byte;
-    }
-}
-
-fn byte_decode_1(bytes: &[u8]) -> Poly {
-    let mut poly = Poly::new();
-    let half_q = ((Q as i16) + 1) / 2;
-
-    for i in 0..32 {
-        for j in 0..8 {
-            let bit = (bytes[i] >> j) & 1;
-            poly.coeffs[8 * i + j] = if bit == 1 { half_q } else { 0 };
-        }
-    }
-
-    poly
-}
-
-// d=4: 128 bytes for 256 coefficients (4 bits each)
-fn byte_encode_4(poly: &Poly, out: &mut [u8]) {
-    for i in 0..128 {
-        let c0 = poly.coeffs[2 * i] as u8;
-        let c1 = poly.coeffs[2 * i + 1] as u8;
-        out[i] = (c0 & 0x0F) | (c1 << 4);
-    }
-}
-
-fn byte_decode_4(bytes: &[u8]) -> Poly {
-    let mut poly = Poly::new();
-    for i in 0..128 {
-        poly.coeffs[2 * i] = (bytes[i] & 0x0F) as i16;
-        poly.coeffs[2 * i + 1] = (bytes[i] >> 4) as i16;
-    }
-    poly
-}
-
-// d=5: 160 bytes for 256 coefficients (5 bits each)
-fn byte_encode_5(poly: &Poly, out: &mut [u8]) {
-    for i in 0..32 {
-        let mut t = [0u8; 8];
-        for j in 0..8 {
-            t[j] = (poly.coeffs[8 * i + j] & 0x1F) as u8;
-        }
-        out[5 * i] = t[0] | (t[1] << 5);
-        out[5 * i + 1] = (t[1] >> 3) | (t[2] << 2) | (t[3] << 7);
-        out[5 * i + 2] = (t[3] >> 1) | (t[4] << 4);
-        out[5 * i + 3] = (t[4] >> 4) | (t[5] << 1) | (t[6] << 6);
-        out[5 * i + 4] = (t[6] >> 2) | (t[7] << 3);
-    }
-}
-
-fn byte_decode_5(bytes: &[u8]) -> Poly {
-    let mut poly = Poly::new();
-    for i in 0..32 {
-        let b = &bytes[5 * i..5 * i + 5];
-        poly.coeffs[8 * i] = (b[0] & 0x1F) as i16;
-        poly.coeffs[8 * i + 1] = (((b[0] >> 5) | (b[1] << 3)) & 0x1F) as i16;
-        poly.coeffs[8 * i + 2] = ((b[1] >> 2) & 0x1F) as i16;
-        poly.coeffs[8 * i + 3] = (((b[1] >> 7) | (b[2] << 1)) & 0x1F) as i16;
-        poly.coeffs[8 * i + 4] = (((b[2] >> 4) | (b[3] << 4)) & 0x1F) as i16;
-        poly.coeffs[8 * i + 5] = ((b[3] >> 1) & 0x1F) as i16;
-        poly.coeffs[8 * i + 6] = (((b[3] >> 6) | (b[4] << 2)) & 0x1F) as i16;
-        poly.coeffs[8 * i + 7] = (b[4] >> 3) as i16;
-    }
-    poly
-}
-
-// d=10: 320 bytes for 256 coefficients (10 bits each)
-fn byte_encode_10(poly: &Poly, out: &mut [u8]) {
-    for i in 0..64 {
-        let mut t = [0u16; 4];
-        for j in 0..4 {
-            t[j] = (poly.coeffs[4 * i + j] & 0x3FF) as u16;
-        }
-        out[5 * i] = t[0] as u8;
-        out[5 * i + 1] = ((t[0] >> 8) | (t[1] << 2)) as u8;
-        out[5 * i + 2] = ((t[1] >> 6) | (t[2] << 4)) as u8;
-        out[5 * i + 3] = ((t[2] >> 4) | (t[3] << 6)) as u8;
-        out[5 * i + 4] = (t[3] >> 2) as u8;
-    }
-}
-
-fn byte_decode_10(bytes: &[u8]) -> Poly {
-    let mut poly = Poly::new();
-    for i in 0..64 {
-        let b = &bytes[5 * i..5 * i + 5];
-        poly.coeffs[4 * i] = ((b[0] as u16) | ((b[1] as u16 & 0x03) << 8)) as i16;
-        poly.coeffs[4 * i + 1] = (((b[1] >> 2) as u16) | ((b[2] as u16 & 0x0F) << 6)) as i16;
-        poly.coeffs[4 * i + 2] = (((b[2] >> 4) as u16) | ((b[3] as u16 & 0x3F) << 4)) as i16;
-        poly.coeffs[4 * i + 3] = (((b[3] >> 6) as u16) | ((b[4] as u16) << 2)) as i16;
-    }
-    poly
-}
-
-// d=11: 352 bytes for 256 coefficients (11 bits each)
-fn byte_encode_11(poly: &Poly, out: &mut [u8]) {
-    for i in 0..32 {
-        let mut t = [0u16; 8];
-        for j in 0..8 {
-            t[j] = (poly.coeffs[8 * i + j] & 0x7FF) as u16;
-        }
-        out[11 * i] = t[0] as u8;
-        out[11 * i + 1] = ((t[0] >> 8) | (t[1] << 3)) as u8;
-        out[11 * i + 2] = ((t[1] >> 5) | (t[2] << 6)) as u8;
-        out[11 * i + 3] = (t[2] >> 2) as u8;
-        out[11 * i + 4] = ((t[2] >> 10) | (t[3] << 1)) as u8;
-        out[11 * i + 5] = ((t[3] >> 7) | (t[4] << 4)) as u8;
-        out[11 * i + 6] = ((t[4] >> 4) | (t[5] << 7)) as u8;
-        out[11 * i + 7] = (t[5] >> 1) as u8;
-        out[11 * i + 8] = ((t[5] >> 9) | (t[6] << 2)) as u8;
-        out[11 * i + 9] = ((t[6] >> 6) | (t[7] << 5)) as u8;
-        out[11 * i + 10] = (t[7] >> 3) as u8;
-    }
-}
-
-fn byte_decode_11(bytes: &[u8]) -> Poly {
-    let mut poly = Poly::new();
-    for i in 0..32 {
-        let b = &bytes[11 * i..11 * i + 11];
-        poly.coeffs[8 * i] = ((b[0] as u16) | ((b[1] as u16 & 0x07) << 8)) as i16;
-        poly.coeffs[8 * i + 1] = (((b[1] >> 3) as u16) | ((b[2] as u16 & 0x3F) << 5)) as i16;
-        poly.coeffs[8 * i + 2] =
-            (((b[2] >> 6) as u16) | ((b[3] as u16) << 2) | ((b[4] as u16 & 0x01) << 10)) as i16;
-        poly.coeffs[8 * i + 3] = (((b[4] >> 1) as u16) | ((b[5] as u16 & 0x0F) << 7)) as i16;
-        poly.coeffs[8 * i + 4] = (((b[5] >> 4) as u16) | ((b[6] as u16 & 0x7F) << 4)) as i16;
-        poly.coeffs[8 * i + 5] =
-            (((b[6] >> 7) as u16) | ((b[7] as u16) << 1) | ((b[8] as u16 & 0x03) << 9)) as i16;
-        poly.coeffs[8 * i + 6] = (((b[8] >> 2) as u16) | ((b[9] as u16 & 0x1F) << 6)) as i16;
-        poly.coeffs[8 * i + 7] = (((b[9] >> 5) as u16) | ((b[10] as u16) << 3)) as i16;
-    }
-    poly
 }
 
 // --- Validation ---
@@ -449,6 +238,97 @@ mod tests {
     }
 
     #[test]
+    fn test_poly_from_bytes_all_12bit_values() {
+        // Two passes so every 12-bit value lands in both the c0 and c1 slot.
+        for offset in [0usize, 1] {
+            for base in (0..4096).step_by(N) {
+                let value = |i: usize| ((base + i + offset) % 4096) as u16;
+                let mut bytes = [0u8; 384];
+                for i in 0..128 {
+                    let (c0, c1) = (value(2 * i), value(2 * i + 1));
+                    bytes[3 * i] = c0 as u8;
+                    bytes[3 * i + 1] = ((c0 >> 8) | (c1 << 4)) as u8;
+                    bytes[3 * i + 2] = (c1 >> 4) as u8;
+                }
+                let poly = poly_from_bytes(&bytes);
+                for i in 0..N {
+                    assert_eq!(
+                        poly.coeffs[i],
+                        (value(i) % Q) as i16,
+                        "ByteDecode12 of {}",
+                        value(i)
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_poly_to_msg_exhaustive() {
+        // FIPS 203 Compress_1: round(2x / q) mod 2 is 1 exactly for x in [833, 2496].
+        let expected_bit = |x: i16| {
+            let x = x.rem_euclid(Q as i16);
+            (833..=2496).contains(&x) as u8
+        };
+        let min = -(Q as i16 - 1);
+        let mut start = min;
+        while start < Q as i16 {
+            let mut poly = Poly::new();
+            for i in 0..N {
+                poly.coeffs[i] = (start + i as i16).min(Q as i16 - 1);
+            }
+            let m = poly_to_msg(&poly);
+            for i in 0..N {
+                let bit = (m[i / 8] >> (i % 8)) & 1;
+                assert_eq!(
+                    bit,
+                    expected_bit(poly.coeffs[i]),
+                    "poly_to_msg bit for {}",
+                    poly.coeffs[i]
+                );
+            }
+            start = start.saturating_add(N as i16);
+        }
+    }
+
+    #[test]
+    fn test_poly_to_msg_boundaries() {
+        for (x, bit) in [
+            (0i16, 0u8),
+            (832, 0),
+            (833, 1),
+            (1664, 1),
+            (1665, 1),
+            (2496, 1),
+            (2497, 0),
+            (3328, 0),
+            (-1, 0),
+            (-832, 0),
+            (-833, 1),
+            (-1664, 1),
+            (-3328, 0),
+        ] {
+            let mut poly = Poly::new();
+            poly.coeffs[0] = x;
+            assert_eq!(poly_to_msg(&poly)[0] & 1, bit, "poly_to_msg bit for {}", x);
+        }
+    }
+
+    #[test]
+    fn test_msg_to_poly_all_byte_values() {
+        let half_q = ((Q as i16) + 1) / 2;
+        for b in 0..=255u8 {
+            let msg = [b; 32];
+            let poly = msg_to_poly(&msg);
+            for i in 0..N {
+                let bit = ((b >> (i % 8)) & 1) as i16;
+                assert_eq!(poly.coeffs[i], bit * half_q, "msg_to_poly byte {:#04x}", b);
+            }
+            assert_eq!(poly_to_msg(&poly), msg);
+        }
+    }
+
+    #[test]
     fn test_msg_to_poly_to_msg_roundtrip() {
         let msg = [0x42u8; 32];
         let poly = msg_to_poly(&msg);
@@ -474,86 +354,6 @@ mod tests {
 
         for i in 0..N {
             assert_eq!(poly.coeffs[i], half_q);
-        }
-    }
-
-    #[test]
-    fn test_byte_encode_decode_d4_roundtrip() {
-        let mut poly = Poly::new();
-        for i in 0..N {
-            poly.coeffs[i] = (i % 16) as i16;
-        }
-
-        let mut bytes = [0u8; 128];
-        byte_encode(&poly, 4, &mut bytes);
-        let recovered = byte_decode(&bytes, 4);
-
-        for i in 0..N {
-            assert_eq!(poly.coeffs[i], recovered.coeffs[i], "Mismatch at {}", i);
-        }
-    }
-
-    #[test]
-    fn test_byte_encode_decode_d5_roundtrip() {
-        let mut poly = Poly::new();
-        for i in 0..N {
-            poly.coeffs[i] = (i % 32) as i16;
-        }
-
-        let mut bytes = [0u8; 160];
-        byte_encode(&poly, 5, &mut bytes);
-        let recovered = byte_decode(&bytes, 5);
-
-        for i in 0..N {
-            assert_eq!(poly.coeffs[i], recovered.coeffs[i], "Mismatch at {}", i);
-        }
-    }
-
-    #[test]
-    fn test_byte_encode_decode_d10_roundtrip() {
-        let mut poly = Poly::new();
-        for i in 0..N {
-            poly.coeffs[i] = (i % 1024) as i16;
-        }
-
-        let mut bytes = [0u8; 320];
-        byte_encode(&poly, 10, &mut bytes);
-        let recovered = byte_decode(&bytes, 10);
-
-        for i in 0..N {
-            assert_eq!(poly.coeffs[i], recovered.coeffs[i], "Mismatch at {}", i);
-        }
-    }
-
-    #[test]
-    fn test_byte_encode_decode_d11_roundtrip() {
-        let mut poly = Poly::new();
-        for i in 0..N {
-            poly.coeffs[i] = (i % 2048) as i16;
-        }
-
-        let mut bytes = [0u8; 352];
-        byte_encode(&poly, 11, &mut bytes);
-        let recovered = byte_decode(&bytes, 11);
-
-        for i in 0..N {
-            assert_eq!(poly.coeffs[i], recovered.coeffs[i], "Mismatch at {}", i);
-        }
-    }
-
-    #[test]
-    fn test_byte_encode_decode_d12_roundtrip() {
-        let mut poly = Poly::new();
-        for i in 0..N {
-            poly.coeffs[i] = (i as i16 * 13) % (Q as i16);
-        }
-
-        let mut bytes = [0u8; 384];
-        byte_encode(&poly, 12, &mut bytes);
-        let recovered = byte_decode(&bytes, 12);
-
-        for i in 0..N {
-            assert_eq!(poly.coeffs[i], recovered.coeffs[i], "Mismatch at {}", i);
         }
     }
 

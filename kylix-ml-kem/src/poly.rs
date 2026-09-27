@@ -11,7 +11,7 @@
 
 use crate::ntt::{basemul, ZETAS};
 use crate::params::common::{N, Q};
-use crate::reduce::{barrett_reduce, barrett_reduce_full};
+use crate::reduce::{barrett_reduce, barrett_reduce_full, caddq};
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 use zeroize::Zeroize;
 
@@ -241,25 +241,36 @@ pub fn poly_to_mont(poly: &mut Poly) {
 // Compression and Decompression (FIPS 203 Algorithms 4-5)
 // ============================================================================
 
-/// Compress a single coefficient.
+/// `m = ceil(2^35 / q)`; `m * q - 2^35 = 2492 < 2^12`, so `(v * m) >> 35`
+/// equals `floor(v / q)` for every `v < 2^23`.
+const DIV_Q_MUL: u64 = 10_321_340;
+const DIV_Q_SHIFT: u32 = 35;
+
+/// `floor(v / q)` for `v < 2^23` without a division instruction.
+///
+/// `v / q` compiles to a variable-latency hardware divide at some opt-levels
+/// (e.g. `z` and `0`), which leaks the secret dividend (KyberSlash).
+#[inline]
+const fn div_q(v: u32) -> u32 {
+    ((v as u64 * DIV_Q_MUL) >> DIV_Q_SHIFT) as u32
+}
+
+/// Compress a single coefficient (constant-time).
 ///
 /// Computes round(2^d / q * x) mod 2^d, mapping [0, q-1] to [0, 2^d - 1].
 ///
 /// # Arguments
-/// * `x` - Coefficient in [0, q-1]
-/// * `d` - Number of bits for compression
+/// * `x` - Coefficient in (-q, q); negative values are taken mod q
+/// * `d` - Number of bits for compression (at most 11)
 ///
 /// # Returns
 /// Compressed value in [0, 2^d - 1]
 #[inline]
 pub fn compress(x: i16, d: u32) -> u16 {
-    // Ensure x is positive
-    let x = if x < 0 { x + Q as i16 } else { x } as u32;
-    // Compute round((x * 2^d) / q) mod 2^d
-    // = floor((x * 2^d + q/2) / q) mod 2^d
-    let shifted = (x << d) + (Q as u32 / 2);
-    let result = shifted / (Q as u32);
-    (result & ((1 << d) - 1)) as u16
+    let x = caddq(x) as u32;
+    // round(x * 2^d / q) = floor((x * 2^d + (q - 1) / 2) / q) because q is odd.
+    let quotient = div_q((x << d) + Q as u32 / 2);
+    (quotient & ((1 << d) - 1)) as u16
 }
 
 /// Decompress a single coefficient.
@@ -284,7 +295,7 @@ pub fn decompress(y: u16, d: u32) -> i16 {
 /// Compress a polynomial and write to output buffer.
 ///
 /// # Arguments
-/// * `poly` - Polynomial to compress (must be in canonical form [0, q-1])
+/// * `poly` - Polynomial to compress (coefficients in (-q, q))
 /// * `d` - Number of bits per coefficient
 /// * `out` - Output buffer (must have sufficient space)
 pub fn poly_compress(poly: &Poly, d: u32, out: &mut [u8]) {
@@ -547,6 +558,43 @@ mod tests {
 
         for i in 0..N {
             assert_eq!(c.coeffs[i], i as i16, "poly_sub failed at index {}", i);
+        }
+    }
+
+    fn compress_ref(x: i16, d: u32) -> u16 {
+        let q = Q as i64;
+        let x = (x as i64).rem_euclid(q);
+        ((((x << (d + 1)) + q) / (2 * q)) % (1 << d)) as u16
+    }
+
+    fn decompress_ref(y: u16, d: u32) -> i16 {
+        let q = Q as i64;
+        ((2 * q * y as i64 + (1 << d)) / (1 << (d + 1))) as i16
+    }
+
+    #[test]
+    fn test_div_q_exhaustive() {
+        assert_eq!(DIV_Q_MUL, (1u64 << DIV_Q_SHIFT).div_ceil(Q as u64));
+        for v in 0..(1u32 << 23) {
+            assert_eq!(div_q(v), v / Q as u32, "div_q({})", v);
+        }
+    }
+
+    #[test]
+    fn test_compress_exhaustive() {
+        for d in [1u32, 4, 5, 10, 11] {
+            for x in -(Q as i16 - 1)..Q as i16 {
+                assert_eq!(compress(x, d), compress_ref(x, d), "d={}, x={}", d, x);
+            }
+        }
+    }
+
+    #[test]
+    fn test_decompress_exhaustive() {
+        for d in [1u32, 4, 5, 10, 11] {
+            for y in 0..(1u16 << d) {
+                assert_eq!(decompress(y, d), decompress_ref(y, d), "d={}, y={}", d, y);
+            }
         }
     }
 

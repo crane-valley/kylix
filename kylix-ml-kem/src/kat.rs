@@ -1,8 +1,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-//! Known Answer Tests (KAT) for ML-KEM.
+//! Structural and self-consistency tests for ML-KEM.
 //!
-//! This module contains test vectors derived from NIST ACVP and reference implementations
-//! to verify correctness of the ML-KEM implementation.
+//! These are not NIST known-answer vectors: they check key and ciphertext
+//! sizes, the dk layout, round trips, implicit rejection and determinism.
+//! Conformance against official NIST ACVP vectors is in `tests/acvp_tests.rs`.
 
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
@@ -17,12 +18,9 @@ fn hex_decode(hex: &str) -> Vec<u8> {
         .collect()
 }
 
-/// ML-KEM-512 KAT test vectors
+/// ML-KEM-512 structural tests
 mod ml_kem_512_kat {
     use super::*;
-
-    // Test vector from NIST ACVP
-    // These are derived from running the reference implementation with known seeds
 
     #[test]
     fn test_kat_keygen_1() {
@@ -84,7 +82,7 @@ mod ml_kem_512_kat {
     }
 }
 
-/// ML-KEM-768 KAT test vectors
+/// ML-KEM-768 structural tests
 mod ml_kem_768_kat {
     use super::*;
 
@@ -150,7 +148,7 @@ mod ml_kem_768_kat {
     }
 }
 
-/// ML-KEM-1024 KAT test vectors
+/// ML-KEM-1024 structural tests
 mod ml_kem_1024_kat {
     use super::*;
 

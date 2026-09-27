@@ -89,7 +89,8 @@ impl<const K: usize> PolyVec<K> {
 
     /// Convert all polynomials to Montgomery form.
     ///
-    /// Should be called before ntt on CBD-sampled polynomials.
+    /// Called after a basemul accumulation to cancel the R^-1 factor that
+    /// Montgomery multiplication leaves in the product.
     pub fn to_mont(&mut self) {
         use crate::poly::poly_to_mont;
         for poly in &mut self.polys {

@@ -14,6 +14,7 @@
 //! ## Example
 //!
 //! ```no_run
+//! # #[cfg(feature = "ml-kem-768")]
 //! # fn main() -> kylix_core::Result<()> {
 //! use kylix_ml_kem::{MlKem768, Kem};
 //! use rand::rng;
@@ -25,6 +26,8 @@
 //! assert_eq!(ss_sender.as_ref(), ss_receiver.as_ref());
 //! # Ok(())
 //! # }
+//! # #[cfg(not(feature = "ml-kem-768"))]
+//! # fn main() {}
 //! ```
 
 #![cfg_attr(not(feature = "std"), no_std)]
