@@ -34,20 +34,26 @@ See [SECURITY.md](SECURITY.md) for security policy and vulnerability reporting.
     - SLH-DSA-SHA2-192s/192f (Security Level 3)
     - SLH-DSA-SHA2-256s/256f (Security Level 5)
 - `no_std` compatible for embedded systems
-- Constant-time implementations to prevent timing attacks
-- Secure memory handling with automatic zeroization
-- SIMD optimizations (AVX2/NEON) for high performance
-- Comprehensive test coverage including NIST ACVP vectors
+- Constant-time coding for secret-dependent operations (best-effort, not
+  formally verified; see [ARCHITECTURE.md](ARCHITECTURE.md#constant-time-operations))
+- Secret keys and shared secrets zeroized on drop; coverage of intermediate
+  values is best-effort (see [ARCHITECTURE.md](ARCHITECTURE.md#zeroization))
+- SIMD backends for ML-KEM and ML-DSA (AVX2, NEON; WASM SIMD128 for ML-DSA),
+  enabled by the default `simd` feature where the target supports them, with
+  a scalar fallback elsewhere (see
+  [ARCHITECTURE.md](ARCHITECTURE.md#platform-detection))
+- NIST ACVP vector tests for every parameter set (see
+  [ARCHITECTURE.md](ARCHITECTURE.md#testing-strategy) for the covered groups)
 
 ## Installation
 
 The workspace is distributed from this repository rather than crates.io. Add
-the Git dependency to your `Cargo.toml` (and pin a `rev` for reproducible
-builds):
+the Git dependency to your `Cargo.toml` and pin a `rev` for reproducible
+builds (replace `<commit>` with the full hash of the commit you want):
 
 ```toml
 [dependencies]
-kylix-pqc = { git = "https://github.com/crane-valley/kylix.git" }
+kylix-pqc = { git = "https://github.com/crane-valley/kylix.git", rev = "<commit>" }
 rand = "0.9"
 ```
 
@@ -55,17 +61,21 @@ To enable SHA2-based SLH-DSA variants alongside the default algorithms:
 
 ```toml
 [dependencies]
-kylix-pqc = { git = "https://github.com/crane-valley/kylix.git", features = ["slh-dsa-sha2"] }
+kylix-pqc = { git = "https://github.com/crane-valley/kylix.git", rev = "<commit>", features = ["slh-dsa-sha2"] }
 rand = "0.9"
 ```
 
-If using SHA2-based SLH-DSA with `default-features = false`, enable both
-`slh-dsa` and `slh-dsa-sha2`:
+For a SHA2-only SLH-DSA build, disable default features and enable
+`slh-dsa-sha2` on its own (add `slh-dsa` as well to keep the SHAKE variants):
 
 ```toml
 [dependencies]
-kylix-pqc = { git = "https://github.com/crane-valley/kylix.git", default-features = false, features = ["slh-dsa", "slh-dsa-sha2"] }
+kylix-pqc = { git = "https://github.com/crane-valley/kylix.git", rev = "<commit>", default-features = false, features = ["std", "slh-dsa-sha2"] }
 ```
+
+The facade's default features are `std`, `simd`, `ml-kem`, `ml-dsa` and
+`slh-dsa`. `simd` enables the ML-KEM and ML-DSA SIMD backends; with
+`default-features = false`, add `simd` back to keep them.
 
 ## Usage
 
@@ -165,8 +175,7 @@ See the [kylix-cli repository](https://github.com/crane-valley/kylix-cli) for fu
 
 ## Repository Guide
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) - detailed crate graph, feature layout, and security design
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - shorter workspace-oriented architecture summary
+- [ARCHITECTURE.md](ARCHITECTURE.md) - crate graph, feature layout, security design, and testing
 - [BENCHMARKS.md](BENCHMARKS.md) - current benchmark data and comparison notes
 - [PLANS.md](PLANS.md) - active roadmap and near-term priorities
 - [CLAUDE.md](CLAUDE.md) - contributor workflow and verification expectations

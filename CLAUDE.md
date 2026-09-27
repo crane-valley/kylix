@@ -7,7 +7,7 @@
 ## CI Notes
 
 - CI uses `-Dwarnings` so all warnings are treated as errors
-- CI sets `KYLIX_REQUIRE_ACVP=1`, so missing ACVP vectors fail tests instead of skipping them
+- CI sets `KYLIX_REQUIRE_ACVP=1`, so a missing `tests/acvp/` directory fails the ACVP tests instead of skipping them (a missing file inside an existing directory always fails)
 - Doc comments: `[X]` is interpreted as a link reference by rustdoc; escape as `\[X\]`
 
 ## Code Quality Rules
@@ -73,8 +73,8 @@ When adding a new crate to the workspace:
 ### Dispatch Pattern (kylix-core/src/simd.rs)
 
 Runtime detection with compile-time fast paths:
-- AVX2: `#[target_feature(enable = "avx2")]` + `is_x86_feature_detected!`
-- NEON: aarch64 with the `neon` target feature (compile-time check)
+- AVX2: `#[target_feature(enable = "avx2")]` + `is_x86_feature_detected!` (with `std`; without `std`, only when compiled with the `avx2` target feature)
+- NEON: only on aarch64 targets compiled with the `neon` target feature (compile-time check); other aarch64 targets such as `aarch64-unknown-none-softfloat` use the scalar fallback
 - WASM-SIMD128: feature-gated (`core::arch::wasm32` intrinsics)
 - Scalar fallback: no_std compatible
 
@@ -95,7 +95,7 @@ Three dispatch flavors (macros in kylix-core):
 
 - dudect-based timing tests in `timing/` directory (excluded from workspace)
 - Run: `cargo run --release --manifest-path timing/Cargo.toml --bin ml_kem` (must be release for meaningful timing)
-- CI gate: `timing/dudect-gate.sh` runs the ML-KEM benches (1M measurements each). A bench with `|max t| > 10` (dudect's own failure level) is rerun and fails the job only if a majority of up to three runs exceed 10, since one noisy shared-runner run can; `4.5 < |max t| <= 10` is a warning. A crashed or incomplete run or a missing or unparsable result also fails.
+- CI gate: `timing/dudect-gate.sh` runs the ML-KEM benches (1M measurements each). A bench with `|max t| > 10` (dudect's own failure level) is rerun and fails the job only if a majority of up to three runs exceed 10, since one noisy shared-runner run can; `4.5 < |max t| <= 10` is a warning. A crashed or incomplete run, a missing or unparsable result, or a failed threshold comparison also fails.
 - All secret-dependent branches must use `subtle::Choice` / `subtle::ct_eq`
 - NEVER use `if` / `match` / `==` on secret data -- use `subtle` crate operations
 

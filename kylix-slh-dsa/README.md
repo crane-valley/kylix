@@ -12,15 +12,20 @@ Part of the [Kylix](https://github.com/crane-valley/kylix) post-quantum cryptogr
 - All 12 parameter sets: SHAKE and SHA2 variants at 128/192/256-bit security, fast and small
 - Optional parallel signing via `rayon`
 - `no_std` compatible (requires `alloc`)
-- Constant-time operations via `subtle`
-- Automatic secret zeroization via `zeroize`
-- NIST ACVP test vector compliance
+- Constant-time comparisons via `subtle` (best-effort, not formally verified)
+- Signing keys zeroized on drop via `zeroize`
+- Tested against NIST ACVP vectors (keyGen and every sigVer group) for all 12
+  parameter sets; signing is cross-checked against OpenSSL
 
 ## Usage
 
+This crate is distributed from the Kylix repository rather than crates.io.
+Add the Git dependency and pin a `rev` for reproducible builds (replace
+`<commit>` with the full hash of the commit you want):
+
 ```toml
 [dependencies]
-kylix-slh-dsa = "0.5"
+kylix-slh-dsa = { git = "https://github.com/crane-valley/kylix.git", rev = "<commit>" }
 rand = "0.9"
 ```
 
@@ -47,7 +52,7 @@ assert!(SlhDsaShake128f::verify(&pk, message, &signature).is_ok());
 Enable the `parallel` feature for faster signing via multi-threaded FORS computation:
 
 ```toml
-kylix-slh-dsa = { version = "0.5", features = ["parallel"] }
+kylix-slh-dsa = { git = "https://github.com/crane-valley/kylix.git", rev = "<commit>", features = ["parallel"] }
 ```
 
 ### Serialization
@@ -96,7 +101,7 @@ such as `slh-dsa-sha2-128f` or `slh-dsa-sha2-256s`.
 ### no_std
 
 ```toml
-kylix-slh-dsa = { version = "0.5", default-features = false, features = ["slh-dsa-shake-128f"] }
+kylix-slh-dsa = { git = "https://github.com/crane-valley/kylix.git", rev = "<commit>", default-features = false, features = ["slh-dsa-shake-128f"] }
 ```
 
 ## License

@@ -11,11 +11,22 @@
 
 ## Supported Versions
 
+Kylix is distributed as source from this repository. No package is
+published to crates.io any more, and every workspace package is
+`publish = false`. The last published release is 0.4.5. The `main` branch
+carries the unreleased 0.5.0 workspace, which contains security and
+correctness fixes that are not in any published release (see
+[CHANGELOG.md](CHANGELOG.md)). Several of them change signatures or keys, so
+they cannot be shipped as compatible 0.4.x patch releases.
+
 | Version | Supported |
 | ------- | --------- |
-| 0.4.x   | Yes       |
-| 0.3.x   | Yes       |
-| < 0.3   | No        |
+| `main` (unreleased 0.5.0) | Yes: fixes land here |
+| 0.4.x (crates.io) | No: no further releases; move to a pinned `main` revision |
+| < 0.4   | No        |
+
+Report issues against the current `main` branch. Reports that only affect
+0.4.x are still welcome and will be recorded in the changelog.
 
 ---
 

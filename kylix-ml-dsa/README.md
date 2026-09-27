@@ -10,18 +10,25 @@ Part of the [Kylix](https://github.com/crane-valley/kylix) post-quantum cryptogr
 ## Features
 
 - All three parameter sets: ML-DSA-44, ML-DSA-65, ML-DSA-87
-- SIMD acceleration: AVX2 (x86-64), NEON (AArch64), WASM-SIMD128
+- SIMD acceleration: AVX2 (x86-64; detected at runtime with `std`), NEON
+  (AArch64 targets with the `neon` target feature), WASM-SIMD128
 - Expanded verification key for 2-3x faster repeated verification
 - `no_std` compatible (requires `alloc`)
-- Constant-time operations via `subtle`
-- Automatic secret zeroization via `zeroize`
-- NIST ACVP test vector compliance
+- Constant-time coding for secret data via `subtle` (best-effort, not
+  formally verified); signing time varies by design because of rejection
+  sampling
+- Signing keys zeroized on drop via `zeroize`
+- Tested against NIST ACVP vectors: keyGen and every sigGen and sigVer group
 
 ## Usage
 
+This crate is distributed from the Kylix repository rather than crates.io.
+Add the Git dependency and pin a `rev` for reproducible builds (replace
+`<commit>` with the full hash of the commit you want):
+
 ```toml
 [dependencies]
-kylix-ml-dsa = "0.5"
+kylix-ml-dsa = { git = "https://github.com/crane-valley/kylix.git", rev = "<commit>" }
 rand = "0.9"
 ```
 
@@ -94,7 +101,7 @@ let sig = Signature::from_bytes(sig_bytes).unwrap();
 ### no_std
 
 ```toml
-kylix-ml-dsa = { version = "0.5", default-features = false, features = ["ml-dsa-65"] }
+kylix-ml-dsa = { git = "https://github.com/crane-valley/kylix.git", rev = "<commit>", default-features = false, features = ["ml-dsa-65"] }
 ```
 
 ## License

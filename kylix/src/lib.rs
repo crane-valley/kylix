@@ -14,32 +14,38 @@
 //!
 //! ## Quick Start
 //!
-//! Add the facade crate:
+//! Kylix is distributed from its Git repository rather than crates.io. Add the
+//! facade crate as a Git dependency and pin a `rev` for reproducible builds
+//! (replace `<commit>` with the full hash of the commit you want):
 //!
 //! ```toml
 //! [dependencies]
-//! kylix-pqc = "0.5"
+//! kylix-pqc = { git = "https://github.com/crane-valley/kylix.git", rev = "<commit>" }
 //! rand = "0.9"
 //! ```
 //!
-//! Enable SHA2-based SLH-DSA variants when needed. On the facade crate,
-//! `slh-dsa-sha2` augments `slh-dsa`, so SHA2-only configurations with
-//! `default-features = false` should enable both flags:
+//! Enable SHA2-based SLH-DSA variants with `slh-dsa-sha2`. It works on its own,
+//! so a SHA2-only configuration needs only that flag:
 //!
 //! ```toml
 //! [dependencies]
-//! kylix-pqc = { version = "0.5", default-features = false, features = ["slh-dsa", "slh-dsa-sha2"] }
+//! kylix-pqc = { git = "https://github.com/crane-valley/kylix.git", rev = "<commit>", default-features = false, features = ["std", "slh-dsa-sha2"] }
 //! rand = "0.9"
 //! ```
 //!
 //! ## Feature Flags
 //!
 //! - `std` (default): enable standard library support
+//! - `simd` (default): enable the ML-KEM and ML-DSA SIMD backends (AVX2 on
+//!   x86_64, detected at runtime with `std` or enabled at compile time; NEON on
+//!   aarch64 targets with the `neon` target feature; SIMD128 on wasm32 for
+//!   ML-DSA). Without it, or where none of these is available, both crates use
+//!   their portable scalar code. SLH-DSA has no SIMD backend.
 //! - `ml-kem` (default): enable all ML-KEM variants
 //! - `ml-dsa` (default): enable all ML-DSA variants
 //! - `slh-dsa` (default): enable SHAKE-based SLH-DSA variants
-//! - `slh-dsa-sha2`: enable SHA2-based SLH-DSA variants; on the facade crate,
-//!   keep `slh-dsa` enabled as well
+//! - `slh-dsa-sha2`: enable SHA2-based SLH-DSA variants; combine with
+//!   `slh-dsa` to get both families
 //!
 //! ## Choosing An Algorithm
 //!
@@ -53,6 +59,7 @@
 //! ML-KEM key exchange:
 //!
 //! ```no_run
+//! # #[cfg(feature = "ml-kem")]
 //! # fn main() -> kylix_pqc::Result<()> {
 //! use kylix_pqc::ml_kem::{Kem, MlKem768};
 //! use rand::rng;
@@ -65,6 +72,8 @@
 //! assert_eq!(ss_sender.as_ref(), ss_receiver.as_ref());
 //! # Ok(())
 //! # }
+//! # #[cfg(not(feature = "ml-kem"))]
+//! # fn main() {}
 //! ```
 //!
 //! ML-DSA sign and verify:
@@ -93,7 +102,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! kylix-pqc = { version = "0.5", default-features = false, features = ["ml-kem"] }
+//! kylix-pqc = { git = "https://github.com/crane-valley/kylix.git", rev = "<commit>", default-features = false, features = ["ml-kem"] }
 //! ```
 //!
 //! Individual algorithm crates expose finer-grained per-variant feature flags if
@@ -155,17 +164,20 @@ pub mod ml_dsa {
 }
 
 /// SLH-DSA (FIPS 205) stateless hash-based digital signature algorithm.
-#[cfg(feature = "slh-dsa")]
+#[cfg(any(feature = "slh-dsa", feature = "slh-dsa-sha2"))]
 pub mod slh_dsa {
     pub use kylix_core::Signer;
 
-    pub use kylix_slh_dsa::{hash_shake, Shake128Hash, Shake192Hash, Shake256Hash};
     pub use kylix_slh_dsa::{Address, AdrsType, Error, HashSuite, Result};
 
+    #[cfg(feature = "slh-dsa")]
+    pub use kylix_slh_dsa::{hash_shake, Shake128Hash, Shake192Hash, Shake256Hash};
+    #[cfg(feature = "slh-dsa")]
     pub use kylix_slh_dsa::{
         slh_dsa_shake_128f, slh_dsa_shake_128s, slh_dsa_shake_192f, slh_dsa_shake_192s,
         slh_dsa_shake_256f, slh_dsa_shake_256s,
     };
+    #[cfg(feature = "slh-dsa")]
     pub use kylix_slh_dsa::{
         SlhDsaShake128f, SlhDsaShake128s, SlhDsaShake192f, SlhDsaShake192s, SlhDsaShake256f,
         SlhDsaShake256s,

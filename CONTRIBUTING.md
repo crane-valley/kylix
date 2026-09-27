@@ -23,6 +23,22 @@ cargo test --workspace --all-features
 If your change touches `no_std` behavior or feature gating, also verify the
 affected crate builds without default features.
 
+NIST ACVP vector tests skip themselves when a crate's `tests/acvp/` directory
+is absent (as in a partial source archive). Set `KYLIX_REQUIRE_ACVP=1` (as CI
+does) to make an absent directory fail the tests instead. A vector file missing
+from an existing `tests/acvp/` directory always fails the test that loads it.
+
+```sh
+KYLIX_REQUIRE_ACVP=1 cargo test --workspace --all-features
+```
+
+If your change touches secret-dependent code paths in ML-KEM, also run the
+dudect timing harness, which lives in its own workspace under `timing/`:
+
+```sh
+cargo run --release --manifest-path timing/Cargo.toml --bin ml_kem
+```
+
 ## Project Context
 
 - [README.md](README.md) for package overview and public usage

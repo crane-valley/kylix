@@ -52,7 +52,7 @@ agent-friendly implementation backlog above.
 ### Constant-time Verification
 
 Dudect-based timing tests in `timing/` directory.
-- ML-KEM decaps: passes (max t < 4.5)
+- ML-KEM decaps: CI gate (`timing/dudect-gate.sh`) warns when 4.5 < |max t| <= 10 and fails when |max t| > 10 in a majority of up to 3 runs
 - ML-DSA sign: expected variance (rejection sampling)
 
 **Future work:**
@@ -61,6 +61,7 @@ Dudect-based timing tests in `timing/` directory.
 - SLH-DSA timing tests (LOW — inherently constant-time hash-based design)
 - Formal verification (ct-verif / ctgrind) for critical paths
 - Secret polynomial arithmetic still returns by value before being wrapped in `Zeroizing` (ML-KEM `PolyVec::from_bytes` of dk_pke, `inner_product`, `matrix_vec_mul`; ML-DSA `mul_vec`, `pointwise_mul`, `Poly::add`), and the public `kem::ml_kem_encaps`/`ml_kem_decaps` return the shared secret as a plain array; write into caller-owned zeroizing destinations where feasible (see docs/adr/0001)
+- Other zeroization residuals (see docs/adr/0001 and docs/adr/0002): the `Kem` trait methods return `SharedSecret` by value, so the move can leave an unwiped copy; registers and stack spills are not wiped (the per-lane word in sponge absorb and squeeze, the scratch lanes inside `keccak::f1600`, and the round temporaries and byte-wise digest output of the SLH-DSA in-crate SHA-2 compression); SLH-DSA SHA2 F runs on `sha2::compress256`, whose portable backend (CPUs without SHA-NI, thumbv7em) copies PK.seed, ADRSc and one-time WOTS+ or FORS values into unwiped locals
 
 ---
 
@@ -101,3 +102,51 @@ Primary optimization opportunity: SHA3/SHAKE SIMD (HIGH priority, biggest single
 - [x] Property-based tests (proptest: roundtrip, key/sig sizes, tampering detection)
 - [x] CLAUDE.md expansion (SIMD, dudect, CI, crate graph) + docs/ARCHITECTURE.md
 - [x] Fuzz targets for error/validation paths (untrusted keys, ciphertexts and signatures of any length)
+
+---
+
+## Deferred Review Findings (2026-09-27)
+
+Found in the 2026-09-27 whole-repository review and left out of the
+remediation PRs (#193-#198). Zeroization residuals (Constant-time
+Verification, future work) and fuzzing gaps (Near-Term Priorities, fuzz
+targets row) are tracked in the sections above, not here.
+
+### API
+
+- Hedged signing and context-string APIs, HashML-DSA and HashSLH-DSA: needs a `Signer` trait change and an ADR
+- Hazmat or test-only gating for the doc-hidden internal modules (ml-kem `kem`, ml-dsa `sign`, slh-dsa `sign`)
+- `ConstantTimeEq` for `SharedSecret`
+- `rand_core` 0.9 `TryCryptoRng` / `OsRng` support
+- Unused `Error` variants
+- `Poly::conditional_select` uses an inverted argument convention compared with `subtle`
+- SLH-DSA: tie `H::N` to the parameter-set `N` at compile time
+
+### Performance
+
+- SLH-DSA hypertree parallelism: the `parallel` feature only parallelizes FORS (1.06-1.39x)
+- SHA2 midstate caching for SLH-DSA
+- ML-KEM SIMD lane utilization in basemul
+- Validate-at-import key types: `from_bytes` checks only the length today, so ML-KEM encaps checks the encapsulation-key coefficients and decaps checks the embedded H(ek) and ek coefficients on every call. Validating keys at import would let these per-call checks be dropped
+
+### CI
+
+- Miri and sanitizers for the SIMD code
+- Disassembly check for division instructions on secret paths
+- Root cargo commands run without `--locked`
+- `timing/Cargo.lock` is lockfile v4, which cargo 1.75 cannot read, and the MSRV job does not cover `timing/`
+- The dudect gate cannot reliably catch very small leaks
+- `timing/dudect-gate.sh` shell hardening (P3): `mktemp` / `trap` ordering
+
+### Tests
+
+- Test for the ek modulus check on the decaps path
+- ML-DSA ACVP sigVer module duplication
+- `deterministic_fixtures` runs 0 tests with only f-variant features enabled
+- Redundant per-item aarch64 cfgs inside the NEON modules
+- AVX2 parity tests return early on hosts without AVX2
+
+### Cleanup
+
+- Remaining `#[allow(dead_code)]` in kylix-ml-kem (`hash.rs` squeeze, `params` constants, `poly_add_assign`)
+- Pre-existing non-ASCII characters in ml-kem `encode.rs` / `polyvec.rs` comments

@@ -7,16 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-This release contains breaking API changes. Every item under **Changed** and
-**Removed** below requires source changes in dependent code.
+This release contains breaking API changes. Every item marked BREAKING under
+**Changed** and **Removed** below requires source changes in dependent code.
+
+It also contains breaking output changes. Items marked BREAKING under
+**Fixed** change signatures or derived keys: signatures made by 0.4.x through
+the high-level `Signer` APIs, SLH-DSA SHA2 keys and signatures, and ML-DSA
+keys derived from a small fraction of seeds are not compatible with this
+release.
+
+Kylix is now distributed as source only. Depend on it through Git and pin a
+`rev`; 0.4.5 is the last release published to crates.io.
 
 ### Changed
 
+- **Source-only distribution** (#190): The crates.io publishing workflow is removed and every workspace package is `publish = false`. Use a Git dependency on `https://github.com/crane-valley/kylix.git` with a pinned `rev`.
+- **Facade `simd` feature** (`kylix-pqc`): New default feature that forwards to the `simd` features of `kylix-ml-kem` and `kylix-ml-dsa`. The facade previously never enabled them, so facade users got the scalar backends. With `default-features = false`, add `simd` to keep the SIMD backends.
+- **Facade `slh-dsa-sha2` works on its own** (`kylix-pqc`): `kylix_pqc::slh_dsa` is now available when either `slh-dsa` or `slh-dsa-sha2` is enabled. The SHAKE items (`hash_shake`, `Shake*Hash`, the SHAKE variant modules and `SlhDsaShake*` types) are re-exported only under `slh-dsa`. Previously `slh-dsa-sha2` without `slh-dsa` compiled the SHA2 variants but exposed no module.
 - **BREAKING — ML-DSA `as_bytes` return type**: `as_bytes` on ML-DSA key and signature types now returns `&[u8]` instead of `&[u8; N]`. Callers that relied on the fixed-size array (for example passing it where `[u8; N]` was expected, or indexing past the slice API) must convert explicitly with `try_into()`.
 - **BREAKING — `HashSuite` required methods**: The `*_to` methods of `kylix_slh_dsa::HashSuite` are now the required methods of the trait, and the `Vec`-returning methods are provided defaults implemented in terms of them. External implementors must implement the `*_to` methods; implementations that only provided the `Vec`-returning methods no longer compile.
 - **BREAKING — SLH-DSA `sign::SecretKey` fields are private**: The fields of `kylix_slh_dsa::sign::SecretKey` are no longer public. Code that built the key with a struct literal or read its fields directly must go through the serialization methods instead: `from_bytes` to construct, and `to_bytes` or `write_to` to read. The byte layout is unchanged (`sk_seed || sk_prf || pk_seed || pk_root`), so a round-trip through these methods reproduces the previous field access.
-- **BREAKING — ML-DSA variant module names**: The ML-DSA variant modules are renamed to `ml_dsa_44`, `ml_dsa_65`, and `ml_dsa_87`. The old `dsa44`, `dsa65`, and `dsa87` names remain as deprecated aliases and will be removed in a future release.
-- **BREAKING — internal `kem` and `sign` modules are hidden**: The internal `kem` module of `kylix-ml-kem` and the `sign` modules of `kylix-ml-dsa` and `kylix-slh-dsa` are now `#[doc(hidden)]`. They are kept public only for ACVP vectors and timing harnesses. They remain `pub` and part of the public API surface, so changes to them remain semver-breaking; they are simply no longer documented and their use is discouraged.
+- **ML-DSA variant module names**: The ML-DSA variant modules are renamed to `ml_dsa_44`, `ml_dsa_65`, and `ml_dsa_87`. The old `dsa44`, `dsa65`, and `dsa87` names remain as deprecated aliases, so existing code keeps compiling. A deprecation warning appears only where a deprecated module is itself imported or referenced (`use kylix_ml_dsa::dsa65;`); paths that pass through it, such as `kylix_ml_dsa::dsa65::SigningKey`, do not warn. The aliases will be removed in a future release.
+- **Internal `kem` and `sign` modules are hidden from the documentation**: The internal `kem` module of `kylix-ml-kem` and the `sign` modules of `kylix-ml-dsa` and `kylix-slh-dsa` are now `#[doc(hidden)]`. They are kept public only for ACVP vectors and timing harnesses. They remain `pub` and part of the public API surface, so existing code compiles unchanged and changes to them remain semver-breaking; they are no longer documented and their use is discouraged.
 - **BREAKING — `kylix-pqc` facade narrowed to explicit re-exports**: The facade modules re-export each item individually instead of globbing the algorithm crates, so future internal `pub` items no longer leak into the `kylix-pqc` API. Within `kylix_pqc::slh_dsa`, the SHA2 hash suites and variants are re-exported only when the `slh-dsa-sha2` feature is enabled.
 
   Facade retention:
@@ -25,7 +37,7 @@ This release contains breaking API changes. Every item under **Changed** and
   |---------------|------|---------|
   | `kylix_pqc::ml_kem` | `Kem`; `ml_kem_512`, `ml_kem_768`, `ml_kem_1024`; `MlKem512`, `MlKem768`, `MlKem1024`; `kem` (`#[doc(hidden)]`) | `Poly` |
   | `kylix_pqc::ml_dsa` | `Signer`; `ml_dsa_44`, `ml_dsa_65`, `ml_dsa_87`; deprecated `dsa44`, `dsa65`, `dsa87`; `MlDsa44`, `MlDsa65`, `MlDsa87`; `Error`, `Result`; `sign` (`#[doc(hidden)]`) | `params` |
-  | `kylix_pqc::slh_dsa` | `Signer`; `Address`, `AdrsType`, `HashSuite`, `Error`, `Result`; `hash_shake` with `Shake128Hash`, `Shake192Hash`, `Shake256Hash`; `hash_sha2` with `Sha2_128Hash`, `Sha2_192Hash`, `Sha2_256Hash` (under `slh-dsa-sha2`); all 12 `slh_dsa_*` variant modules and `SlhDsa*` types; `sign` (`#[doc(hidden)]`) | `params` |
+  | `kylix_pqc::slh_dsa` | `Signer`; `Address`, `AdrsType`, `HashSuite`, `Error`, `Result`; `hash_shake` with `Shake128Hash`, `Shake192Hash`, `Shake256Hash` (under `slh-dsa`); `hash_sha2` with `Sha2_128Hash`, `Sha2_192Hash`, `Sha2_256Hash` (under `slh-dsa-sha2`); all 12 `slh_dsa_*` variant modules and `SlhDsa*` types; `sign` (`#[doc(hidden)]`) | `params` |
 
 ### Removed
 
@@ -37,10 +49,23 @@ This release contains breaking API changes. Every item under **Changed** and
 
 - **ML-KEM decapsulation-key validation**: Enforce the FIPS 203 §7.3 hash check before decapsulation and reject keys whose embedded `H(ek)` does not match the embedded encapsulation key.
 - **SLH-DSA key generation cleanup**: Generate random secret seeds directly in the returned secret-key structure and zeroize deterministic key-generation seed parameters after copying them into protected storage.
+- **ML-KEM secret-dependent division and branches removed** (#194): `Compress` and `ByteDecode12` divided secret values by q (`/ Q`, `% Q`). At opt-level 0 and `z` this compiles to hardware division, whose latency depends on the operands (the KyberSlash class), on m-derived values in encaps and the decaps re-encryption and on the secret key in every decaps. They now use an exact multiply-shift and a masked subtraction. Message encoding and decoding and full Barrett reduction are branch-free in the source. Outputs are bit-identical; exhaustive tests cover Compress, ByteDecode12 and Barrett reduction over their full input ranges.
+- **Wipe secret-absorbing hash state in ML-KEM, ML-DSA and SLH-DSA** (#198): Hash state and buffers that absorbed secrets were dropped without being wiped. Keccak-f is a permutation, so a leftover SHA3/SHAKE state revealed its inputs, and a leftover HMAC midstate of the SLH-DSA SHA2 PRF_msg let anyone compute it under SK.prf. Every secret-absorbing SHA3/SHAKE hash in ML-KEM, ML-DSA and the SLH-DSA SHAKE sets now uses a wipeable Keccak sponge in `kylix_core::hash`. In the SLH-DSA SHA2 sets, PRF and PRF_msg run on an in-crate SHA-256/SHA-512 and HMAC whose state and buffers are wiped on finalization and drop and whose compression scratch is wiped after every block, and F runs on `sha2::compress256` inside a wiped wrapper. Several unwiped intermediate copies of secret data are removed, and the ML-KEM helpers that produce secrets write into caller-owned zeroizing storage. Outputs are bit-identical. Coverage is not complete: the known residuals (the by-value shared secret of `kem::ml_kem_encaps`/`ml_kem_decaps` and of the `Kem` trait methods, by-value polynomial arithmetic, register and stack spills, and SLH-DSA SHA2 F on `sha2`'s portable backend) are listed in `docs/adr/0001-wipe-secret-absorbing-hash-state.md`, `docs/adr/0002-wipe-secret-sha2-state-in-slh-dsa.md` and `PLANS.md`.
 
 ### Fixed
 
-- **Pure-signature domain separation**: Apply the required empty-context domain prefix in the public ML-DSA and SLH-DSA `Signer` implementations. Signatures created by earlier releases through these high-level APIs used the internal-algorithm message format and are not compatible with the corrected high-level verification path.
+- **BREAKING - Pure-signature domain separation**: Apply the required empty-context domain prefix (`0 || |ctx| || ctx` with an empty `ctx`) in the public ML-DSA and SLH-DSA `Signer` implementations. 0.4.5 signed and verified the raw message with the internal algorithm, so signatures made by 0.4.5 through these APIs do not verify with this release, and signatures made by this release do not verify with 0.4.5.
+- **BREAKING - SLH-DSA SHA2 compressed address** (#195): All six SHA2 parameter sets built the compressed address (ADRSc) with a layout that differs from FIPS 205 section 11.2, so their keys and signatures were not interoperable with other implementations (0 of 10 ACVP keyGen vectors matched per set and every valid ACVP signature was rejected), and some distinct hash calls shared a tweak. The layout now follows FIPS 205. This is a wire-format change for the SHA2 sets: public keys derived from a seed change, and signatures made by earlier versions do not verify. The SHAKE sets are unaffected.
+- **BREAKING - ML-DSA KeyGen Power2Round input** (#193): KeyGen could pass a value in `[q, q + eta)` to Power2Round for roughly 1 in 6,000 to 30,000 seeds, producing public keys, secret keys and `tr` that differ from FIPS 204 (confirmed against OpenSSL 3.6.0). `t` is now fully reduced before Power2Round. Keys derived from affected seeds change; keys from other seeds are unchanged. The ML-DSA Barrett constant is also corrected to floor(2^48 / q); no existing call site reached the inputs where the old value was wrong.
+- **Fuzz workflow** (#196): Crash reports now include the crash files, infrastructure failures no longer open security issues, `workflow_dispatch` inputs are no longer interpolated into shell, `issues: write` is limited to the job that needs it, and actions are pinned by commit SHA.
+- **Constant-time CI gate** (#197): The dudect step could never fail. It now runs two ML-KEM-768 decaps benches with 1M measurements each and warns above |max t| = 4.5. A bench above 10 is rerun and fails the job when a majority of up to three runs exceed 10; a run that exits abnormally or does not complete, a missing or unparsable result, or a failed comparison also fails the job.
+- **NEON dispatch gated on the target feature** (#197): NEON code is used only when compiled with the `neon` target feature. AArch64 targets without it, such as `aarch64-unknown-none-softfloat`, previously called NEON code unconditionally and now use the scalar code.
+
+### Testing
+
+- **Full ACVP coverage** (#193, #194, #195): ML-KEM adds the encapsulation-key and decapsulation-key check groups; ML-DSA runs every sigGen and sigVer group; SLH-DSA runs keyGen and every sigVer group for all 12 parameter sets. The repository has no SLH-DSA sigGen vectors, so SLH-DSA signing is compared with OpenSSL 3.6.0 for all 12 sets. `KYLIX_REQUIRE_ACVP=1` (set in CI, #197) makes the ACVP tests fail instead of skipping when a crate's `tests/acvp/` directory is absent; a vector file missing from an existing directory always fails the test that loads it.
+- **Untrusted-input fuzz targets** (#196): ML-KEM encaps/decaps and ML-DSA/SLH-DSA verification targets feed attacker-controlled keys, ciphertexts and signatures of any length.
+- **CI coverage** (#197): tests at opt-level 0 and `z`, `no_std` builds for thumbv7em and aarch64 softfloat, a wasm32 SIMD128 check, `cargo audit` and `--locked` checks for the timing and fuzz lockfiles, and GitHub Actions pinned by commit SHA.
 
 ## [0.4.5] - 2026-02-11
 

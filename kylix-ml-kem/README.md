@@ -10,18 +10,25 @@ Part of the [Kylix](https://github.com/crane-valley/kylix) post-quantum cryptogr
 ## Features
 
 - All three parameter sets: ML-KEM-512, ML-KEM-768, ML-KEM-1024
-- SIMD acceleration: AVX2 (x86-64), NEON (AArch64) with runtime detection
+- SIMD acceleration: AVX2 (x86-64; detected at runtime with `std`), NEON
+  (AArch64 targets with the `neon` target feature)
 - `no_std` compatible (requires `alloc`)
-- Constant-time operations via `subtle`
-- Automatic secret zeroization via `zeroize`
+- Constant-time coding for secret data via `subtle` and mask arithmetic
+  (best-effort, not formally verified)
+- Decapsulation keys and shared secrets zeroized on drop via `zeroize`
 - IND-CCA2 security with implicit rejection
-- NIST ACVP test vector compliance
+- Tested against NIST ACVP vectors: keyGen, encapsulation, decapsulation, and
+  the encapsulation-key and decapsulation-key checks
 
 ## Usage
 
+This crate is distributed from the Kylix repository rather than crates.io.
+Add the Git dependency and pin a `rev` for reproducible builds (replace
+`<commit>` with the full hash of the commit you want):
+
 ```toml
 [dependencies]
-kylix-ml-kem = "0.5"
+kylix-ml-kem = { git = "https://github.com/crane-valley/kylix.git", rev = "<commit>" }
 rand = "0.9"
 ```
 
@@ -78,7 +85,7 @@ let dk = DecapsulationKey::from_bytes(dk_bytes).unwrap();
 ### no_std
 
 ```toml
-kylix-ml-kem = { version = "0.5", default-features = false, features = ["ml-kem-768"] }
+kylix-ml-kem = { git = "https://github.com/crane-valley/kylix.git", rev = "<commit>", default-features = false, features = ["ml-kem-768"] }
 ```
 
 ## License
