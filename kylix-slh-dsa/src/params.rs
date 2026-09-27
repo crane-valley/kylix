@@ -49,7 +49,7 @@ pub mod slh_dsa_shake_128s {
     pub const SK_BYTES: usize = 4 * N;
     /// Signature size: n + k*(a+1)*n + (h + d*len)*n = 16 + 14*13*16 + (63 + 7*35)*16 = 7856
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
-    /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
+    /// Message digest bytes.
     pub const MD_BYTES: usize =
         (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
 }
@@ -87,7 +87,7 @@ pub mod slh_dsa_shake_128f {
     pub const SK_BYTES: usize = 4 * N;
     /// Signature size: n + k*(a+1)*n + (h + d*len)*n = 16 + 33*7*16 + (66 + 22*35)*16 = 17088
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
-    /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
+    /// Message digest bytes.
     pub const MD_BYTES: usize =
         (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
 }
@@ -125,7 +125,7 @@ pub mod slh_dsa_shake_192s {
     pub const SK_BYTES: usize = 4 * N;
     /// Signature size.
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
-    /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
+    /// Message digest bytes.
     pub const MD_BYTES: usize =
         (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
 }
@@ -163,7 +163,7 @@ pub mod slh_dsa_shake_192f {
     pub const SK_BYTES: usize = 4 * N;
     /// Signature size.
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
-    /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
+    /// Message digest bytes.
     pub const MD_BYTES: usize =
         (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
 }
@@ -201,7 +201,7 @@ pub mod slh_dsa_shake_256s {
     pub const SK_BYTES: usize = 4 * N;
     /// Signature size.
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
-    /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
+    /// Message digest bytes.
     pub const MD_BYTES: usize =
         (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
 }
@@ -239,7 +239,7 @@ pub mod slh_dsa_shake_256f {
     pub const SK_BYTES: usize = 4 * N;
     /// Signature size.
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
-    /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
+    /// Message digest bytes.
     pub const MD_BYTES: usize =
         (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
 }

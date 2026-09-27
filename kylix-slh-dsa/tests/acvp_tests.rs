@@ -209,7 +209,27 @@ fn pre_hash_algorithms_have_positive_vectors() {
             *accepted.entry(hash_alg).or_default() += usize::from(expected.test_passed);
         }
     }
-    assert!(!accepted.is_empty(), "no preHash sigVer vectors");
+    const ALL_PRE_HASH_ALGS: [&str; 12] = [
+        "SHA2-224",
+        "SHA2-256",
+        "SHA2-384",
+        "SHA2-512",
+        "SHA2-512/224",
+        "SHA2-512/256",
+        "SHA3-224",
+        "SHA3-256",
+        "SHA3-384",
+        "SHA3-512",
+        "SHAKE-128",
+        "SHAKE-256",
+    ];
+    let present: Vec<&str> = accepted.keys().copied().collect();
+    let mut expected_algs = ALL_PRE_HASH_ALGS;
+    expected_algs.sort_unstable();
+    assert_eq!(
+        present, expected_algs,
+        "preHash algorithms in sigVer vectors"
+    );
     for (hash_alg, count) in &accepted {
         assert!(
             *count > 0 || PINNED_WITHOUT_POSITIVES.contains(hash_alg),
