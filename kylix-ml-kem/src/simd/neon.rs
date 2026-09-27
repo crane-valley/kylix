@@ -10,7 +10,8 @@
 //!
 //! # Safety
 //!
-//! All functions require NEON support (always available on aarch64).
+//! All functions require NEON support. This module is compiled only when the
+//! `neon` target feature is enabled; otherwise the scalar fallback is used.
 
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::cast_sign_loss)]

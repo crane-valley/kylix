@@ -52,7 +52,7 @@ agent-friendly implementation backlog above.
 ### Constant-time Verification
 
 Dudect-based timing tests in `timing/` directory.
-- ML-KEM decaps: passes (max t < 4.5)
+- ML-KEM decaps: CI gate (`timing/dudect-gate.sh`) warns when 4.5 < |max t| <= 10 and fails when |max t| > 10 in a majority of up to 3 runs
 - ML-DSA sign: expected variance (rejection sampling)
 
 **Future work:**

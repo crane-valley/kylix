@@ -339,8 +339,10 @@ panic = "abort"
 ### ML-DSA (FIPS 204)
 
 - Parameter sets: 44 (Category 2), 65 (Category 3), 87 (Category 5)
-- Pure signing with an empty context; hedged signing, non-empty contexts and
-  HashML-DSA are not exposed
+- Pure signing with an empty context; the high-level `Signer` API signs
+  deterministically, and non-empty contexts and HashML-DSA are not exposed.
+  Hedged signing is only reachable through the low-level doc-hidden `sign`
+  functions, which take M' directly and do not add the context prefix
 - WASM-SIMD128 is implemented for pointwise multiplication only
 
 ### SLH-DSA (FIPS 205)
