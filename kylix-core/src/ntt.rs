@@ -215,14 +215,6 @@ mod tests {
             butterfly_diff: inv_ntt_diff
         }
 
-        // Reduce to canonical [0, q-1] using constant-time freeze
-        crate::define_freeze! {
-            name: full_reduce,
-            coeff: i16,
-            q: Q,
-            reduce_approx: barrett_reduce
-        }
-
         /// Convert from Montgomery form
         fn from_mont(a: i16) -> i16 {
             montgomery_reduce(a as i32)
@@ -249,8 +241,8 @@ mod tests {
             inv_ntt_scalar(&mut coeffs);
 
             for (i, (&got_raw, &expected_raw)) in coeffs.iter().zip(original.iter()).enumerate() {
-                let got = full_reduce(from_mont(got_raw));
-                let expected = full_reduce(expected_raw);
+                let got = from_mont(got_raw).rem_euclid(Q);
+                let expected = expected_raw.rem_euclid(Q);
                 assert_eq!(got, expected, "roundtrip failed at index {}", i);
             }
         }

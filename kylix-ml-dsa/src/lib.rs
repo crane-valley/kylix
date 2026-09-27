@@ -14,6 +14,8 @@
 //! # Example
 //!
 //! ```no_run
+//! # #[cfg(feature = "ml-dsa-65")]
+//! # {
 //! use kylix_ml_dsa::MlDsa65;
 //! use kylix_core::Signer;
 //!
@@ -24,6 +26,7 @@
 //! let signature = MlDsa65::sign(&sk, message).unwrap();
 //!
 //! assert!(MlDsa65::verify(&pk, message, &signature).is_ok());
+//! # }
 //! ```
 
 #![cfg_attr(not(feature = "std"), no_std)]

@@ -467,7 +467,7 @@ fn parse_and_validate_signature<
 /// Mathematical half of ML-DSA verification, shared by the plain and
 /// pre-expanded entry points.
 ///
-/// `t1_2d_hat` is t1 * 2^D in the NTT domain; `tr` is H(pk).
+/// `t1_2d_hat` is t1 * 2^D in the NTT domain.
 fn verify_core<
     const K: usize,
     const L: usize,
@@ -476,17 +476,12 @@ fn verify_core<
     const OMEGA: usize,
     const C_TILDE_BYTES: usize,
 >(
-    tr: &[u8; 64],
+    mu: &[u8; 64],
     a_hat: &Matrix<K, L>,
     t1_2d_hat: &PolyVecK<K>,
     parsed: &ParsedSignature<'_, L>,
-    message_prefix: &[u8],
-    message: &[u8],
 ) -> bool {
     let () = Gamma2Check::<GAMMA2>::SUPPORTED;
-
-    // mu = H(tr || M)
-    let mu = hash_message_parts(tr, message_prefix, message);
 
     // c = SampleInBall(c_tilde)
     let c = sample_in_ball(parsed.c_tilde, TAU);
@@ -519,7 +514,7 @@ fn verify_core<
 
     // c_tilde' = H(mu || w1Encode(w'1))
     let mut c_tilde_prime = [0u8; 64];
-    h2(&mu, &w1_encoded, &mut c_tilde_prime);
+    h2(mu, &w1_encoded, &mut c_tilde_prime);
 
     // Verify c_tilde == c_tilde'
     parsed.c_tilde == &c_tilde_prime[..C_TILDE_BYTES]
@@ -547,13 +542,12 @@ pub(crate) fn ml_dsa_verify_expanded_with_prefix<
         return false;
     };
 
+    let mu = hash_message_parts(&expanded.tr, message_prefix, message);
     verify_core::<K, L, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-        &expanded.tr,
+        &mu,
         &expanded.a_hat,
         &expanded.t1_2d_hat,
         &parsed,
-        message_prefix,
-        message,
     )
 }
 
@@ -638,9 +632,10 @@ pub fn ml_dsa_keygen<const K: usize, const L: usize, const ETA: usize>(
     let mut t = Zeroizing::new(a.mul_vec(&s1_ntt));
     t.reduce();
     t.inv_ntt();
-    t.caddq();
     t.add_assign(&s2);
-    t.caddq();
+    // Power2Round requires t in [0, q). Normalizing before adding s2 (|s2| <= eta)
+    // can leave t in [q, q + eta), so t is frozen only after the addition.
+    t.freeze();
 
     // 5. Power2Round: (t1, t0) = Power2Round(t)
     let mut t1 = PolyVecK::<K>::zero();
@@ -753,6 +748,50 @@ pub(crate) fn ml_dsa_sign_with_prefix<
     message: &[u8],
     rnd: &[u8; 32],
 ) -> Option<Vec<u8>> {
+    sign_internal::<K, L, ETA, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
+        sk,
+        |tr| hash_message_parts(tr, message_prefix, message),
+        rnd,
+    )
+}
+
+/// ML-DSA.Sign_internal on a caller-supplied mu (FIPS 204 external mu).
+///
+/// Not part of the supported API: exists for ACVP `externalMu` vectors.
+#[doc(hidden)]
+pub fn ml_dsa_sign_mu<
+    const K: usize,
+    const L: usize,
+    const ETA: usize,
+    const BETA: i32,
+    const GAMMA1: i32,
+    const GAMMA2: i32,
+    const TAU: usize,
+    const OMEGA: usize,
+    const C_TILDE_BYTES: usize,
+>(
+    sk: &[u8],
+    mu: &[u8; 64],
+    rnd: &[u8; 32],
+) -> Option<Vec<u8>> {
+    sign_internal::<K, L, ETA, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(sk, |_| *mu, rnd)
+}
+
+fn sign_internal<
+    const K: usize,
+    const L: usize,
+    const ETA: usize,
+    const BETA: i32,
+    const GAMMA1: i32,
+    const GAMMA2: i32,
+    const TAU: usize,
+    const OMEGA: usize,
+    const C_TILDE_BYTES: usize,
+>(
+    sk: &[u8],
+    mu_from_tr: impl FnOnce(&[u8; 64]) -> [u8; 64],
+    rnd: &[u8; 32],
+) -> Option<Vec<u8>> {
     let () = EtaCheck::<ETA>::SUPPORTED;
     let () = Gamma1Check::<GAMMA1>::SUPPORTED;
     let () = Gamma2Check::<GAMMA2>::SUPPORTED;
@@ -808,10 +847,9 @@ pub(crate) fn ml_dsa_sign_with_prefix<
     rho_arr.copy_from_slice(rho);
     let a = expand_a::<K, L>(&rho_arr);
 
-    // Compute mu = H(tr || M)
-    let mu = hash_message_parts(tr, message_prefix, message);
+    let mu = mu_from_tr(tr);
 
-    // Compute rho' = H(K || rnd || mu)
+    // Compute rho'' = H(K || rnd || mu)
     // Use h3 directly to avoid heap allocation with secret key material
     let mut rho_prime = Zeroizing::new([0u8; 64]);
     crate::hash::h3(key_k, rnd, &mu, &mut *rho_prime);
@@ -982,7 +1020,7 @@ pub fn ml_dsa_verify<
     )
 }
 
-#[allow(clippy::too_many_arguments, clippy::expect_used)]
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn ml_dsa_verify_with_prefix<
     const K: usize,
     const L: usize,
@@ -997,6 +1035,47 @@ pub(crate) fn ml_dsa_verify_with_prefix<
     message_prefix: &[u8],
     message: &[u8],
     sig: &[u8],
+) -> bool {
+    verify_internal::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(pk, sig, |tr| {
+        hash_message_parts(tr, message_prefix, message)
+    })
+}
+
+/// ML-DSA.Verify_internal on a caller-supplied mu (FIPS 204 external mu).
+///
+/// Not part of the supported API: exists for ACVP `externalMu` vectors.
+#[doc(hidden)]
+pub fn ml_dsa_verify_mu<
+    const K: usize,
+    const L: usize,
+    const BETA: i32,
+    const GAMMA1: i32,
+    const GAMMA2: i32,
+    const TAU: usize,
+    const OMEGA: usize,
+    const C_TILDE_BYTES: usize,
+>(
+    pk: &[u8],
+    mu: &[u8; 64],
+    sig: &[u8],
+) -> bool {
+    verify_internal::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(pk, sig, |_| *mu)
+}
+
+#[allow(clippy::expect_used)]
+fn verify_internal<
+    const K: usize,
+    const L: usize,
+    const BETA: i32,
+    const GAMMA1: i32,
+    const GAMMA2: i32,
+    const TAU: usize,
+    const OMEGA: usize,
+    const C_TILDE_BYTES: usize,
+>(
+    pk: &[u8],
+    sig: &[u8],
+    mu_from_tr: impl FnOnce(&[u8; 64]) -> [u8; 64],
 ) -> bool {
     // All cheap structural rejections happen first: an invalid signature or a
     // wrong-sized public key must never reach the SHAKE-heavy key expansion
@@ -1038,14 +1117,8 @@ pub(crate) fn ml_dsa_verify_with_prefix<
     }
     t1_2d_hat.ntt();
 
-    verify_core::<K, L, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-        &tr,
-        &a,
-        &t1_2d_hat,
-        &parsed,
-        message_prefix,
-        message,
-    )
+    let mu = mu_from_tr(&tr);
+    verify_core::<K, L, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(&mu, &a, &t1_2d_hat, &parsed)
 }
 
 #[cfg(test)]
@@ -1197,9 +1270,8 @@ mod tests {
         let mut t = a.mul_vec(&s1_ntt);
         t.reduce();
         t.inv_ntt();
-        t.caddq();
         t.add_assign(&s2);
-        t.caddq();
+        t.freeze();
 
         // 4. Power2Round
         let mut t1 = PolyVecK::<K>::zero();
@@ -1253,6 +1325,63 @@ mod tests {
                 );
             }
         }
+    }
+
+    fn sha3_256_hex(data: &[u8]) -> [u8; 64] {
+        use sha3::{Digest, Sha3_256};
+        const HEX: &[u8; 16] = b"0123456789abcdef";
+        let digest = Sha3_256::digest(data);
+        let mut out = [0u8; 64];
+        for (i, b) in digest.iter().enumerate() {
+            out[2 * i] = HEX[(b >> 4) as usize];
+            out[2 * i + 1] = HEX[(b & 0x0f) as usize];
+        }
+        out
+    }
+
+    fn assert_keygen_digests<const K: usize, const L: usize, const ETA: usize>(
+        xi_prefix: [u8; 9],
+        pk_sha3_256: &str,
+        sk_sha3_256: &str,
+    ) {
+        let mut xi = [0u8; 32];
+        xi[..9].copy_from_slice(&xi_prefix);
+        let (sk, pk) = ml_dsa_keygen::<K, L, ETA>(&xi);
+        let pk_digest = sha3_256_hex(&pk);
+        let sk_digest = sha3_256_hex(&sk);
+        assert_eq!(
+            core::str::from_utf8(&pk_digest).unwrap(),
+            pk_sha3_256,
+            "pk mismatch for K={K}"
+        );
+        assert_eq!(
+            core::str::from_utf8(&sk_digest).unwrap(),
+            sk_sha3_256,
+            "sk mismatch for K={K}"
+        );
+    }
+
+    // For these seeds some coefficient has (A*s1 mod q) + s2 >= q, so t reaches
+    // q before Power2Round unless it is canonicalized after adding s2. Expected digests are SHA3-256 of the raw keys produced by OpenSSL
+    // 3.6.0: `openssl genpkey -algorithm ML-DSA-<n> -pkeyopt hexseed:<xi>`,
+    // then the `priv:` and `pub:` fields of `openssl pkey -text -noout`.
+    #[test]
+    fn test_keygen_t_boundary_seeds_match_openssl() {
+        assert_keygen_digests::<4, 4, 2>(
+            [0x79, 0x73, 0, 0, 0, 0, 0, 0, 0xa5],
+            "31685711182c7a0c58d138c372a19b41cc7edea6d8a08025cf020aa159ca1b62",
+            "04ca112d97a9ff522f027d0473e396c72ca8d361b38326d674080bb6418a8a6a",
+        );
+        assert_keygen_digests::<6, 5, 4>(
+            [0xd5, 0x16, 0, 0, 0, 0, 0, 0, 0xa5],
+            "0fe09bb595b9fcb6aeb756bed3395dc1b906525c6a5a06c9f808dfabf3b38186",
+            "d4abef27546d3e185099938e236ff6f2c36fb2afb73ee71753073c862f2f0ec3",
+        );
+        assert_keygen_digests::<8, 7, 2>(
+            [0x01, 0x12, 0, 0, 0, 0, 0, 0, 0xa5],
+            "1ac6dc7e7eb7242ff2db24f6e0ea80667bb13f04e8245b01b7463dfb159a1ed9",
+            "c84147dada306e2d67e1791635b5991a68fa887b1ed3b174cd8fe7ab779575d2",
+        );
     }
 
     // -----------------------------------------------------------------------

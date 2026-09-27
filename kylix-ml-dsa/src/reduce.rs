@@ -18,9 +18,10 @@ pub const Q: i32 = 8_380_417;
 pub const QINV: i32 = 58_728_449;
 
 /// Floor(2^48 / q) for Barrett reduction
-pub const BARRETT_MUL: i64 = 33_556_102;
+pub const BARRETT_MUL: i64 = 33_587_228;
 
-// Generate Barrett reduction (approximate, may return up to q)
+// Generate Barrett reduction (approximate, returns [0, 2q) on the domain of
+// `reduce32`)
 define_barrett_reduce! {
     name: reduce32_approx,
     coeff: i32,
@@ -55,7 +56,9 @@ define_caddq! {
     q: Q
 }
 
-// Generate reduce32: canonical reduction to [0, q-1]
+// Generate reduce32: canonical reduction to [0, q-1] for every input in
+// [-2^30, i32::MAX]. Some inputs below -170q yield a negative representative
+// instead (see `define_barrett_reduce!`).
 define_freeze! {
     name: reduce32,
     coeff: i32,
@@ -63,7 +66,7 @@ define_freeze! {
     reduce_approx: reduce32_approx
 }
 
-/// Freeze: reduce to canonical [0, q-1] range.
+/// Freeze: reduce to canonical [0, q-1] range for `a >= -2^30`.
 ///
 /// This is a thin wrapper around [`reduce32`] kept for API compatibility
 /// and to match the terminology used in the ML-DSA specification.
@@ -84,6 +87,38 @@ mod tests {
         assert_eq!(reduce32(2 * Q), 0);
         assert_eq!(reduce32(-1), Q - 1);
         assert_eq!(reduce32(-Q), 0);
+    }
+
+    #[test]
+    fn test_barrett_mul_is_floor_2_48_over_q() {
+        assert_eq!(BARRETT_MUL, (1i64 << 48) / Q as i64);
+    }
+
+    #[test]
+    fn test_reduce32_canonical_on_documented_domain() {
+        let edges = [
+            -(1 << 30),
+            -(1 << 30) + 1,
+            -8 * Q - 1,
+            -2 * Q - 1,
+            -Q - 1,
+            -Q + 1,
+            2 * Q - 1,
+            i32::MAX - 1,
+            i32::MAX,
+        ];
+        for a in edges {
+            assert_eq!(reduce32(a), a.rem_euclid(Q), "reduce32({a})");
+        }
+        let mut a: i64 = -(1 << 30);
+        while a <= i64::from(i32::MAX) {
+            let x = a as i32;
+            assert_eq!(reduce32(x), x.rem_euclid(Q), "reduce32({x})");
+            a += 4093;
+        }
+        for x in -4 * Q..=4 * Q {
+            assert_eq!(reduce32(x), x.rem_euclid(Q), "reduce32({x})");
+        }
     }
 
     #[test]

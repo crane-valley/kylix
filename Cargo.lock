@@ -191,7 +191,6 @@ dependencies = [
 name = "kylix-ml-dsa"
 version = "0.5.0"
 dependencies = [
- "hex",
  "kylix-core",
  "kylix-test-util",
  "proptest",
@@ -199,6 +198,7 @@ dependencies = [
  "rand_core",
  "serde",
  "serde_json",
+ "sha2",
  "sha3",
  "subtle",
  "zeroize",

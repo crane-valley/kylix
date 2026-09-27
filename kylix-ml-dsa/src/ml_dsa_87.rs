@@ -10,7 +10,8 @@ crate::types::define_ml_dsa_variant! {
     verify_expanded_doc: {
         /// Verify signature using pre-expanded verification key.
         ///
-        /// See [`crate::ml_dsa_65::MlDsa65::verify_expanded`] for details.
+        /// This is faster than [`Signer::verify`] when verifying multiple signatures
+        /// with the same public key.
     },
     sk_size: 4896,
     pk_size: 2592,

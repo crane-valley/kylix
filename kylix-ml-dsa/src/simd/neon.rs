@@ -446,9 +446,12 @@ mod tests {
         }
 
         // Scalar version
-        crate::ntt::ntt(&mut a_scalar);
+        crate::ntt::ntt_scalar(&mut a_scalar);
 
-        assert_eq!(a_simd, a_scalar);
+        assert_eq!(
+            a_simd.map(|c| c.rem_euclid(Q)),
+            a_scalar.map(|c| c.rem_euclid(Q))
+        );
     }
 
     #[test]
@@ -470,9 +473,12 @@ mod tests {
         }
 
         // Scalar version
-        crate::ntt::inv_ntt(&mut a_scalar);
+        crate::ntt::inv_ntt_scalar(&mut a_scalar);
 
-        assert_eq!(a_simd, a_scalar);
+        assert_eq!(
+            a_simd.map(|c| c.rem_euclid(Q)),
+            a_scalar.map(|c| c.rem_euclid(Q))
+        );
     }
 
     #[test]

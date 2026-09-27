@@ -9,7 +9,16 @@
 /// Generate Barrett reduction function (approximate).
 ///
 /// Barrett reduction computes `a mod q` without division using precomputed constants.
-/// This version produces approximate results that may be in range [0, 2q-1].
+///
+/// # Valid input domain
+///
+/// Requires `$barrett_mul = floor(2^$shift / q)`; let `e = 2^$shift / q - $barrett_mul`.
+/// - `a >= 0` with `a * e < 2^$shift`: result in [0, 2q).
+/// - `a < 0` with `|a| * e * q < 2^$shift`: result in [0, q).
+/// - Larger negative `a` may yield a result in [-q, 0).
+///
+/// For ML-DSA (q = 8380417, shift 48) this makes every i32 in [-2^30, i32::MAX]
+/// land in [0, 2q), which [`define_freeze!`](crate::define_freeze!) then maps to [0, q).
 ///
 /// # Parameters
 /// - `$name`: Function name (e.g., `barrett_reduce`)
@@ -29,7 +38,7 @@ macro_rules! define_barrett_reduce {
         shift: $shift:expr
     ) => {
         /// Barrett reduction: compute approximate a mod q without division.
-        /// Result may be in range [0, 2q-1] for positive inputs.
+        /// Result is in [0, 2q) only on the domain documented on the macro.
         #[inline]
         pub const fn $name(a: $coeff) -> $coeff {
             let a = a as $wide;
@@ -137,6 +146,11 @@ macro_rules! define_caddq {
 }
 
 /// Generate freeze function (reduce to canonical [0, q-1]).
+///
+/// The result is canonical exactly when `$reduce_approx(a)` is in [0, 2q); a
+/// value in [-q, 0) is returned unchanged. It therefore requires a floor-based
+/// reducer from [`define_barrett_reduce!`] used within its documented domain, not
+/// [`define_barrett_reduce_rounded!`], whose output is centered around zero.
 #[macro_export]
 macro_rules! define_freeze {
     (
@@ -145,7 +159,7 @@ macro_rules! define_freeze {
         q: $q:expr,
         reduce_approx: $reduce_approx:ident
     ) => {
-        /// Freeze: reduce to canonical [0, q-1] range.
+        /// Freeze: reduce to canonical [0, q-1] range on the reducer's valid domain.
         #[inline]
         pub const fn $name(a: $coeff) -> $coeff {
             let r = $reduce_approx(a);
@@ -169,7 +183,7 @@ mod tests {
         coeff: i32,
         wide: i64,
         q: Q,
-        barrett_mul: 33_556_102i64,
+        barrett_mul: 33_587_228i64,
         shift: 48
     }
 

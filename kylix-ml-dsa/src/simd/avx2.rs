@@ -663,6 +663,51 @@ pub unsafe fn inv_ntt_avx2(a: &mut [i32; N]) {
 mod tests {
     use super::*;
 
+    fn ntt_test_inputs() -> [[i32; N]; 2] {
+        [
+            core::array::from_fn(|i| (i as i32 * 12345) % Q),
+            core::array::from_fn(|i| (i as i32 * 7919) % 9 - 4),
+        ]
+    }
+
+    #[test]
+    fn test_ntt_avx2_matches_scalar() {
+        if !super::super::has_avx2() {
+            return;
+        }
+        for input in ntt_test_inputs() {
+            let mut expected = input;
+            crate::ntt::ntt_scalar(&mut expected);
+            let mut result = input;
+            unsafe {
+                ntt_avx2(&mut result);
+            }
+            assert_eq!(
+                expected.map(|c| c.rem_euclid(Q)),
+                result.map(|c| c.rem_euclid(Q))
+            );
+        }
+    }
+
+    #[test]
+    fn test_inv_ntt_avx2_matches_scalar() {
+        if !super::super::has_avx2() {
+            return;
+        }
+        for input in ntt_test_inputs() {
+            let mut expected = input;
+            crate::ntt::inv_ntt_scalar(&mut expected);
+            let mut result = input;
+            unsafe {
+                inv_ntt_avx2(&mut result);
+            }
+            assert_eq!(
+                expected.map(|c| c.rem_euclid(Q)),
+                result.map(|c| c.rem_euclid(Q))
+            );
+        }
+    }
+
     #[test]
     fn test_montgomery_mul_equivalence() {
         if !super::super::has_avx2() {
