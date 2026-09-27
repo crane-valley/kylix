@@ -139,15 +139,18 @@ jobs:
         # failures (checkout, toolchain, cargo-fuzz install, build).
         if: failure() && steps.fuzz.outputs.crash_count > 0
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          FUZZ_TARGET: ${{ matrix.target }}
         with:
           script: |
-            const target = 'ml-kem/${{ matrix.target }}';
+            const target = `ml-kem/${process.env.FUZZ_TARGET}`;
+            const title = `[Fuzz] Crash detected in ${target}`;
             const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
             const crashFiles = process.env.CRASH_FILES || 'No crash files found';
             const crashHex = process.env.CRASH_HEX || 'No crash data available';
 
             // Check for existing open issue
-            const issues = await github.rest.issues.listForRepo({
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'open',
@@ -155,9 +158,9 @@ jobs:
               per_page: 100
             });
 
-            const existingIssue = issues.data.find(issue =>
-              issue.title.includes(target)
-            );
+            // Exact match: a substring test would let fuzz_verify match a
+            // fuzz_verify_bytes issue.
+            const existingIssue = issues.find(issue => issue.title === title);
 
             if (existingIssue) {
               // Add comment to existing issue
@@ -173,9 +176,9 @@ jobs:
               await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                title: `[Fuzz] Crash detected in ${target}`,
+                title,
                 labels: ['fuzz', 'bug', 'security'],
-                body: `## Fuzz testing failure\n\n**Target:** \`${target}\`\n**Run:** ${runUrl}\n**Date:** ${new Date().toISOString()}\n\n### Crash artifacts\n\`\`\`\n${crashFiles}\n\`\`\`\n\n### Sample crash input (hex)\n\`\`\`\n${crashHex}\n\`\`\`\n\n### Reproduction\n\n\`\`\`bash\ncd kylix-ml-kem\ncargo +nightly fuzz run ${{ matrix.target }} fuzz/artifacts/${{ matrix.target }}/<crash-file>\n\`\`\`\n\n### Notes\n\n- Download the crash artifact from the workflow run\n- Investigate and fix the underlying issue\n- The crash input can be minimized with \`cargo fuzz tmin\``
+                body: `## Fuzz testing failure\n\n**Target:** \`${target}\`\n**Run:** ${runUrl}\n**Date:** ${new Date().toISOString()}\n\n### Crash artifacts\n\`\`\`\n${crashFiles}\n\`\`\`\n\n### Sample crash input (hex)\n\`\`\`\n${crashHex}\n\`\`\`\n\n### Reproduction\n\n\`\`\`bash\ncd kylix-ml-kem\ncargo +nightly fuzz run ${process.env.FUZZ_TARGET} fuzz/artifacts/${process.env.FUZZ_TARGET}/<crash-file>\n\`\`\`\n\n### Notes\n\n- Download the crash artifact from the workflow run\n- Investigate and fix the underlying issue\n- The crash input can be minimized with \`cargo fuzz tmin\``
               });
               console.log('Created new issue');
             }
@@ -309,15 +312,18 @@ jobs:
         # failures (checkout, toolchain, cargo-fuzz install, build).
         if: failure() && steps.fuzz.outputs.crash_count > 0
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          FUZZ_TARGET: ${{ matrix.target }}
         with:
           script: |
-            const target = 'ml-dsa/${{ matrix.target }}';
+            const target = `ml-dsa/${process.env.FUZZ_TARGET}`;
+            const title = `[Fuzz] Crash detected in ${target}`;
             const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
             const crashFiles = process.env.CRASH_FILES || 'No crash files found';
             const crashHex = process.env.CRASH_HEX || 'No crash data available';
 
             // Check for existing open issue
-            const issues = await github.rest.issues.listForRepo({
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'open',
@@ -325,9 +331,9 @@ jobs:
               per_page: 100
             });
 
-            const existingIssue = issues.data.find(issue =>
-              issue.title.includes(target)
-            );
+            // Exact match: a substring test would let fuzz_verify match a
+            // fuzz_verify_bytes issue.
+            const existingIssue = issues.find(issue => issue.title === title);
 
             if (existingIssue) {
               // Add comment to existing issue
@@ -343,9 +349,9 @@ jobs:
               await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                title: `[Fuzz] Crash detected in ${target}`,
+                title,
                 labels: ['fuzz', 'bug', 'security'],
-                body: `## Fuzz testing failure\n\n**Target:** \`${target}\`\n**Run:** ${runUrl}\n**Date:** ${new Date().toISOString()}\n\n### Crash artifacts\n\`\`\`\n${crashFiles}\n\`\`\`\n\n### Sample crash input (hex)\n\`\`\`\n${crashHex}\n\`\`\`\n\n### Reproduction\n\n\`\`\`bash\ncd kylix-ml-dsa\ncargo +nightly fuzz run ${{ matrix.target }} fuzz/artifacts/${{ matrix.target }}/<crash-file>\n\`\`\`\n\n### Notes\n\n- Download the crash artifact from the workflow run\n- Investigate and fix the underlying issue\n- The crash input can be minimized with \`cargo fuzz tmin\``
+                body: `## Fuzz testing failure\n\n**Target:** \`${target}\`\n**Run:** ${runUrl}\n**Date:** ${new Date().toISOString()}\n\n### Crash artifacts\n\`\`\`\n${crashFiles}\n\`\`\`\n\n### Sample crash input (hex)\n\`\`\`\n${crashHex}\n\`\`\`\n\n### Reproduction\n\n\`\`\`bash\ncd kylix-ml-dsa\ncargo +nightly fuzz run ${process.env.FUZZ_TARGET} fuzz/artifacts/${process.env.FUZZ_TARGET}/<crash-file>\n\`\`\`\n\n### Notes\n\n- Download the crash artifact from the workflow run\n- Investigate and fix the underlying issue\n- The crash input can be minimized with \`cargo fuzz tmin\``
               });
               console.log('Created new issue');
             }
@@ -481,15 +487,18 @@ jobs:
         # failures (checkout, toolchain, cargo-fuzz install, build).
         if: failure() && steps.fuzz.outputs.crash_count > 0
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          FUZZ_TARGET: ${{ matrix.target }}
         with:
           script: |
-            const target = 'slh-dsa/${{ matrix.target }}';
+            const target = `slh-dsa/${process.env.FUZZ_TARGET}`;
+            const title = `[Fuzz] Crash detected in ${target}`;
             const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
             const crashFiles = process.env.CRASH_FILES || 'No crash files found';
             const crashHex = process.env.CRASH_HEX || 'No crash data available';
 
             // Check for existing open issue
-            const issues = await github.rest.issues.listForRepo({
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'open',
@@ -497,9 +506,9 @@ jobs:
               per_page: 100
             });
 
-            const existingIssue = issues.data.find(issue =>
-              issue.title.includes(target)
-            );
+            // Exact match: a substring test would let fuzz_verify match a
+            // fuzz_verify_bytes issue.
+            const existingIssue = issues.find(issue => issue.title === title);
 
             if (existingIssue) {
               // Add comment to existing issue
@@ -515,9 +524,9 @@ jobs:
               await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                title: `[Fuzz] Crash detected in ${target}`,
+                title,
                 labels: ['fuzz', 'bug', 'security'],
-                body: `## Fuzz testing failure\n\n**Target:** \`${target}\`\n**Run:** ${runUrl}\n**Date:** ${new Date().toISOString()}\n\n### Crash artifacts\n\`\`\`\n${crashFiles}\n\`\`\`\n\n### Sample crash input (hex)\n\`\`\`\n${crashHex}\n\`\`\`\n\n### Reproduction\n\n\`\`\`bash\ncd kylix-slh-dsa\ncargo +nightly fuzz run ${{ matrix.target }} fuzz/artifacts/${{ matrix.target }}/<crash-file>\n\`\`\`\n\n### Notes\n\n- Download the crash artifact from the workflow run\n- Investigate and fix the underlying issue\n- The crash input can be minimized with \`cargo fuzz tmin\``
+                body: `## Fuzz testing failure\n\n**Target:** \`${target}\`\n**Run:** ${runUrl}\n**Date:** ${new Date().toISOString()}\n\n### Crash artifacts\n\`\`\`\n${crashFiles}\n\`\`\`\n\n### Sample crash input (hex)\n\`\`\`\n${crashHex}\n\`\`\`\n\n### Reproduction\n\n\`\`\`bash\ncd kylix-slh-dsa\ncargo +nightly fuzz run ${process.env.FUZZ_TARGET} fuzz/artifacts/${process.env.FUZZ_TARGET}/<crash-file>\n\`\`\`\n\n### Notes\n\n- Download the crash artifact from the workflow run\n- Investigate and fix the underlying issue\n- The crash input can be minimized with \`cargo fuzz tmin\``
               });
               console.log('Created new issue');
             }
