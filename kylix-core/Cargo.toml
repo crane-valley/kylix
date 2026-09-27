@@ -19,7 +19,7 @@ std = []
 [dependencies]
 zeroize.workspace = true
 rand_core.workspace = true
-keccak = { version = "0.1.6", default-features = false }
+keccak = { version = "0.2.2", default-features = false }
 
 [dev-dependencies]
 sha3 = "0.10"
