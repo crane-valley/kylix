@@ -199,7 +199,7 @@ name = "kylix-core"
 version = "0.5.0"
 dependencies = [
  "keccak",
- "rand_core 0.9.5",
+ "rand_core 0.10.1",
  "zeroize",
 ]
 
@@ -208,7 +208,7 @@ name = "kylix-ml-dsa"
 version = "0.5.0"
 dependencies = [
  "kylix-core",
- "rand_core 0.9.5",
+ "rand_core 0.10.1",
  "sha3",
  "subtle",
  "zeroize",
@@ -219,7 +219,7 @@ name = "kylix-ml-kem"
 version = "0.5.0"
 dependencies = [
  "kylix-core",
- "rand_core 0.9.5",
+ "rand_core 0.10.1",
  "sha3",
  "subtle",
  "zeroize",
@@ -367,6 +367,12 @@ checksum = "76afc826de14238e6e8c374ddcc1fa19e374fd8dd986b0d2af0d02377261d83c"
 dependencies = [
  "getrandom 0.3.4",
 ]
+
+[[package]]
+name = "rand_core"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
 
 [[package]]
 name = "sha3"
