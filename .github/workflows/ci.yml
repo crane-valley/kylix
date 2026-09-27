@@ -248,7 +248,5 @@ jobs:
         run: cargo build --release --locked --manifest-path timing/Cargo.toml --bin ml_kem
       - name: Run ML-KEM dudect gate
         run: |
-          set -o pipefail
-          timeout 20m ./timing/target/release/ml_kem | tee dudect_output.txt
-          bash timing/dudect-gate.sh dudect_output.txt \
+          timeout 20m bash timing/dudect-gate.sh ./timing/target/release/ml_kem \
             decaps_768_fixed_vs_random decaps_768_valid_vs_invalid

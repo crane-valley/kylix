@@ -1,6 +1,6 @@
 //! Constant-time verification for ML-KEM-768 decapsulation.
 //!
-//! Two dudect tests, each taking `MEASUREMENTS` timings in one batch:
+//! Two dudect tests, each taking `MEASUREMENTS` timings in a single run:
 //! - `decaps_768_valid_vs_invalid`: a valid ciphertext against the same
 //!   ciphertext with one bit flipped (implicit rejection must not be visible).
 //! - `decaps_768_fixed_vs_random`: one fixed valid ciphertext against
@@ -10,7 +10,7 @@
 //! Run with:
 //! `cargo run --release --manifest-path timing/Cargo.toml --bin ml_kem`
 //!
-//! CI evaluates the output with `timing/dudect-gate.sh`.
+//! CI runs it through `timing/dudect-gate.sh`.
 
 use std::hint::black_box;
 
@@ -62,45 +62,60 @@ fn random_class(rng: &mut BenchRng) -> Class {
     }
 }
 
-// Both classes are built into the same buffer and parsed the same way, so
-// only the ciphertext contents differ between them.
-fn time_decaps(runner: &mut CtRunner, class: Class, bytes: &[u8; CT_SIZE]) {
+/// Inputs are generated a batch at a time, before any of them is timed, so
+/// both classes are read from one buffer with the same access pattern and no
+/// RNG or class-dependent copy runs between measurements. Batching rather
+/// than one pool of `MEASUREMENTS` inputs keeps memory at about 9 MB.
+const BATCH: usize = 8_000;
+const _: () = assert!(MEASUREMENTS.is_multiple_of(BATCH));
+
+fn measure_batches(
+    runner: &mut CtRunner,
+    rng: &mut BenchRng,
+    mut fill: impl FnMut(&mut BenchRng, Class, &mut [u8; CT_SIZE]),
+) {
     let data = &*TEST_DATA;
-    let ct = Ciphertext::from_bytes(bytes).expect("ciphertext size");
-    runner.run_one(class, || {
-        MlKem768::decaps(black_box(&data.dk), black_box(&ct))
-    });
+    let mut classes = Vec::with_capacity(BATCH);
+    let mut inputs = vec![[0u8; CT_SIZE]; BATCH];
+    for _ in 0..MEASUREMENTS / BATCH {
+        classes.clear();
+        for input in inputs.iter_mut() {
+            let class = random_class(rng);
+            fill(rng, class, input);
+            classes.push(class);
+        }
+        for (&class, input) in classes.iter().zip(&inputs) {
+            let ct = Ciphertext::from_bytes(input).expect("ciphertext size");
+            runner.run_one(class, || {
+                MlKem768::decaps(black_box(&data.dk), black_box(&ct))
+            });
+        }
+    }
 }
 
 fn decaps_768_valid_vs_invalid(runner: &mut CtRunner, rng: &mut BenchRng) {
     let data = &*TEST_DATA;
-    let mut buf = [0u8; CT_SIZE];
-    for _ in 0..MEASUREMENTS {
-        let class = random_class(rng);
-        buf.copy_from_slice(&data.valid[rng.gen_range(0..POOL_SIZE)]);
+    measure_batches(runner, rng, |rng, class, input| {
+        input.copy_from_slice(&data.valid[rng.gen_range(0..POOL_SIZE)]);
         let bit = rng.gen_range(0..CT_SIZE * 8);
         let flip = match class {
             Class::Left => 0,
             Class::Right => 1u8 << (bit % 8),
         };
-        buf[bit / 8] ^= flip;
-        time_decaps(runner, class, &buf);
-    }
+        input[bit / 8] ^= flip;
+    });
 }
 
+// Left entries are separate copies of the fixed ciphertext rather than one
+// shared buffer, so the classes differ only in the input values.
 fn decaps_768_fixed_vs_random(runner: &mut CtRunner, rng: &mut BenchRng) {
-    let data = &*TEST_DATA;
-    let mut buf = [0u8; CT_SIZE];
-    let mut random = [0u8; CT_SIZE];
-    for _ in 0..MEASUREMENTS {
-        let class = random_class(rng);
-        rng.fill_bytes(&mut random);
-        match class {
-            Class::Left => buf.copy_from_slice(&data.valid[0]),
-            Class::Right => buf.copy_from_slice(&random),
+    let fixed = &TEST_DATA.valid[0];
+    measure_batches(runner, rng, |rng, class, input| {
+        rng.fill_bytes(input);
+        if let Class::Left = class {
+            input.copy_from_slice(fixed);
         }
-        time_decaps(runner, class, &buf);
-    }
+    });
 }
 
 ctbench_main!(decaps_768_fixed_vs_random, decaps_768_valid_vs_invalid);

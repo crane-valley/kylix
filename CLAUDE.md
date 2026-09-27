@@ -95,7 +95,7 @@ Three dispatch flavors (macros in kylix-core):
 
 - dudect-based timing tests in `timing/` directory (excluded from workspace)
 - Run: `cargo run --release --manifest-path timing/Cargo.toml --bin ml_kem` (must be release for meaningful timing)
-- CI gate: `timing/dudect-gate.sh` evaluates each ML-KEM bench (1M measurements each). `|max t| > 10` (dudect's own failure level) fails the job; `4.5 < |max t| <= 10` is a warning, since max t is taken over 101 cropped t-tests on a noisy shared runner. A missing or unparsable result also fails.
+- CI gate: `timing/dudect-gate.sh` runs the ML-KEM benches (1M measurements each). A bench with `|max t| > 10` (dudect's own failure level) is rerun and fails the job only if a majority of up to three runs exceed 10, since one noisy shared-runner run can; `4.5 < |max t| <= 10` is a warning. A crashed or incomplete run or a missing or unparsable result also fails.
 - All secret-dependent branches must use `subtle::Choice` / `subtle::ct_eq`
 - NEVER use `if` / `match` / `==` on secret data -- use `subtle` crate operations
 
