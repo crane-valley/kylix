@@ -137,6 +137,7 @@ targets row) are tracked in the sections above, not here.
 - `timing/Cargo.lock` is lockfile v4, which cargo 1.75 cannot read, and the MSRV job does not cover `timing/`
 - The dudect gate cannot reliably catch very small leaks
 - `timing/dudect-gate.sh` shell hardening (P3): `mktemp` / `trap` ordering
+- Dependency lines held back by Dependabot ignores until the MSRV is raised (ADR 0003): rand / rand_core / rand_chacha 0.10 (Rust 1.85; `rand_core` 0.10 changes the public `CryptoRng` API), rayon 1.11 / rayon-core 1.13 (Rust 1.80), dudect-bencher 0.7 (Rust 1.85, rand 0.10)
 
 ### Tests
 
