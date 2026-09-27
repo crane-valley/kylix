@@ -13,7 +13,7 @@ cargo-fuzz = true
 libfuzzer-sys = "0.4"
 arbitrary = { version = "1", features = ["derive"] }
 sha3 = "0.10"
-rand_core = "0.9"
+rand_core = "0.10"
 
 [dependencies.kylix-slh-dsa]
 path = ".."
