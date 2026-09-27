@@ -7,6 +7,7 @@
 ## CI Notes
 
 - CI uses `-Dwarnings` so all warnings are treated as errors
+- CI sets `KYLIX_REQUIRE_ACVP=1`, so missing ACVP vectors fail tests instead of skipping them
 - Doc comments: `[X]` is interpreted as a link reference by rustdoc; escape as `\[X\]`
 
 ## Code Quality Rules
@@ -100,8 +101,9 @@ Three dispatch flavors (macros in kylix-core):
 
 ## Cross-Platform CI
 
-- ci.yml: fast PR checks (fmt, clippy, audit, test on Ubuntu stable, MSRV 1.75, no_std, dudect)
-- ci-full.yml: on push to main -- full matrix (Ubuntu, macOS, Windows, ARM64 with SIMD-specific tests, codecov)
+- ci.yml: fast PR checks (fmt, clippy, audit, test on Ubuntu stable, tests at opt-level 0 and z, MSRV 1.75, no_std builds for thumbv7em and aarch64 softfloat, wasm32 SIMD128 check, dudect)
+- ci-full.yml: on push to main -- full matrix (Ubuntu, macOS, Windows, ARM64 NEON, codecov)
+- Actions are pinned by commit SHA with a version comment; Dependabot updates them
 
 ## Workspace Crate Graph
 

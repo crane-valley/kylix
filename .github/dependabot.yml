@@ -2,7 +2,12 @@ version: 2
 updates:
   # Cargo (Rust) package updates
   - package-ecosystem: "cargo"
-    directory: "/"
+    directories:
+      - "/"
+      - "/timing"
+      - "/kylix-ml-kem/fuzz"
+      - "/kylix-ml-dsa/fuzz"
+      - "/kylix-slh-dsa/fuzz"
     schedule:
       interval: "weekly"
       day: "monday"
