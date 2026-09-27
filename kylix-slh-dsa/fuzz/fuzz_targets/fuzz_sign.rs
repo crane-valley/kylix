@@ -17,11 +17,17 @@ impl FuzzRng {
         let mut s = [0u8; 32];
         let len = seed.len().min(32);
         s[..len].copy_from_slice(&seed[..len]);
-        Self { seed: s, counter: 0 }
+        Self {
+            seed: s,
+            counter: 0,
+        }
     }
 
     fn next_bytes(&mut self, dest: &mut [u8]) {
-        use sha3::{Shake256, digest::{ExtendableOutput, Update, XofReader}};
+        use sha3::{
+            digest::{ExtendableOutput, Update, XofReader},
+            Shake256,
+        };
 
         let mut hasher = Shake256::default();
         hasher.update(&self.seed);

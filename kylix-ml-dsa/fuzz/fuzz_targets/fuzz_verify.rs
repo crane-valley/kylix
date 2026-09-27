@@ -55,34 +55,62 @@ fuzz_target!(|input: VerifyInput| {
                 match &input.corruption {
                     None => {
                         // Valid signature should verify
-                        let result = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-                            &pk, &msg, &sig,
-                        );
+                        let result =
+                            ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
+                                &pk, &msg, &sig,
+                            );
                         assert!(result, "Valid signature should verify");
                     }
-                    Some(CorruptionType::CorruptSignature { position, xor_value }) => {
+                    Some(CorruptionType::CorruptSignature {
+                        position,
+                        xor_value,
+                    }) => {
                         if *position < sig.len() && *xor_value != 0 {
                             sig[*position] ^= xor_value;
                             // Corrupted signature should fail (most of the time)
-                            let _ = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-                                &pk, &msg, &sig,
-                            );
+                            let _ = ml_dsa_verify::<
+                                K,
+                                L,
+                                BETA,
+                                GAMMA1,
+                                GAMMA2,
+                                TAU,
+                                OMEGA,
+                                C_TILDE_BYTES,
+                            >(&pk, &msg, &sig);
                         }
                     }
-                    Some(CorruptionType::CorruptMessage { position, xor_value }) => {
+                    Some(CorruptionType::CorruptMessage {
+                        position,
+                        xor_value,
+                    }) => {
                         if *position < msg.len() && *xor_value != 0 {
                             msg[*position] ^= xor_value;
-                            let result = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-                                &pk, &msg, &sig,
-                            );
+                            let result = ml_dsa_verify::<
+                                K,
+                                L,
+                                BETA,
+                                GAMMA1,
+                                GAMMA2,
+                                TAU,
+                                OMEGA,
+                                C_TILDE_BYTES,
+                            >(&pk, &msg, &sig);
                             assert!(!result, "Modified message should fail verification");
                         }
                     }
                     Some(CorruptionType::RandomSignature { random_sig }) => {
                         if random_sig.len() == SIG_BYTES {
-                            let _ = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-                                &pk, &msg, random_sig.as_slice(),
-                            );
+                            let _ = ml_dsa_verify::<
+                                K,
+                                L,
+                                BETA,
+                                GAMMA1,
+                                GAMMA2,
+                                TAU,
+                                OMEGA,
+                                C_TILDE_BYTES,
+                            >(&pk, &msg, random_sig.as_slice());
                         }
                     }
                 }
@@ -104,33 +132,61 @@ fuzz_target!(|input: VerifyInput| {
 
                 match &input.corruption {
                     None => {
-                        let result = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-                            &pk, &msg, &sig,
-                        );
+                        let result =
+                            ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
+                                &pk, &msg, &sig,
+                            );
                         assert!(result, "Valid signature should verify");
                     }
-                    Some(CorruptionType::CorruptSignature { position, xor_value }) => {
+                    Some(CorruptionType::CorruptSignature {
+                        position,
+                        xor_value,
+                    }) => {
                         if *position < sig.len() && *xor_value != 0 {
                             sig[*position] ^= xor_value;
-                            let _ = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-                                &pk, &msg, &sig,
-                            );
+                            let _ = ml_dsa_verify::<
+                                K,
+                                L,
+                                BETA,
+                                GAMMA1,
+                                GAMMA2,
+                                TAU,
+                                OMEGA,
+                                C_TILDE_BYTES,
+                            >(&pk, &msg, &sig);
                         }
                     }
-                    Some(CorruptionType::CorruptMessage { position, xor_value }) => {
+                    Some(CorruptionType::CorruptMessage {
+                        position,
+                        xor_value,
+                    }) => {
                         if *position < msg.len() && *xor_value != 0 {
                             msg[*position] ^= xor_value;
-                            let result = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-                                &pk, &msg, &sig,
-                            );
+                            let result = ml_dsa_verify::<
+                                K,
+                                L,
+                                BETA,
+                                GAMMA1,
+                                GAMMA2,
+                                TAU,
+                                OMEGA,
+                                C_TILDE_BYTES,
+                            >(&pk, &msg, &sig);
                             assert!(!result, "Modified message should fail verification");
                         }
                     }
                     Some(CorruptionType::RandomSignature { random_sig }) => {
                         if random_sig.len() == SIG_BYTES {
-                            let _ = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-                                &pk, &msg, random_sig.as_slice(),
-                            );
+                            let _ = ml_dsa_verify::<
+                                K,
+                                L,
+                                BETA,
+                                GAMMA1,
+                                GAMMA2,
+                                TAU,
+                                OMEGA,
+                                C_TILDE_BYTES,
+                            >(&pk, &msg, random_sig.as_slice());
                         }
                     }
                 }
@@ -152,33 +208,61 @@ fuzz_target!(|input: VerifyInput| {
 
                 match &input.corruption {
                     None => {
-                        let result = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-                            &pk, &msg, &sig,
-                        );
+                        let result =
+                            ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
+                                &pk, &msg, &sig,
+                            );
                         assert!(result, "Valid signature should verify");
                     }
-                    Some(CorruptionType::CorruptSignature { position, xor_value }) => {
+                    Some(CorruptionType::CorruptSignature {
+                        position,
+                        xor_value,
+                    }) => {
                         if *position < sig.len() && *xor_value != 0 {
                             sig[*position] ^= xor_value;
-                            let _ = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-                                &pk, &msg, &sig,
-                            );
+                            let _ = ml_dsa_verify::<
+                                K,
+                                L,
+                                BETA,
+                                GAMMA1,
+                                GAMMA2,
+                                TAU,
+                                OMEGA,
+                                C_TILDE_BYTES,
+                            >(&pk, &msg, &sig);
                         }
                     }
-                    Some(CorruptionType::CorruptMessage { position, xor_value }) => {
+                    Some(CorruptionType::CorruptMessage {
+                        position,
+                        xor_value,
+                    }) => {
                         if *position < msg.len() && *xor_value != 0 {
                             msg[*position] ^= xor_value;
-                            let result = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-                                &pk, &msg, &sig,
-                            );
+                            let result = ml_dsa_verify::<
+                                K,
+                                L,
+                                BETA,
+                                GAMMA1,
+                                GAMMA2,
+                                TAU,
+                                OMEGA,
+                                C_TILDE_BYTES,
+                            >(&pk, &msg, &sig);
                             assert!(!result, "Modified message should fail verification");
                         }
                     }
                     Some(CorruptionType::RandomSignature { random_sig }) => {
                         if random_sig.len() == SIG_BYTES {
-                            let _ = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-                                &pk, &msg, random_sig.as_slice(),
-                            );
+                            let _ = ml_dsa_verify::<
+                                K,
+                                L,
+                                BETA,
+                                GAMMA1,
+                                GAMMA2,
+                                TAU,
+                                OMEGA,
+                                C_TILDE_BYTES,
+                            >(&pk, &msg, random_sig.as_slice());
                         }
                     }
                 }

@@ -17,11 +17,17 @@ impl FuzzRng {
         let mut s = [0u8; 32];
         let len = seed.len().min(32);
         s[..len].copy_from_slice(&seed[..len]);
-        Self { seed: s, counter: 0 }
+        Self {
+            seed: s,
+            counter: 0,
+        }
     }
 
     fn next_bytes(&mut self, dest: &mut [u8]) {
-        use sha3::{Shake256, digest::{ExtendableOutput, Update, XofReader}};
+        use sha3::{
+            digest::{ExtendableOutput, Update, XofReader},
+            Shake256,
+        };
 
         let mut hasher = Shake256::default();
         hasher.update(&self.seed);
@@ -75,7 +81,10 @@ fuzz_target!(|input: VerifyInput| {
 
     // Verification with correct data should succeed
     let result = SlhDsaShake128f::verify(&pk, &input.message, &sig);
-    assert!(result.is_ok(), "verification should succeed with correct data");
+    assert!(
+        result.is_ok(),
+        "verification should succeed with correct data"
+    );
 
     // Test with corrupted message (if message is not empty)
     if !input.message.is_empty() {
@@ -83,7 +92,10 @@ fuzz_target!(|input: VerifyInput| {
         let idx = input.corruption_index % corrupted_msg.len();
         corrupted_msg[idx] ^= input.corruption_value | 1; // Ensure at least 1 bit changed
         let result = SlhDsaShake128f::verify(&pk, &corrupted_msg, &sig);
-        assert!(result.is_err(), "verification should fail with corrupted message");
+        assert!(
+            result.is_err(),
+            "verification should fail with corrupted message"
+        );
     }
 
     // Test with different key (generate another keypair)
