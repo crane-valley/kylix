@@ -1,7 +1,11 @@
-// Skip compilation when no SLH-DSA variant feature is enabled
-// (e.g., --no-default-features). The `any-variant` meta-feature is activated
-// by each concrete variant feature (slh-dsa-shake-*, slh-dsa-sha2-*).
-#![cfg(feature = "any-variant")]
+// Compile only when a variant covered below is enabled, so the shared
+// helpers are not dead code under other feature sets.
+#![cfg(any(
+    feature = "slh-dsa-shake-128f",
+    feature = "slh-dsa-shake-128s",
+    feature = "slh-dsa-shake-192f",
+    feature = "slh-dsa-shake-256f"
+))]
 
 //! Property-based tests for SLH-DSA using proptest.
 //!

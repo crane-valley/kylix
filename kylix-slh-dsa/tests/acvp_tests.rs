@@ -58,10 +58,8 @@ struct SigVerPrompt {
     hash_alg: Option<String>,
 }
 
-/// Returns `(pk, sk)` for the given `(sk_seed, sk_prf, pk_seed)`.
 type KeyGenFn<'a> = &'a dyn Fn(&[u8], &[u8], &[u8]) -> (Vec<u8>, Vec<u8>);
 
-/// Returns whether `signature` verifies for `(pk, M')`.
 type VerifyFn<'a> = &'a dyn Fn(&[u8], &[u8], &[u8]) -> bool;
 
 fn run_keygen(parameter_set: &str, keygen: KeyGenFn<'_>) -> usize {
@@ -158,6 +156,66 @@ fn external_message(domain: u8, context: &[u8], body: &[u8]) -> Vec<u8> {
     m_prime.extend_from_slice(context);
     m_prime.extend_from_slice(body);
     m_prime
+}
+
+/// Expected M' values were computed outside this crate: the OID DER bytes by
+/// `openssl asn1parse -genstr OID:2.16.840.1.101.3.4.2.<11|7>` (OpenSSL
+/// 3.6.0), PH(M) by Python `hashlib.shake_128(m).digest(32)` and
+/// `hashlib.sha3_224(m).digest()`. These two algorithms have no expected-accept
+/// preHash case in the ACVP vectors, and OpenSSL 3.6.0 rejects HashSLH-DSA
+/// (`pkeyutl -digest` is not supported with SLH-DSA), so this pins them instead.
+#[test]
+fn pre_hash_message_known_answers() {
+    const CONTEXT: &[u8] = b"kylix-ctx";
+    const MESSAGE: &[u8] = b"kylix-prehash-v1";
+    for (hash_alg, expected) in [
+        (
+            "SHAKE-128",
+            "01096b796c69782d637478060960864801650304020b1518d2368bffe798135b88ceac97b54bcdcdfc373e88f58e78f3479b918c4dff",
+        ),
+        (
+            "SHA3-224",
+            "01096b796c69782d637478060960864801650304020735630613c8770cc478d791bfe5d01797f32492fba32eef5111d19269",
+        ),
+    ] {
+        let m_prime = external_message(1, CONTEXT, &pre_hash_body(hash_alg, MESSAGE));
+        assert_eq!(hex::encode(m_prime), expected, "{hash_alg} M' mismatch");
+    }
+}
+
+#[test]
+fn pre_hash_algorithms_have_positive_vectors() {
+    kylix_test_util::skip_if_no_vectors!();
+    const PINNED_WITHOUT_POSITIVES: [&str; 2] = ["SHAKE-128", "SHA3-224"];
+
+    let prompt: AcvpFile<SigVerPromptGroup> = load_json("tests/acvp/sigver_prompt.json");
+    let expected: AcvpFile<ExpectedGroup<SigVerExpected>> =
+        load_json("tests/acvp/sigver_expected.json");
+
+    let mut accepted = std::collections::BTreeMap::<&str, usize>::new();
+    for group in prompt
+        .test_groups
+        .iter()
+        .filter(|g| g.pre_hash.as_deref() == Some("preHash"))
+    {
+        let expected_group = expected
+            .test_groups
+            .iter()
+            .find(|g| g.tg_id == group.tg_id)
+            .expect("expected sigVer group not found");
+        for (prompt, expected) in group.tests.iter().zip(&expected_group.tests) {
+            assert_eq!(prompt.tc_id, expected.tc_id, "test case ID mismatch");
+            let hash_alg = prompt.hash_alg.as_deref().expect("preHash without hashAlg");
+            *accepted.entry(hash_alg).or_default() += usize::from(expected.test_passed);
+        }
+    }
+    assert!(!accepted.is_empty(), "no preHash sigVer vectors");
+    for (hash_alg, count) in &accepted {
+        assert!(
+            *count > 0 || PINNED_WITHOUT_POSITIVES.contains(hash_alg),
+            "preHash {hash_alg}: no expected-accept vector and no pinned M'"
+        );
+    }
 }
 
 #[derive(Default)]
