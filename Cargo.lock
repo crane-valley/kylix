@@ -183,7 +183,9 @@ dependencies = [
 name = "kylix-core"
 version = "0.5.0"
 dependencies = [
+ "keccak",
  "rand_core",
+ "sha3",
  "zeroize",
 ]
 
