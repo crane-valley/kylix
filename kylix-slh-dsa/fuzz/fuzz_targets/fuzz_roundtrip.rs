@@ -17,11 +17,17 @@ impl FuzzRng {
         let mut s = [0u8; 32];
         let len = seed.len().min(32);
         s[..len].copy_from_slice(&seed[..len]);
-        Self { seed: s, counter: 0 }
+        Self {
+            seed: s,
+            counter: 0,
+        }
     }
 
     fn next_bytes(&mut self, dest: &mut [u8]) {
-        use sha3::{Shake256, digest::{ExtendableOutput, Update, XofReader}};
+        use sha3::{
+            digest::{ExtendableOutput, Update, XofReader},
+            Shake256,
+        };
 
         let mut hasher = Shake256::default();
         hasher.update(&self.seed);
@@ -73,7 +79,10 @@ fuzz_target!(|input: RoundtripInput| {
 
     // Verification with correct key and message should always succeed
     let result = SlhDsaShake128f::verify(&pk, &input.message, &sig);
-    assert!(result.is_ok(), "roundtrip verification should always succeed");
+    assert!(
+        result.is_ok(),
+        "roundtrip verification should always succeed"
+    );
 
     // Signature should have correct size
     assert_eq!(sig.as_bytes().len(), SlhDsaShake128f::SIGNATURE_SIZE);
@@ -83,6 +92,9 @@ fuzz_target!(|input: RoundtripInput| {
         let mut wrong_message = input.message.clone();
         wrong_message[0] ^= 0xFF;
         let result = SlhDsaShake128f::verify(&pk, &wrong_message, &sig);
-        assert!(result.is_err(), "verification with wrong message should fail");
+        assert!(
+            result.is_err(),
+            "verification with wrong message should fail"
+        );
     }
 });

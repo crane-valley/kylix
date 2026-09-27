@@ -16,34 +16,47 @@ env:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
   fuzz-ml-kem:
     name: Fuzz ML-KEM ${{ matrix.target }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - fuzz_keygen
-          - fuzz_encaps
-          - fuzz_decaps
-          - fuzz_roundtrip
+        # max_len must cover each target's largest input; libFuzzer otherwise
+        # defaults to 4096 bytes and never reaches full-size keys or signatures.
+        include:
+          - target: fuzz_keygen
+            max_len: 128
+          - target: fuzz_encaps
+            max_len: 2048
+          - target: fuzz_decaps
+            max_len: 5120
+          - target: fuzz_roundtrip
+            max_len: 128
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The job holds issues: write; keep the token out of .git/config.
+          persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+        with:
+          toolchain: nightly
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: kylix-ml-kem/fuzz -> target
 
       - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz
+        run: cargo install cargo-fuzz --version 0.13.1 --locked
 
       - name: Download corpus
-        uses: actions/cache@v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: kylix-ml-kem/fuzz/corpus/${{ matrix.target }}
           key: fuzz-corpus-ml-kem-${{ matrix.target }}-${{ github.run_id }}
@@ -53,298 +66,35 @@ jobs:
       - name: Run fuzzer
         id: fuzz
         working-directory: kylix-ml-kem
-        run: |
-          DURATION=${{ github.event.inputs.duration || '300' }}
-          echo "Running ${{ matrix.target }} for ${DURATION} seconds..."
-
-          # Run fuzzer with timeout, capture exit code
-          set +e
-          cargo +nightly fuzz run ${{ matrix.target }} -- \
-            -max_total_time=${DURATION} \
-            -print_final_stats=1
-          FUZZ_EXIT_CODE=$?
-          set -e
-
-          echo "exit_code=${FUZZ_EXIT_CODE}" >> $GITHUB_OUTPUT
-
-          # Check for crash artifacts
-          if [ -d "fuzz/artifacts/${{ matrix.target }}" ]; then
-            CRASH_COUNT=$(find fuzz/artifacts/${{ matrix.target }} -type f | wc -l)
-            echo "crash_count=${CRASH_COUNT}" >> $GITHUB_OUTPUT
-
-            if [ "$CRASH_COUNT" -gt 0 ]; then
-              echo "Found ${CRASH_COUNT} crash artifact(s)"
-
-              # Save crash info for issue creation
-              echo "CRASH_FILES<<EOF" >> $GITHUB_ENV
-              ls -la fuzz/artifacts/${{ matrix.target }}/
-              echo "EOF" >> $GITHUB_ENV
-
-              # Get first crash file content (hex dump)
-              FIRST_CRASH=$(find fuzz/artifacts/${{ matrix.target }} -type f | head -1)
-              if [ -n "$FIRST_CRASH" ]; then
-                echo "CRASH_HEX<<EOF" >> $GITHUB_ENV
-                xxd "$FIRST_CRASH" | head -50
-                echo "EOF" >> $GITHUB_ENV
-              fi
-            fi
-          else
-            echo "crash_count=0" >> $GITHUB_OUTPUT
-          fi
-
-          exit $FUZZ_EXIT_CODE
-
-      - name: Upload crash artifacts
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: crash-ml-kem-${{ matrix.target }}-${{ github.run_id }}
-          path: kylix-ml-kem/fuzz/artifacts/${{ matrix.target }}/
-          if-no-files-found: ignore
-
-      - name: Create issue on failure
-        if: failure()
-        uses: actions/github-script@v9
-        with:
-          script: |
-            const target = 'ml-kem/${{ matrix.target }}';
-            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
-            const crashFiles = process.env.CRASH_FILES || 'No crash files found';
-            const crashHex = process.env.CRASH_HEX || 'No crash data available';
-
-            // Check for existing open issue
-            const issues = await github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              labels: 'fuzz,bug',
-              per_page: 100
-            });
-
-            const existingIssue = issues.data.find(issue =>
-              issue.title.includes(target)
-            );
-
-            if (existingIssue) {
-              // Add comment to existing issue
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: existingIssue.number,
-                body: `## New crash detected\n\n**Run:** ${runUrl}\n**Date:** ${new Date().toISOString()}\n\n### Crash artifacts\n\`\`\`\n${crashFiles}\n\`\`\`\n\n### Sample crash input (hex)\n\`\`\`\n${crashHex}\n\`\`\``
-              });
-              console.log(`Added comment to existing issue #${existingIssue.number}`);
-            } else {
-              // Create new issue
-              await github.rest.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title: `[Fuzz] Crash detected in ${target}`,
-                labels: ['fuzz', 'bug', 'security'],
-                body: `## Fuzz testing failure\n\n**Target:** \`${target}\`\n**Run:** ${runUrl}\n**Date:** ${new Date().toISOString()}\n\n### Crash artifacts\n\`\`\`\n${crashFiles}\n\`\`\`\n\n### Sample crash input (hex)\n\`\`\`\n${crashHex}\n\`\`\`\n\n### Reproduction\n\n\`\`\`bash\ncd kylix-ml-kem\ncargo +nightly fuzz run ${{ matrix.target }} fuzz/artifacts/${{ matrix.target }}/<crash-file>\n\`\`\`\n\n### Notes\n\n- Download the crash artifact from the workflow run\n- Investigate and fix the underlying issue\n- The crash input can be minimized with \`cargo fuzz tmin\``
-              });
-              console.log('Created new issue');
-            }
-
-      - name: Save corpus
-        if: always()
-        uses: actions/cache/save@v5
-        with:
-          path: kylix-ml-kem/fuzz/corpus/${{ matrix.target }}
-          key: fuzz-corpus-ml-kem-${{ matrix.target }}-${{ github.run_id }}
-
-  fuzz-ml-dsa:
-    name: Fuzz ML-DSA ${{ matrix.target }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - fuzz_keygen
-          - fuzz_sign
-          - fuzz_verify
-          - fuzz_roundtrip
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: dtolnay/rust-toolchain@nightly
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: kylix-ml-dsa/fuzz -> target
-
-      - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz
-
-      - name: Download corpus
-        uses: actions/cache@v6
-        with:
-          path: kylix-ml-dsa/fuzz/corpus/${{ matrix.target }}
-          key: fuzz-corpus-ml-dsa-${{ matrix.target }}-${{ github.run_id }}
-          restore-keys: |
-            fuzz-corpus-ml-dsa-${{ matrix.target }}-
-
-      - name: Run fuzzer
-        id: fuzz
-        working-directory: kylix-ml-dsa
-        run: |
-          DURATION=${{ github.event.inputs.duration || '300' }}
-          echo "Running ${{ matrix.target }} for ${DURATION} seconds..."
-
-          # Run fuzzer with timeout, capture exit code
-          set +e
-          cargo +nightly fuzz run ${{ matrix.target }} -- \
-            -max_total_time=${DURATION} \
-            -print_final_stats=1
-          FUZZ_EXIT_CODE=$?
-          set -e
-
-          echo "exit_code=${FUZZ_EXIT_CODE}" >> $GITHUB_OUTPUT
-
-          # Check for crash artifacts
-          if [ -d "fuzz/artifacts/${{ matrix.target }}" ]; then
-            CRASH_COUNT=$(find fuzz/artifacts/${{ matrix.target }} -type f | wc -l)
-            echo "crash_count=${CRASH_COUNT}" >> $GITHUB_OUTPUT
-
-            if [ "$CRASH_COUNT" -gt 0 ]; then
-              echo "Found ${CRASH_COUNT} crash artifact(s)"
-
-              # Save crash info for issue creation
-              echo "CRASH_FILES<<EOF" >> $GITHUB_ENV
-              ls -la fuzz/artifacts/${{ matrix.target }}/
-              echo "EOF" >> $GITHUB_ENV
-
-              # Get first crash file content (hex dump)
-              FIRST_CRASH=$(find fuzz/artifacts/${{ matrix.target }} -type f | head -1)
-              if [ -n "$FIRST_CRASH" ]; then
-                echo "CRASH_HEX<<EOF" >> $GITHUB_ENV
-                xxd "$FIRST_CRASH" | head -50
-                echo "EOF" >> $GITHUB_ENV
-              fi
-            fi
-          else
-            echo "crash_count=0" >> $GITHUB_OUTPUT
-          fi
-
-          exit $FUZZ_EXIT_CODE
-
-      - name: Upload crash artifacts
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: crash-ml-dsa-${{ matrix.target }}-${{ github.run_id }}
-          path: kylix-ml-dsa/fuzz/artifacts/${{ matrix.target }}/
-          if-no-files-found: ignore
-
-      - name: Create issue on failure
-        if: failure()
-        uses: actions/github-script@v9
-        with:
-          script: |
-            const target = 'ml-dsa/${{ matrix.target }}';
-            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
-            const crashFiles = process.env.CRASH_FILES || 'No crash files found';
-            const crashHex = process.env.CRASH_HEX || 'No crash data available';
-
-            // Check for existing open issue
-            const issues = await github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              labels: 'fuzz,bug',
-              per_page: 100
-            });
-
-            const existingIssue = issues.data.find(issue =>
-              issue.title.includes(target)
-            );
-
-            if (existingIssue) {
-              // Add comment to existing issue
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: existingIssue.number,
-                body: `## New crash detected\n\n**Run:** ${runUrl}\n**Date:** ${new Date().toISOString()}\n\n### Crash artifacts\n\`\`\`\n${crashFiles}\n\`\`\`\n\n### Sample crash input (hex)\n\`\`\`\n${crashHex}\n\`\`\``
-              });
-              console.log(`Added comment to existing issue #${existingIssue.number}`);
-            } else {
-              // Create new issue
-              await github.rest.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title: `[Fuzz] Crash detected in ${target}`,
-                labels: ['fuzz', 'bug', 'security'],
-                body: `## Fuzz testing failure\n\n**Target:** \`${target}\`\n**Run:** ${runUrl}\n**Date:** ${new Date().toISOString()}\n\n### Crash artifacts\n\`\`\`\n${crashFiles}\n\`\`\`\n\n### Sample crash input (hex)\n\`\`\`\n${crashHex}\n\`\`\`\n\n### Reproduction\n\n\`\`\`bash\ncd kylix-ml-dsa\ncargo +nightly fuzz run ${{ matrix.target }} fuzz/artifacts/${{ matrix.target }}/<crash-file>\n\`\`\`\n\n### Notes\n\n- Download the crash artifact from the workflow run\n- Investigate and fix the underlying issue\n- The crash input can be minimized with \`cargo fuzz tmin\``
-              });
-              console.log('Created new issue');
-            }
-
-      - name: Save corpus
-        if: always()
-        uses: actions/cache/save@v5
-        with:
-          path: kylix-ml-dsa/fuzz/corpus/${{ matrix.target }}
-          key: fuzz-corpus-ml-dsa-${{ matrix.target }}-${{ github.run_id }}
-
-  fuzz-slh-dsa:
-    name: Fuzz SLH-DSA ${{ matrix.target }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - fuzz_keygen
-          - fuzz_sign
-          - fuzz_verify
-          - fuzz_roundtrip
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: dtolnay/rust-toolchain@nightly
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: kylix-slh-dsa/fuzz -> target
-
-      - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz
-
-      - name: Download corpus
-        uses: actions/cache@v6
-        with:
-          path: kylix-slh-dsa/fuzz/corpus/${{ matrix.target }}
-          key: fuzz-corpus-slh-dsa-${{ matrix.target }}-${{ github.run_id }}
-          restore-keys: |
-            fuzz-corpus-slh-dsa-${{ matrix.target }}-
-
-      # The variant feature (slh-dsa-shake-128f) is wired in kylix-slh-dsa/fuzz/Cargo.toml,
-      # so no --features flag is passed here.
-      - name: Run fuzzer
-        id: fuzz
-        working-directory: kylix-slh-dsa
         env:
           # Passed via env rather than inlined into the script so the dispatch
           # input cannot break out of the shell command.
           FUZZ_DURATION: ${{ github.event.inputs.duration || '300' }}
+          FUZZ_TARGET: ${{ matrix.target }}
+          FUZZ_MAX_LEN: ${{ matrix.max_len }}
         run: |
-          DURATION="${FUZZ_DURATION}"
-          echo "Running ${{ matrix.target }} for ${DURATION} seconds..."
+          if ! [[ "${FUZZ_DURATION}" =~ ^[1-9][0-9]{0,4}$ ]]; then
+            echo "::error::duration must be a positive integer number of seconds"
+            exit 1
+          fi
+          echo "Running ${FUZZ_TARGET} for ${FUZZ_DURATION} seconds (max_len ${FUZZ_MAX_LEN})..."
 
           # Run fuzzer with timeout, capture exit code
           set +e
-          cargo +nightly fuzz run ${{ matrix.target }} -- \
-            -max_total_time=${DURATION} \
+          cargo +nightly fuzz run "${FUZZ_TARGET}" -- \
+            -max_total_time="${FUZZ_DURATION}" \
+            -max_len="${FUZZ_MAX_LEN}" \
             -print_final_stats=1
           FUZZ_EXIT_CODE=$?
           set -e
 
-          echo "exit_code=${FUZZ_EXIT_CODE}" >> $GITHUB_OUTPUT
+          echo "exit_code=${FUZZ_EXIT_CODE}" >> "$GITHUB_OUTPUT"
 
           # Check for crash artifacts
-          if [ -d "fuzz/artifacts/${{ matrix.target }}" ]; then
-            CRASH_COUNT=$(find fuzz/artifacts/${{ matrix.target }} -type f | wc -l)
-            echo "crash_count=${CRASH_COUNT}" >> $GITHUB_OUTPUT
+          ARTIFACT_DIR="fuzz/artifacts/${FUZZ_TARGET}"
+          if [ -d "${ARTIFACT_DIR}" ]; then
+            CRASH_COUNT=$(find "${ARTIFACT_DIR}" -type f | wc -l)
+            echo "crash_count=${CRASH_COUNT}" >> "$GITHUB_OUTPUT"
 
             if [ "$CRASH_COUNT" -gt 0 ]; then
               echo "Found ${CRASH_COUNT} crash artifact(s)"
@@ -354,22 +104,22 @@ jobs:
               # markers land there and the variables stay empty.
               {
                 echo "CRASH_FILES<<EOF"
-                ls -la fuzz/artifacts/${{ matrix.target }}/
+                ls -la "${ARTIFACT_DIR}/"
                 echo "EOF"
-              } >> $GITHUB_ENV
+              } >> "$GITHUB_ENV"
 
               # Get first crash file content (hex dump)
-              FIRST_CRASH=$(find fuzz/artifacts/${{ matrix.target }} -type f | head -1)
+              FIRST_CRASH=$(find "${ARTIFACT_DIR}" -type f | head -1)
               if [ -n "$FIRST_CRASH" ]; then
                 {
                   echo "CRASH_HEX<<EOF"
                   xxd "$FIRST_CRASH" | head -50
                   echo "EOF"
-                } >> $GITHUB_ENV
+                } >> "$GITHUB_ENV"
               fi
             fi
           else
-            echo "crash_count=0" >> $GITHUB_OUTPUT
+            echo "crash_count=0" >> "$GITHUB_OUTPUT"
           fi
 
           exit $FUZZ_EXIT_CODE
@@ -378,26 +128,29 @@ jobs:
         # Match the issue-creation gate: a bare failure() also fires on infra
         # failures, when there is nothing to upload.
         if: failure() && steps.fuzz.outputs.crash_count > 0
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: crash-slh-dsa-${{ matrix.target }}-${{ github.run_id }}
-          path: kylix-slh-dsa/fuzz/artifacts/${{ matrix.target }}/
+          name: crash-ml-kem-${{ matrix.target }}-${{ github.run_id }}
+          path: kylix-ml-kem/fuzz/artifacts/${{ matrix.target }}/
           if-no-files-found: ignore
 
       - name: Create issue on failure
         # Only report a real crash: a bare failure() also fires on infra
         # failures (checkout, toolchain, cargo-fuzz install, build).
         if: failure() && steps.fuzz.outputs.crash_count > 0
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          FUZZ_TARGET: ${{ matrix.target }}
         with:
           script: |
-            const target = 'slh-dsa/${{ matrix.target }}';
+            const target = `ml-kem/${process.env.FUZZ_TARGET}`;
+            const title = `[Fuzz] Crash detected in ${target}`;
             const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
             const crashFiles = process.env.CRASH_FILES || 'No crash files found';
             const crashHex = process.env.CRASH_HEX || 'No crash data available';
 
             // Check for existing open issue
-            const issues = await github.rest.issues.listForRepo({
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'open',
@@ -405,9 +158,9 @@ jobs:
               per_page: 100
             });
 
-            const existingIssue = issues.data.find(issue =>
-              issue.title.includes(target)
-            );
+            // Exact match: a substring test would let fuzz_verify match a
+            // fuzz_verify_bytes issue.
+            const existingIssue = issues.find(issue => issue.title === title);
 
             if (existingIssue) {
               // Add comment to existing issue
@@ -423,16 +176,364 @@ jobs:
               await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                title: `[Fuzz] Crash detected in ${target}`,
+                title,
                 labels: ['fuzz', 'bug', 'security'],
-                body: `## Fuzz testing failure\n\n**Target:** \`${target}\`\n**Run:** ${runUrl}\n**Date:** ${new Date().toISOString()}\n\n### Crash artifacts\n\`\`\`\n${crashFiles}\n\`\`\`\n\n### Sample crash input (hex)\n\`\`\`\n${crashHex}\n\`\`\`\n\n### Reproduction\n\n\`\`\`bash\ncd kylix-slh-dsa\ncargo +nightly fuzz run ${{ matrix.target }} fuzz/artifacts/${{ matrix.target }}/<crash-file>\n\`\`\`\n\n### Notes\n\n- Download the crash artifact from the workflow run\n- Investigate and fix the underlying issue\n- The crash input can be minimized with \`cargo fuzz tmin\``
+                body: `## Fuzz testing failure\n\n**Target:** \`${target}\`\n**Run:** ${runUrl}\n**Date:** ${new Date().toISOString()}\n\n### Crash artifacts\n\`\`\`\n${crashFiles}\n\`\`\`\n\n### Sample crash input (hex)\n\`\`\`\n${crashHex}\n\`\`\`\n\n### Reproduction\n\n\`\`\`bash\ncd kylix-ml-kem\ncargo +nightly fuzz run ${process.env.FUZZ_TARGET} fuzz/artifacts/${process.env.FUZZ_TARGET}/<crash-file>\n\`\`\`\n\n### Notes\n\n- Download the crash artifact from the workflow run\n- Investigate and fix the underlying issue\n- The crash input can be minimized with \`cargo fuzz tmin\``
               });
               console.log('Created new issue');
             }
 
       - name: Save corpus
         if: always()
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: kylix-ml-kem/fuzz/corpus/${{ matrix.target }}
+          key: fuzz-corpus-ml-kem-${{ matrix.target }}-${{ github.run_id }}
+
+  fuzz-ml-dsa:
+    name: Fuzz ML-DSA ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: fuzz_keygen
+            max_len: 128
+          - target: fuzz_sign
+            max_len: 10240
+          - target: fuzz_verify
+            max_len: 16384
+          - target: fuzz_roundtrip
+            max_len: 10240
+          # selector + length prefixes + ML-DSA-87 pk (2592) + sig (4627) + message
+          - target: fuzz_verify_bytes
+            max_len: 8192
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The job holds issues: write; keep the token out of .git/config.
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+        with:
+          toolchain: nightly
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: kylix-ml-dsa/fuzz -> target
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --version 0.13.1 --locked
+
+      - name: Download corpus
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: kylix-ml-dsa/fuzz/corpus/${{ matrix.target }}
+          key: fuzz-corpus-ml-dsa-${{ matrix.target }}-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-ml-dsa-${{ matrix.target }}-
+
+      - name: Run fuzzer
+        id: fuzz
+        working-directory: kylix-ml-dsa
+        env:
+          # Passed via env rather than inlined into the script so the dispatch
+          # input cannot break out of the shell command.
+          FUZZ_DURATION: ${{ github.event.inputs.duration || '300' }}
+          FUZZ_TARGET: ${{ matrix.target }}
+          FUZZ_MAX_LEN: ${{ matrix.max_len }}
+        run: |
+          if ! [[ "${FUZZ_DURATION}" =~ ^[1-9][0-9]{0,4}$ ]]; then
+            echo "::error::duration must be a positive integer number of seconds"
+            exit 1
+          fi
+          echo "Running ${FUZZ_TARGET} for ${FUZZ_DURATION} seconds (max_len ${FUZZ_MAX_LEN})..."
+
+          # Run fuzzer with timeout, capture exit code
+          set +e
+          cargo +nightly fuzz run "${FUZZ_TARGET}" -- \
+            -max_total_time="${FUZZ_DURATION}" \
+            -max_len="${FUZZ_MAX_LEN}" \
+            -print_final_stats=1
+          FUZZ_EXIT_CODE=$?
+          set -e
+
+          echo "exit_code=${FUZZ_EXIT_CODE}" >> "$GITHUB_OUTPUT"
+
+          # Check for crash artifacts
+          ARTIFACT_DIR="fuzz/artifacts/${FUZZ_TARGET}"
+          if [ -d "${ARTIFACT_DIR}" ]; then
+            CRASH_COUNT=$(find "${ARTIFACT_DIR}" -type f | wc -l)
+            echo "crash_count=${CRASH_COUNT}" >> "$GITHUB_OUTPUT"
+
+            if [ "$CRASH_COUNT" -gt 0 ]; then
+              echo "Found ${CRASH_COUNT} crash artifact(s)"
+
+              # Save crash info for issue creation. The command output must be
+              # redirected into $GITHUB_ENV as well; otherwise only the heredoc
+              # markers land there and the variables stay empty.
+              {
+                echo "CRASH_FILES<<EOF"
+                ls -la "${ARTIFACT_DIR}/"
+                echo "EOF"
+              } >> "$GITHUB_ENV"
+
+              # Get first crash file content (hex dump)
+              FIRST_CRASH=$(find "${ARTIFACT_DIR}" -type f | head -1)
+              if [ -n "$FIRST_CRASH" ]; then
+                {
+                  echo "CRASH_HEX<<EOF"
+                  xxd "$FIRST_CRASH" | head -50
+                  echo "EOF"
+                } >> "$GITHUB_ENV"
+              fi
+            fi
+          else
+            echo "crash_count=0" >> "$GITHUB_OUTPUT"
+          fi
+
+          exit $FUZZ_EXIT_CODE
+
+      - name: Upload crash artifacts
+        # Match the issue-creation gate: a bare failure() also fires on infra
+        # failures, when there is nothing to upload.
+        if: failure() && steps.fuzz.outputs.crash_count > 0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: crash-ml-dsa-${{ matrix.target }}-${{ github.run_id }}
+          path: kylix-ml-dsa/fuzz/artifacts/${{ matrix.target }}/
+          if-no-files-found: ignore
+
+      - name: Create issue on failure
+        # Only report a real crash: a bare failure() also fires on infra
+        # failures (checkout, toolchain, cargo-fuzz install, build).
+        if: failure() && steps.fuzz.outputs.crash_count > 0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          FUZZ_TARGET: ${{ matrix.target }}
+        with:
+          script: |
+            const target = `ml-dsa/${process.env.FUZZ_TARGET}`;
+            const title = `[Fuzz] Crash detected in ${target}`;
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            const crashFiles = process.env.CRASH_FILES || 'No crash files found';
+            const crashHex = process.env.CRASH_HEX || 'No crash data available';
+
+            // Check for existing open issue
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'fuzz,bug',
+              per_page: 100
+            });
+
+            // Exact match: a substring test would let fuzz_verify match a
+            // fuzz_verify_bytes issue.
+            const existingIssue = issues.find(issue => issue.title === title);
+
+            if (existingIssue) {
+              // Add comment to existing issue
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssue.number,
+                body: `## New crash detected\n\n**Run:** ${runUrl}\n**Date:** ${new Date().toISOString()}\n\n### Crash artifacts\n\`\`\`\n${crashFiles}\n\`\`\`\n\n### Sample crash input (hex)\n\`\`\`\n${crashHex}\n\`\`\``
+              });
+              console.log(`Added comment to existing issue #${existingIssue.number}`);
+            } else {
+              // Create new issue
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                labels: ['fuzz', 'bug', 'security'],
+                body: `## Fuzz testing failure\n\n**Target:** \`${target}\`\n**Run:** ${runUrl}\n**Date:** ${new Date().toISOString()}\n\n### Crash artifacts\n\`\`\`\n${crashFiles}\n\`\`\`\n\n### Sample crash input (hex)\n\`\`\`\n${crashHex}\n\`\`\`\n\n### Reproduction\n\n\`\`\`bash\ncd kylix-ml-dsa\ncargo +nightly fuzz run ${process.env.FUZZ_TARGET} fuzz/artifacts/${process.env.FUZZ_TARGET}/<crash-file>\n\`\`\`\n\n### Notes\n\n- Download the crash artifact from the workflow run\n- Investigate and fix the underlying issue\n- The crash input can be minimized with \`cargo fuzz tmin\``
+              });
+              console.log('Created new issue');
+            }
+
+      - name: Save corpus
+        if: always()
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: kylix-ml-dsa/fuzz/corpus/${{ matrix.target }}
+          key: fuzz-corpus-ml-dsa-${{ matrix.target }}-${{ github.run_id }}
+
+  fuzz-slh-dsa:
+    name: Fuzz SLH-DSA ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: fuzz_keygen
+            max_len: 128
+          - target: fuzz_sign
+            max_len: 4096
+          - target: fuzz_verify
+            max_len: 4096
+          - target: fuzz_roundtrip
+            max_len: 4096
+          # selector + length prefixes + 128f sig (17088) + pk + message
+          - target: fuzz_verify_bytes
+            max_len: 20480
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The job holds issues: write; keep the token out of .git/config.
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+        with:
+          toolchain: nightly
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: kylix-slh-dsa/fuzz -> target
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --version 0.13.1 --locked
+
+      - name: Download corpus
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: kylix-slh-dsa/fuzz/corpus/${{ matrix.target }}
+          key: fuzz-corpus-slh-dsa-${{ matrix.target }}-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-slh-dsa-${{ matrix.target }}-
+
+      # The variant features (slh-dsa-shake-128f, slh-dsa-sha2-128f) are wired in
+      # kylix-slh-dsa/fuzz/Cargo.toml, so no --features flag is passed here.
+      - name: Run fuzzer
+        id: fuzz
+        working-directory: kylix-slh-dsa
+        env:
+          # Passed via env rather than inlined into the script so the dispatch
+          # input cannot break out of the shell command.
+          FUZZ_DURATION: ${{ github.event.inputs.duration || '300' }}
+          FUZZ_TARGET: ${{ matrix.target }}
+          FUZZ_MAX_LEN: ${{ matrix.max_len }}
+        run: |
+          if ! [[ "${FUZZ_DURATION}" =~ ^[1-9][0-9]{0,4}$ ]]; then
+            echo "::error::duration must be a positive integer number of seconds"
+            exit 1
+          fi
+          echo "Running ${FUZZ_TARGET} for ${FUZZ_DURATION} seconds (max_len ${FUZZ_MAX_LEN})..."
+
+          # Run fuzzer with timeout, capture exit code
+          set +e
+          cargo +nightly fuzz run "${FUZZ_TARGET}" -- \
+            -max_total_time="${FUZZ_DURATION}" \
+            -max_len="${FUZZ_MAX_LEN}" \
+            -print_final_stats=1
+          FUZZ_EXIT_CODE=$?
+          set -e
+
+          echo "exit_code=${FUZZ_EXIT_CODE}" >> "$GITHUB_OUTPUT"
+
+          # Check for crash artifacts
+          ARTIFACT_DIR="fuzz/artifacts/${FUZZ_TARGET}"
+          if [ -d "${ARTIFACT_DIR}" ]; then
+            CRASH_COUNT=$(find "${ARTIFACT_DIR}" -type f | wc -l)
+            echo "crash_count=${CRASH_COUNT}" >> "$GITHUB_OUTPUT"
+
+            if [ "$CRASH_COUNT" -gt 0 ]; then
+              echo "Found ${CRASH_COUNT} crash artifact(s)"
+
+              # Save crash info for issue creation. The command output must be
+              # redirected into $GITHUB_ENV as well; otherwise only the heredoc
+              # markers land there and the variables stay empty.
+              {
+                echo "CRASH_FILES<<EOF"
+                ls -la "${ARTIFACT_DIR}/"
+                echo "EOF"
+              } >> "$GITHUB_ENV"
+
+              # Get first crash file content (hex dump)
+              FIRST_CRASH=$(find "${ARTIFACT_DIR}" -type f | head -1)
+              if [ -n "$FIRST_CRASH" ]; then
+                {
+                  echo "CRASH_HEX<<EOF"
+                  xxd "$FIRST_CRASH" | head -50
+                  echo "EOF"
+                } >> "$GITHUB_ENV"
+              fi
+            fi
+          else
+            echo "crash_count=0" >> "$GITHUB_OUTPUT"
+          fi
+
+          exit $FUZZ_EXIT_CODE
+
+      - name: Upload crash artifacts
+        # Match the issue-creation gate: a bare failure() also fires on infra
+        # failures, when there is nothing to upload.
+        if: failure() && steps.fuzz.outputs.crash_count > 0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: crash-slh-dsa-${{ matrix.target }}-${{ github.run_id }}
+          path: kylix-slh-dsa/fuzz/artifacts/${{ matrix.target }}/
+          if-no-files-found: ignore
+
+      - name: Create issue on failure
+        # Only report a real crash: a bare failure() also fires on infra
+        # failures (checkout, toolchain, cargo-fuzz install, build).
+        if: failure() && steps.fuzz.outputs.crash_count > 0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          FUZZ_TARGET: ${{ matrix.target }}
+        with:
+          script: |
+            const target = `slh-dsa/${process.env.FUZZ_TARGET}`;
+            const title = `[Fuzz] Crash detected in ${target}`;
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            const crashFiles = process.env.CRASH_FILES || 'No crash files found';
+            const crashHex = process.env.CRASH_HEX || 'No crash data available';
+
+            // Check for existing open issue
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'fuzz,bug',
+              per_page: 100
+            });
+
+            // Exact match: a substring test would let fuzz_verify match a
+            // fuzz_verify_bytes issue.
+            const existingIssue = issues.find(issue => issue.title === title);
+
+            if (existingIssue) {
+              // Add comment to existing issue
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssue.number,
+                body: `## New crash detected\n\n**Run:** ${runUrl}\n**Date:** ${new Date().toISOString()}\n\n### Crash artifacts\n\`\`\`\n${crashFiles}\n\`\`\`\n\n### Sample crash input (hex)\n\`\`\`\n${crashHex}\n\`\`\``
+              });
+              console.log(`Added comment to existing issue #${existingIssue.number}`);
+            } else {
+              // Create new issue
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                labels: ['fuzz', 'bug', 'security'],
+                body: `## Fuzz testing failure\n\n**Target:** \`${target}\`\n**Run:** ${runUrl}\n**Date:** ${new Date().toISOString()}\n\n### Crash artifacts\n\`\`\`\n${crashFiles}\n\`\`\`\n\n### Sample crash input (hex)\n\`\`\`\n${crashHex}\n\`\`\`\n\n### Reproduction\n\n\`\`\`bash\ncd kylix-slh-dsa\ncargo +nightly fuzz run ${process.env.FUZZ_TARGET} fuzz/artifacts/${process.env.FUZZ_TARGET}/<crash-file>\n\`\`\`\n\n### Notes\n\n- Download the crash artifact from the workflow run\n- Investigate and fix the underlying issue\n- The crash input can be minimized with \`cargo fuzz tmin\``
+              });
+              console.log('Created new issue');
+            }
+
+      - name: Save corpus
+        if: always()
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: kylix-slh-dsa/fuzz/corpus/${{ matrix.target }}
           key: fuzz-corpus-slh-dsa-${{ matrix.target }}-${{ github.run_id }}

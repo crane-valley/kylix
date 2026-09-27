@@ -45,7 +45,10 @@ fuzz_target!(|input: RoundtripInput| {
                     &input.message,
                     &sig,
                 );
-                assert!(valid, "Roundtrip failed: valid signature rejected for ML-DSA-44");
+                assert!(
+                    valid,
+                    "Roundtrip failed: valid signature rejected for ML-DSA-44"
+                );
 
                 // Full roundtrip determinism check
                 let (sk2, pk2) = ml_dsa_keygen::<K, L, ETA>(&input.seed);
@@ -57,14 +60,19 @@ fuzz_target!(|input: RoundtripInput| {
 
                 assert_eq!(sk, sk2, "KeyGen should be deterministic");
                 assert_eq!(pk, pk2, "KeyGen should be deterministic");
-                assert_eq!(Some(sig.clone()), sig2.clone(), "Sign should be deterministic with same rnd");
+                assert_eq!(
+                    Some(sig.clone()),
+                    sig2.clone(),
+                    "Sign should be deterministic with same rnd"
+                );
 
                 if let Some(ref sig2_inner) = sig2 {
-                    let valid2 = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-                        &pk2,
-                        &input.message,
-                        sig2_inner,
-                    );
+                    let valid2 =
+                        ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
+                            &pk2,
+                            &input.message,
+                            sig2_inner,
+                        );
                     assert!(valid2, "Verification should be consistent");
                 }
             }
@@ -86,7 +94,10 @@ fuzz_target!(|input: RoundtripInput| {
                     &input.message,
                     &sig,
                 );
-                assert!(valid, "Roundtrip failed: valid signature rejected for ML-DSA-65");
+                assert!(
+                    valid,
+                    "Roundtrip failed: valid signature rejected for ML-DSA-65"
+                );
 
                 let (sk2, pk2) = ml_dsa_keygen::<K, L, ETA>(&input.seed);
                 let sig2 = ml_dsa_sign::<K, L, ETA, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
@@ -97,14 +108,19 @@ fuzz_target!(|input: RoundtripInput| {
 
                 assert_eq!(sk, sk2, "KeyGen should be deterministic");
                 assert_eq!(pk, pk2, "KeyGen should be deterministic");
-                assert_eq!(Some(sig.clone()), sig2.clone(), "Sign should be deterministic with same rnd");
+                assert_eq!(
+                    Some(sig.clone()),
+                    sig2.clone(),
+                    "Sign should be deterministic with same rnd"
+                );
 
                 if let Some(ref sig2_inner) = sig2 {
-                    let valid2 = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-                        &pk2,
-                        &input.message,
-                        sig2_inner,
-                    );
+                    let valid2 =
+                        ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
+                            &pk2,
+                            &input.message,
+                            sig2_inner,
+                        );
                     assert!(valid2, "Verification should be consistent");
                 }
             }
@@ -126,7 +142,10 @@ fuzz_target!(|input: RoundtripInput| {
                     &input.message,
                     &sig,
                 );
-                assert!(valid, "Roundtrip failed: valid signature rejected for ML-DSA-87");
+                assert!(
+                    valid,
+                    "Roundtrip failed: valid signature rejected for ML-DSA-87"
+                );
 
                 let (sk2, pk2) = ml_dsa_keygen::<K, L, ETA>(&input.seed);
                 let sig2 = ml_dsa_sign::<K, L, ETA, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
@@ -137,14 +156,19 @@ fuzz_target!(|input: RoundtripInput| {
 
                 assert_eq!(sk, sk2, "KeyGen should be deterministic");
                 assert_eq!(pk, pk2, "KeyGen should be deterministic");
-                assert_eq!(Some(sig.clone()), sig2.clone(), "Sign should be deterministic with same rnd");
+                assert_eq!(
+                    Some(sig.clone()),
+                    sig2.clone(),
+                    "Sign should be deterministic with same rnd"
+                );
 
                 if let Some(ref sig2_inner) = sig2 {
-                    let valid2 = ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
-                        &pk2,
-                        &input.message,
-                        sig2_inner,
-                    );
+                    let valid2 =
+                        ml_dsa_verify::<K, L, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
+                            &pk2,
+                            &input.message,
+                            sig2_inner,
+                        );
                     assert!(valid2, "Verification should be consistent");
                 }
             }

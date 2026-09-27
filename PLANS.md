@@ -31,7 +31,7 @@ packaging, or audit readiness are deferred unless the project direction changes.
 | Component | Priority | Notes |
 |-----------|----------|-------|
 | SHA3/SHAKE SIMD Optimization | HIGH | Keccak permutation AVX2 — SHA3/SHAKE is 40-50% of ML-KEM total time. No Rust PQC lib has this yet (differentiation opportunity). |
-| Fuzz Targets for Error/Validation Paths | HIGH | Add coverage for malformed and invalid-length inputs to encaps/decaps and related parsing paths. High-value quality work that is easy to automate and verify in CI. |
+| Fuzz Targets for Error/Validation Paths | LOW | Done: ML-KEM `fuzz_encaps`/`fuzz_decaps` and ML-DSA/SLH-DSA `fuzz_verify_bytes` feed attacker-controlled keys, ciphertexts and signatures of any length, with per-target `-max_len` in CI. Remaining: untrusted signing-key bytes for ML-DSA/SLH-DSA signing, and SLH-DSA parameter sets other than SHAKE-128f/SHA2-128f. |
 | k_pke Internal Validation | HIGH | Prevent short-input panics in internal encryption/decryption helpers. Good defense-in-depth with limited implementation cost. |
 | SIMD NTT (WASM) | LOW | ML-DSA pointwise mul done; NTT not yet WASM-optimized. ML-KEM has no WASM SIMD. |
 
@@ -100,4 +100,4 @@ Primary optimization opportunity: SHA3/SHAKE SIMD (HIGH priority, biggest single
 - [x] `clippy::unwrap_used` / `clippy::expect_used` denied across workspace (justified uses annotated)
 - [x] Property-based tests (proptest: roundtrip, key/sig sizes, tampering detection)
 - [x] CLAUDE.md expansion (SIMD, dudect, CI, crate graph) + docs/ARCHITECTURE.md
-- [ ] Fuzz targets for error/validation paths (invalid-length inputs to encaps/decaps)
+- [x] Fuzz targets for error/validation paths (untrusted keys, ciphertexts and signatures of any length)
