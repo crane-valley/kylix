@@ -34,12 +34,8 @@ fn unpack_12bit_coeffs(chunk: &[u8]) -> (u16, u16) {
 ///
 /// # Arguments
 /// * `poly` - Polynomial with coefficients in [0, q-1]
-///
-/// # Returns
-/// 384-byte encoded polynomial
-pub fn poly_to_bytes(poly: &Poly) -> [u8; 384] {
-    let mut bytes = [0u8; 384];
-
+/// * `bytes` - 384-byte destination for the encoding
+pub fn poly_to_bytes(poly: &Poly, bytes: &mut [u8]) {
     for i in 0..128 {
         // Two coefficients -> three bytes
         let c0 = poly.coeffs[2 * i] as u16;
@@ -52,8 +48,6 @@ pub fn poly_to_bytes(poly: &Poly) -> [u8; 384] {
         bytes[3 * i + 1] = ((c0 >> 8) | (c1 << 4)) as u8;
         bytes[3 * i + 2] = (c1 >> 4) as u8;
     }
-
-    bytes
 }
 
 /// Decode bytes to a polynomial using 12-bit coefficients.
@@ -198,7 +192,8 @@ mod tests {
             poly.coeffs[i] = (i as i16 * 13) % (Q as i16);
         }
 
-        let bytes = poly_to_bytes(&poly);
+        let mut bytes = [0u8; 384];
+        poly_to_bytes(&poly, &mut bytes);
         let recovered = poly_from_bytes(&bytes);
 
         for i in 0..N {
@@ -213,7 +208,8 @@ mod tests {
     #[test]
     fn test_poly_to_bytes_from_bytes_zero() {
         let poly = Poly::new();
-        let bytes = poly_to_bytes(&poly);
+        let mut bytes = [0u8; 384];
+        poly_to_bytes(&poly, &mut bytes);
         let recovered = poly_from_bytes(&bytes);
 
         for i in 0..N {
@@ -229,7 +225,8 @@ mod tests {
             poly.coeffs[i] = (Q - 1) as i16;
         }
 
-        let bytes = poly_to_bytes(&poly);
+        let mut bytes = [0u8; 384];
+        poly_to_bytes(&poly, &mut bytes);
         let recovered = poly_from_bytes(&bytes);
 
         for i in 0..N {

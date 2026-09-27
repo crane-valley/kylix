@@ -68,11 +68,46 @@ SHA3 and 0x1F for SHAKE at the current position, 0x80 in the last byte of the
 rate block (rates 136, 72, 168 and 136 bytes for SHA3-256, SHA3-512, SHAKE128
 and SHAKE256).
 
-Hashing that absorbs only public data (for example SampleNTT/ExpandA over rho,
-H(ek), H(pk)) may keep using the sha3 crate; the call sites that move to the
-new sponge, and why each remaining sha3 call is public-only, are recorded when
-the ML-KEM and ML-DSA call sites are converted. The sha3 `zeroize` feature is
-enabled for the remaining sha3 uses at the same time.
+Hashing that absorbs only public data may keep using the sha3 crate. The sha3
+`zeroize` feature is enabled in all three crates for those remaining uses; the
+requirement is sha3 0.10.9 because 0.10.8 has no such feature.
+
+### Call sites
+
+ML-KEM (`kylix-ml-kem/src/hash.rs`):
+
+- G (SHA3-512) moves to the sponge. It absorbs d||k in K-PKE.KeyGen, m||H(ek)
+  in Encaps and m'||h in Decaps, and its output (rho, sigma) or (K, r) is
+  secret. It now takes the two parts separately, so no concatenated input
+  buffer exists.
+- PRF (SHAKE256 over sigma||N or r||N) moves: the seed is secret and the
+  output is the CBD noise for s, e, r, e1 and e2.
+- J (SHAKE256 over z||c) moves: z is secret and the output is the implicit
+  rejection key.
+- H (SHA3-256) stays on sha3: it is only applied to ek, in KeyGen, in Encaps
+  on the peer's ek, and in the Decaps check of the ek embedded in dk. ek is
+  public.
+- The SampleNTT XOF (SHAKE128 over rho||j||i) stays on sha3: rho is part of ek.
+
+ML-DSA (`kylix-ml-dsa/src/hash.rs`):
+
+- H(xi||k||l) in KeyGen moves: xi is the seed and rho' and K are secret.
+- H(K||rnd||mu) in Sign moves: K is secret and the output rho'' seeds
+  ExpandMask.
+- ExpandS (SHAKE256 over rho'||nonce) and ExpandMask (SHAKE256 over
+  rho''||nonce) move through `Shake256Xof`: seeds and output streams (s1, s2,
+  y encodings) are secret. The seed||nonce input is absorbed in two parts
+  instead of being copied into a local array.
+- c_tilde = H(mu||w1Encode(w1)) in Sign and SampleInBall over c_tilde move:
+  w1 and c_tilde of rejected iterations are never published and derive from
+  y. Verify recomputes c_tilde through the same helper; its inputs are public,
+  and a separate public helper would buy nothing.
+- tr = H(pk) and mu = H(tr||M') stay on sha3: pk, tr, the prefix and the
+  message are public.
+- ExpandA (SHAKE128 over rho||j||i) stays on sha3: rho is part of pk.
+
+SLH-DSA call sites are unchanged here; only its sha3 `zeroize` feature is
+enabled (see the last consequence below).
 
 ### Option 1: sha3 `zeroize` feature only
 
@@ -126,7 +161,11 @@ digest 0.11.2 and 0.11.3, sha2 0.11.0, hmac 0.13.0, block-buffer 0.11.0 and
   registers or spilled to the stack (the per-lane word in absorb and squeeze,
   the permutation's own scratch lanes inside `keccak::f1600`) are not wiped.
   Callers should keep hashers in place and let them drop where they were
-  created.
+  created. For the same reason the ML-KEM and ML-DSA encoders and samplers
+  now write into caller-owned (zeroizing) destinations instead of returning
+  arrays or `Vec`s by value; functions that still return a secret by value
+  (the `[u8; 32]` shared secret from Encaps and Decaps, m' from
+  K-PKE.Decrypt) leave a moved-from copy.
 - SHA-2 and HMAC secret inputs in SLH-DSA are not covered by this sponge; they
   are handled in a follow-up change (wipeable SHA-256/SHA-512 and HMAC over the
   sha2 block functions), recorded as an extension of this ADR or a new one.

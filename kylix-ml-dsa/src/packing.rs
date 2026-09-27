@@ -4,6 +4,7 @@
 
 use crate::poly::{Poly, N};
 use crate::rounding::D;
+use zeroize::Zeroizing;
 
 /// Pack polynomial with coefficients in [0, 2^10 - 1] (t1).
 pub fn pack_t1(poly: &Poly, out: &mut [u8]) {
@@ -42,8 +43,8 @@ pub fn unpack_t1(input: &[u8], poly: &mut Poly) {
 pub fn pack_t0(poly: &Poly, out: &mut [u8]) {
     debug_assert_eq!(out.len(), 416);
 
+    let mut t = Zeroizing::new([0i32; 8]);
     for i in 0..N / 8 {
-        let mut t = [0i32; 8];
         for j in 0..8 {
             // Map to [0, 2^13 - 1]
             t[j] = (1 << (D - 1)) - poly.coeffs[8 * i + j];

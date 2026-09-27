@@ -5,7 +5,7 @@
 #[cfg(not(feature = "std"))]
 use alloc::{vec, vec::Vec};
 
-use crate::hash::{h, h2, hash_message_parts, hash_pk, Shake128Xof};
+use crate::hash::{h2, hash_message_parts, hash_pk, Shake128Xof};
 use crate::packing::*;
 use crate::poly::{Poly, N};
 use crate::polyvec::{Matrix, PolyVecK, PolyVecL};
@@ -572,19 +572,16 @@ pub fn expand_a<const K: usize, const L: usize>(rho: &[u8; 32]) -> Matrix<K, L> 
 /// Expand secret vectors s1, s2 from seed rho'.
 pub fn expand_s<const K: usize, const L: usize, const ETA: usize>(
     rho_prime: &[u8],
-) -> (PolyVecL<L>, PolyVecK<K>) {
-    let mut s1 = PolyVecL::<L>::zero();
-    let mut s2 = PolyVecK::<K>::zero();
-
+    s1: &mut PolyVecL<L>,
+    s2: &mut PolyVecK<K>,
+) {
     for i in 0..L {
-        s1.polys[i] = sample_eta::<ETA>(rho_prime, i as u16);
+        sample_eta::<ETA>(rho_prime, i as u16, &mut s1.polys[i]);
     }
 
     for i in 0..K {
-        s2.polys[i] = sample_eta::<ETA>(rho_prime, (L + i) as u16);
+        sample_eta::<ETA>(rho_prime, (L + i) as u16, &mut s2.polys[i]);
     }
-
-    (s1, s2)
 }
 
 // ---------------------------------------------------------------------------
@@ -601,13 +598,8 @@ pub fn ml_dsa_keygen<const K: usize, const L: usize, const ETA: usize>(
 ) -> (Vec<u8>, Vec<u8>) {
     // 1. Expand seed with domain separation: (rho, rho', K) = H(xi || k || l, 128)
     // Per FIPS 204 Algorithm 1, step 1
-    let mut seed_input = Zeroizing::new([0u8; 34]);
-    seed_input[..32].copy_from_slice(xi);
-    seed_input[32] = K as u8;
-    seed_input[33] = L as u8;
-
     let mut expanded = Zeroizing::new([0u8; 128]);
-    h(&*seed_input, &mut *expanded);
+    h2(xi, &[K as u8, L as u8], &mut *expanded);
 
     let mut rho = [0u8; 32];
     let mut rho_prime = Zeroizing::new([0u8; 64]);
@@ -621,12 +613,12 @@ pub fn ml_dsa_keygen<const K: usize, const L: usize, const ETA: usize>(
     let a = expand_a::<K, L>(&rho);
 
     // 3. Sample secret vectors s1, s2
-    let (s1_raw, s2_raw) = expand_s::<K, L, ETA>(&*rho_prime);
-    let s1 = Zeroizing::new(s1_raw);
-    let s2 = Zeroizing::new(s2_raw);
+    let mut s1 = Zeroizing::new(PolyVecL::<L>::zero());
+    let mut s2 = Zeroizing::new(PolyVecK::<K>::zero());
+    expand_s::<K, L, ETA>(&*rho_prime, &mut s1, &mut s2);
 
     // 4. Compute t = A * s1 + s2
-    let mut s1_ntt = s1.clone();
+    let mut s1_ntt: Zeroizing<PolyVecL<L>> = s1.clone();
     s1_ntt.ntt();
 
     let mut t = Zeroizing::new(a.mul_vec(&s1_ntt));
@@ -888,7 +880,7 @@ fn sign_internal<
         let mut y = Zeroizing::new(PolyVecL::<L>::zero());
         for i in 0..L {
             let nonce = mask_nonce::<L>(kappa, i)?;
-            y.polys[i] = sample_mask(&rho_prime, nonce, gamma1_bits);
+            sample_mask(&rho_prime, nonce, gamma1_bits, &mut y.polys[i]);
         }
 
         // w = A * NTT(y)
@@ -1254,7 +1246,7 @@ mod tests {
 
         // 1. Expand seed
         let mut expanded = [0u8; 128];
-        h(&xi, &mut expanded);
+        h2(&xi, &[], &mut expanded);
         let mut rho = [0u8; 32];
         let mut rho_prime = [0u8; 64];
         rho.copy_from_slice(&expanded[0..32]);
@@ -1262,7 +1254,9 @@ mod tests {
 
         // 2. Sample A, s1, s2
         let a = expand_a::<K, L>(&rho);
-        let (s1, s2) = expand_s::<K, L, ETA>(&rho_prime);
+        let mut s1 = PolyVecL::<L>::zero();
+        let mut s2 = PolyVecK::<K>::zero();
+        expand_s::<K, L, ETA>(&rho_prime, &mut s1, &mut s2);
 
         // 3. Compute A*s1 + s2 = t
         let mut s1_ntt = s1.clone();

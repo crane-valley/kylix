@@ -5,6 +5,7 @@
 use crate::hash::{Shake128Xof, Shake256Xof};
 use crate::poly::{Poly, N};
 use crate::reduce::Q;
+use zeroize::Zeroizing;
 
 /// Rejection bound for sampling (23-bit)
 const REJECTION_BOUND: i32 = Q;
@@ -55,18 +56,11 @@ impl<const ETA: usize> EtaCheck<ETA> {
 ///
 /// Branching on `ETA` is a branch on a compile-time constant, not on secret
 /// data, so it carries no timing risk.
-pub fn sample_eta<const ETA: usize>(seed: &[u8], nonce: u16) -> Poly {
+pub fn sample_eta<const ETA: usize>(seed: &[u8], nonce: u16, poly: &mut Poly) {
     let () = EtaCheck::<ETA>::SUPPORTED;
 
-    let mut poly = Poly::zero();
-
-    // Compute input: seed || nonce (little-endian)
-    let mut input = [0u8; 66];
-    input[..seed.len()].copy_from_slice(seed);
-    input[seed.len()] = nonce as u8;
-    input[seed.len() + 1] = (nonce >> 8) as u8;
-
-    let mut xof = Shake256Xof::from_data(&input[..seed.len() + 2]);
+    let mut xof = Shake256Xof::from_parts(seed, &nonce.to_le_bytes());
+    let mut buf = Zeroizing::new([0u8; 136]);
 
     if ETA == 2 {
         // eta = 2: sample uniformly from {-2, -1, 0, 1, 2}
@@ -76,8 +70,7 @@ pub fn sample_eta<const ETA: usize>(seed: &[u8], nonce: u16) -> Poly {
         // but we must keep squeezing until all N coefficients are filled.
         let mut ctr = 0;
         while ctr < N {
-            let mut buf = [0u8; 136];
-            xof.squeeze(&mut buf);
+            xof.squeeze(&mut buf[..]);
 
             let mut pos = 0;
             while ctr < N && pos < buf.len() {
@@ -110,8 +103,7 @@ pub fn sample_eta<const ETA: usize>(seed: &[u8], nonce: u16) -> Poly {
         // Must keep squeezing until all N=256 coefficients are filled.
         let mut ctr = 0;
         while ctr < N {
-            let mut buf = [0u8; 136];
-            xof.squeeze(&mut buf);
+            xof.squeeze(&mut buf[..]);
 
             let mut pos = 0;
             while ctr < N && pos < buf.len() {
@@ -136,28 +128,18 @@ pub fn sample_eta<const ETA: usize>(seed: &[u8], nonce: u16) -> Poly {
         // guard degrades to a loud panic instead of a silent all-zero secret.
         unreachable!("sample_eta: unsupported eta");
     }
-
-    poly
 }
 
 /// Sample masking polynomial y with coefficients in [-gamma1+1, gamma1].
 ///
 /// Used in signing for masking.
-pub fn sample_mask(seed: &[u8; 64], nonce: u16, gamma1_bits: u32) -> Poly {
-    let mut poly = Poly::zero();
-
-    // Compute input: seed || nonce
-    let mut input = [0u8; 66];
-    input[..64].copy_from_slice(seed);
-    input[64] = nonce as u8;
-    input[65] = (nonce >> 8) as u8;
-
-    let mut xof = Shake256Xof::from_data(&input);
+pub fn sample_mask(seed: &[u8; 64], nonce: u16, gamma1_bits: u32, poly: &mut Poly) {
+    let mut xof = Shake256Xof::from_parts(seed, &nonce.to_le_bytes());
 
     if gamma1_bits == 17 {
         // gamma1 = 2^17: use 18 bits per coefficient
-        let mut buf = [0u8; 576]; // 256 * 18 / 8 = 576
-        xof.squeeze(&mut buf);
+        let mut buf = Zeroizing::new([0u8; 576]); // 256 * 18 / 8 = 576
+        xof.squeeze(&mut buf[..]);
 
         for i in 0..N {
             let idx = i * 18 / 8;
@@ -172,8 +154,8 @@ pub fn sample_mask(seed: &[u8; 64], nonce: u16, gamma1_bits: u32) -> Poly {
         }
     } else {
         // gamma1 = 2^19: use 20 bits per coefficient
-        let mut buf = [0u8; 640]; // 256 * 20 / 8 = 640
-        xof.squeeze(&mut buf);
+        let mut buf = Zeroizing::new([0u8; 640]); // 256 * 20 / 8 = 640
+        xof.squeeze(&mut buf[..]);
 
         for i in 0..N {
             let idx = i * 20 / 8;
@@ -190,8 +172,6 @@ pub fn sample_mask(seed: &[u8; 64], nonce: u16, gamma1_bits: u32) -> Poly {
             poly.coeffs[i] = (1 << 19) - t;
         }
     }
-
-    poly
 }
 
 /// Sample challenge polynomial c with exactly tau coefficients in {-1, +1}.
@@ -233,7 +213,8 @@ mod tests {
     #[test]
     fn test_sample_eta2() {
         let seed = [0u8; 32];
-        let poly = sample_eta::<2>(&seed, 0);
+        let mut poly = Poly::zero();
+        sample_eta::<2>(&seed, 0, &mut poly);
 
         // Check all coefficients are in [-2, 2]
         for &c in &poly.coeffs {
@@ -244,7 +225,8 @@ mod tests {
     #[test]
     fn test_sample_eta4() {
         let seed = [0u8; 32];
-        let poly = sample_eta::<4>(&seed, 0);
+        let mut poly = Poly::zero();
+        sample_eta::<4>(&seed, 0, &mut poly);
 
         // Check all coefficients are in [-4, 4]
         for &c in &poly.coeffs {
@@ -272,8 +254,10 @@ mod tests {
     #[test]
     fn test_sample_deterministic() {
         let seed = [42u8; 32];
-        let poly1 = sample_eta::<2>(&seed, 0);
-        let poly2 = sample_eta::<2>(&seed, 0);
+        let mut poly1 = Poly::zero();
+        sample_eta::<2>(&seed, 0, &mut poly1);
+        let mut poly2 = Poly::zero();
+        sample_eta::<2>(&seed, 0, &mut poly2);
 
         assert_eq!(poly1.coeffs, poly2.coeffs);
     }

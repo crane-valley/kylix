@@ -9,7 +9,7 @@
 
 use sha3::{
     digest::{ExtendableOutput, Update, XofReader},
-    Sha3_256, Sha3_512, Shake128, Shake256,
+    Sha3_256, Shake128,
 };
 
 const XOF_BLOCK_BYTES: usize = 168;
@@ -34,26 +34,17 @@ pub fn hash_h(input: &[u8]) -> [u8; 32] {
     output
 }
 
-/// G function: SHA3-512.
+/// G function: SHA3-512 over `a || b`.
 ///
 /// Used to derive seeds and keys:
-/// - G(d) -> (rho, sigma) for K-PKE.KeyGen
+/// - G(d || k) -> (rho, sigma) for K-PKE.KeyGen
 /// - G(m || H(ek)) -> (K, r) for ML-KEM.Encaps
-///
-/// # Arguments
-/// * `input` - Data to hash
-///
-/// # Returns
-/// 64-byte hash output (can be split into two 32-byte values)
 #[inline]
-pub fn hash_g(input: &[u8]) -> [u8; 64] {
-    use sha3::Digest;
-    let mut hasher = Sha3_512::new();
-    Digest::update(&mut hasher, input);
-    let result = hasher.finalize();
-    let mut output = [0u8; 64];
-    output.copy_from_slice(&result);
-    output
+pub fn hash_g(a: &[u8], b: &[u8], out: &mut [u8; 64]) {
+    let mut hasher = kylix_core::hash::Sha3_512::new();
+    hasher.update(a);
+    hasher.update(b);
+    hasher.finalize_into(out);
 }
 
 /// J function: SHAKE256 for implicit rejection.
@@ -69,11 +60,10 @@ pub fn hash_g(input: &[u8]) -> [u8; 64] {
 /// * `output` - Buffer for output (typically 32 bytes)
 #[inline]
 pub fn hash_j(z: &[u8; 32], ciphertext: &[u8], output: &mut [u8]) {
-    let mut hasher = Shake256::default();
+    let mut hasher = kylix_core::hash::Shake256::new();
     hasher.update(z);
     hasher.update(ciphertext);
-    let mut reader = hasher.finalize_xof();
-    reader.read(output);
+    hasher.finalize_xof().read(output);
 }
 
 /// XOF (Extendable Output Function) for sampling matrix A.
@@ -178,11 +168,10 @@ impl Xof {
 /// * `output` - Buffer for PRF output
 #[inline]
 pub fn prf(sigma: &[u8; 32], nonce: u8, output: &mut [u8]) {
-    let mut hasher = Shake256::default();
+    let mut hasher = kylix_core::hash::Shake256::new();
     hasher.update(sigma);
     hasher.update(&[nonce]);
-    let mut reader = hasher.finalize_xof();
-    reader.read(output);
+    hasher.finalize_xof().read(output);
 }
 
 #[cfg(test)]
@@ -206,16 +195,20 @@ mod tests {
 
     #[test]
     fn test_hash_g_deterministic() {
-        let input = b"test input";
-        let g1 = hash_g(input);
-        let g2 = hash_g(input);
+        let mut g1 = [0u8; 64];
+        let mut g2 = [0u8; 64];
+        hash_g(b"test ", b"input", &mut g1);
+        hash_g(b"test input", b"", &mut g2);
         assert_eq!(g1, g2);
     }
 
     #[test]
-    fn test_hash_g_output_length() {
-        let output = hash_g(b"test");
-        assert_eq!(output.len(), 64);
+    fn test_hash_g_different_inputs() {
+        let mut g1 = [0u8; 64];
+        let mut g2 = [0u8; 64];
+        hash_g(b"input1", b"", &mut g1);
+        hash_g(b"input2", b"", &mut g2);
+        assert_ne!(g1, g2);
     }
 
     #[test]

@@ -60,7 +60,7 @@ Dudect-based timing tests in `timing/` directory.
 - ML-DSA subroutine-level timing tests (NTT, poly ops, secret vector operations)
 - SLH-DSA timing tests (LOW — inherently constant-time hash-based design)
 - Formal verification (ct-verif / ctgrind) for critical paths
-- Zeroize intermediate secrets in `ml_kem_encaps`/`ml_kem_decaps` (stack-allocated `g_input`, `k_prime`, `r_prime`, `m_prime`, `r`, `shared_secret`)
+- ML-KEM secrets still returned by value (`[u8; 32]` shared secret from `ml_kem_encaps`/`ml_kem_decaps`, m' from `k_pke_decrypt`) leave moved-from stack copies; write them into caller-owned zeroizing destinations (see docs/adr/0001)
 
 ---
 

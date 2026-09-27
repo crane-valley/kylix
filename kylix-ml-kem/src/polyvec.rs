@@ -5,11 +5,6 @@
 
 #![allow(clippy::wrong_self_convention)]
 
-#[cfg(not(feature = "std"))]
-use alloc::vec;
-#[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
-
 use crate::encode::{poly_from_bytes, poly_to_bytes};
 use crate::ntt::{inv_ntt, ntt};
 use crate::params::common::N;
@@ -133,13 +128,10 @@ impl<const K: usize> PolyVec<K> {
     /// Encode the polynomial vector to bytes (d=12, uncompressed).
     ///
     /// Each polynomial is encoded as 384 bytes, total K*384 bytes.
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = vec![0u8; K * 384];
+    pub fn to_bytes(&self, bytes: &mut [u8]) {
         for i in 0..K {
-            let poly_bytes = poly_to_bytes(&self.polys[i]);
-            bytes[i * 384..(i + 1) * 384].copy_from_slice(&poly_bytes);
+            poly_to_bytes(&self.polys[i], &mut bytes[i * 384..(i + 1) * 384]);
         }
-        bytes
     }
 
     /// Decode a polynomial vector from bytes (d=12, uncompressed).
@@ -156,16 +148,12 @@ impl<const K: usize> PolyVec<K> {
     ///
     /// # Arguments
     /// * `du` - Compression parameter (10 or 11)
-    ///
-    /// # Returns
-    /// Compressed bytes (K * 32 * du bytes)
-    pub fn compress(&self, du: usize) -> Vec<u8> {
+    /// * `bytes` - Destination of K * 32 * du bytes
+    pub fn compress(&self, du: usize, bytes: &mut [u8]) {
         let bytes_per_poly = 32 * du;
-        let mut bytes = vec![0u8; K * bytes_per_poly];
         for i in 0..K {
             poly_compress(&self.polys[i], du as u32, &mut bytes[i * bytes_per_poly..]);
         }
-        bytes
     }
 
     /// Decompress bytes to a polynomial vector.
@@ -233,8 +221,8 @@ mod tests {
             }
         }
 
-        let bytes = pv.to_bytes();
-        assert_eq!(bytes.len(), 3 * 384);
+        let mut bytes = [0u8; 3 * 384];
+        pv.to_bytes(&mut bytes);
 
         let recovered: PolyVec<3> = PolyVec::from_bytes(&bytes);
         for i in 0..3 {
@@ -255,8 +243,8 @@ mod tests {
         }
 
         // Test with du=10
-        let compressed = pv.compress(10);
-        assert_eq!(compressed.len(), 2 * 320);
+        let mut compressed = [0u8; 2 * 320];
+        pv.compress(10, &mut compressed);
 
         let decompressed: PolyVec<2> = PolyVec::decompress(&compressed, 10);
 
