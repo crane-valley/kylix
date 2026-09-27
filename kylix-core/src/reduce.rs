@@ -18,7 +18,7 @@
 /// - Larger negative `a` may yield a result in [-q, 0).
 ///
 /// For ML-DSA (q = 8380417, shift 48) this makes every i32 in [-2^30, i32::MAX]
-/// land in [0, 2q), which [`define_freeze!`] then maps to [0, q).
+/// land in [0, 2q), which [`define_freeze!`](crate::define_freeze!) then maps to [0, q).
 ///
 /// # Parameters
 /// - `$name`: Function name (e.g., `barrett_reduce`)
