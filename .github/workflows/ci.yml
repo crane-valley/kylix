@@ -58,13 +58,21 @@ jobs:
         with:
           tool: cargo-audit
       # audit-check only reads the workspace lockfile. timing/ is required;
-      # fuzz lockfiles are audited whenever they exist.
+      # fuzz lockfiles are audited whenever they exist. `cargo audit --file`
+      # trusts the lockfile as written, so a lockfile that no longer matches its
+      # manifest would let builds resolve dependencies that were never audited.
       - name: Audit timing and fuzz lockfiles
         run: |
           set -euo pipefail
+          if [ ! -f timing/Cargo.lock ]; then
+            echo "::error::timing/Cargo.lock is missing"
+            exit 1
+          fi
           shopt -s nullglob
           for lock in timing/Cargo.lock */fuzz/Cargo.lock; do
-            echo "::group::cargo audit --file $lock"
+            echo "::group::$lock"
+            manifest="$(dirname "$lock")/Cargo.toml"
+            cargo metadata --locked --format-version 1 --manifest-path "$manifest" > /dev/null
             cargo audit --file "$lock"
             echo "::endgroup::"
           done
@@ -237,7 +245,7 @@ jobs:
         with:
           workspaces: timing
       - name: Build timing tests
-        run: cargo build --release --manifest-path timing/Cargo.toml --bin ml_kem
+        run: cargo build --release --locked --manifest-path timing/Cargo.toml --bin ml_kem
       - name: Run ML-KEM dudect gate
         run: |
           set -o pipefail
