@@ -64,8 +64,9 @@ jobs:
       # Test with fast SLH-DSA variants only (skip slow -s variants)
       - name: Test core crates
         run: cargo test -p kylix-core -p kylix-ml-kem -p kylix-ml-dsa --all-features
+      # Without `parallel`, so the sequential signing path runs (ci-full uses --all-features)
       - name: Test SLH-DSA fast variants
-        run: cargo test -p kylix-slh-dsa --features "std,slh-dsa-shake-128f,slh-dsa-shake-192f,slh-dsa-shake-256f"
+        run: cargo test -p kylix-slh-dsa --features "std,slh-dsa-shake-128f,slh-dsa-shake-192f,slh-dsa-shake-256f,slh-dsa-sha2-128f,slh-dsa-sha2-192f,slh-dsa-sha2-256f"
       - name: Test integration
         run: cargo test -p kylix-pqc --all-features
 

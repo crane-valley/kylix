@@ -117,16 +117,15 @@ impl Address {
         ])
     }
 
-    /// Set the address type (bytes 16-19, big-endian u32).
+    /// Set the address type (bytes 16-19, big-endian u32) and clear bytes
+    /// 20-31, except that the key pair address (bytes 20-23) is kept for every
+    /// type other than `Tree`.
     ///
-    /// FIPS 205's setTypeAndClear operation clears only the fields that become
-    /// "Unused" in the new type. Different types share some fields:
-    /// - Key Pair Address (bytes 20-23): used by WOTS_HASH, WOTS_PK, WOTS_PRF, FORS types
-    /// - Chain Address (bytes 24-27): used by WOTS_HASH, WOTS_PRF
-    /// - etc.
-    ///
-    /// When changing type, we clear bytes 24-31 but preserve bytes 20-23 (key pair)
-    /// for types that use it. The caller should explicitly set any fields needed.
+    /// FIPS 205's setTypeAndClear zeroes all of bytes 20-31, but each
+    /// setTypeAndClear to a type other than `Tree` is followed by
+    /// setKeyPairAddress, so keeping it lets [`with_type`](Self::with_type)
+    /// stand in for "copy, setTypeAndClear,
+    /// setKeyPairAddress(ADRS.getKeyPairAddress())".
     pub fn set_type(&mut self, adrs_type: AdrsType) {
         let keypair = self.keypair();
         self.bytes[16..20].copy_from_slice(&(adrs_type as u32).to_be_bytes());
@@ -341,8 +340,8 @@ impl Address {
         adrs
     }
 
-    /// Copy the address with a different type.
-    /// Clears type-specific fields (bytes 20-31).
+    /// Copy the address with a different type, clearing fields as
+    /// [`set_type`](Self::set_type) does.
     #[must_use]
     pub fn with_type(&self, adrs_type: AdrsType) -> Self {
         let mut copy = *self;
