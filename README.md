@@ -34,10 +34,14 @@ See [SECURITY.md](SECURITY.md) for security policy and vulnerability reporting.
     - SLH-DSA-SHA2-192s/192f (Security Level 3)
     - SLH-DSA-SHA2-256s/256f (Security Level 5)
 - `no_std` compatible for embedded systems
-- Constant-time implementations to prevent timing attacks
-- Secure memory handling with automatic zeroization
-- SIMD optimizations (AVX2/NEON) for high performance
-- Comprehensive test coverage including NIST ACVP vectors
+- Constant-time coding for secret-dependent operations (best-effort, not
+  formally verified; see [ARCHITECTURE.md](ARCHITECTURE.md#constant-time-operations))
+- Secret keys and shared secrets zeroized on drop; coverage of intermediate
+  values is best-effort (see [ARCHITECTURE.md](ARCHITECTURE.md#zeroization))
+- SIMD backends for ML-KEM and ML-DSA (AVX2, NEON; WASM SIMD128 for ML-DSA),
+  enabled by the default `simd` feature
+- NIST ACVP vector tests for every parameter set (see
+  [ARCHITECTURE.md](ARCHITECTURE.md#testing-strategy) for the covered groups)
 
 ## Installation
 
@@ -169,8 +173,7 @@ See the [kylix-cli repository](https://github.com/crane-valley/kylix-cli) for fu
 
 ## Repository Guide
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) - detailed crate graph, feature layout, and security design
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - shorter workspace-oriented architecture summary
+- [ARCHITECTURE.md](ARCHITECTURE.md) - crate graph, feature layout, security design, and testing
 - [BENCHMARKS.md](BENCHMARKS.md) - current benchmark data and comparison notes
 - [PLANS.md](PLANS.md) - active roadmap and near-term priorities
 - [CLAUDE.md](CLAUDE.md) - contributor workflow and verification expectations

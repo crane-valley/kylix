@@ -12,9 +12,10 @@ Part of the [Kylix](https://github.com/crane-valley/kylix) post-quantum cryptogr
 - All 12 parameter sets: SHAKE and SHA2 variants at 128/192/256-bit security, fast and small
 - Optional parallel signing via `rayon`
 - `no_std` compatible (requires `alloc`)
-- Constant-time operations via `subtle`
-- Automatic secret zeroization via `zeroize`
-- NIST ACVP test vector compliance
+- Constant-time comparisons via `subtle` (best-effort, not formally verified)
+- Signing keys zeroized on drop via `zeroize`
+- Tested against NIST ACVP vectors (keyGen and every sigVer group) for all 12
+  parameter sets; signing is cross-checked against OpenSSL
 
 ## Usage
 

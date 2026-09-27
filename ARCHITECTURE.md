@@ -1,5 +1,10 @@
 # Kylix Architecture
 
+Kylix is a pure-Rust implementation of the NIST post-quantum standards
+ML-KEM (FIPS 203), ML-DSA (FIPS 204) and SLH-DSA (FIPS 205). The workspace is
+distributed as source from this repository (all packages are
+`publish = false`). MSRV: 1.75.
+
 ## Crate Dependency Graph
 
 ```
@@ -131,7 +136,9 @@ The generated function returns `bool` indicating whether SIMD was used. Scalar f
 
 ### Constant-Time Operations
 
-Critical paths avoid data-dependent branching using `subtle::Choice`:
+Secret-dependent selections and comparisons use `subtle` (`Choice`,
+`ConditionallySelectable`, `ct_eq`) or mask arithmetic, and checks over
+secret data accumulate a result instead of returning early:
 
 ```rust
 // Accumulate results via bitwise operations — no early returns
@@ -142,17 +149,41 @@ for p in &self.polys {
 bool::from(pass)
 ```
 
-**Protected operations**: norm checking, hypertree verification, implicit rejection (ML-KEM decapsulation).
+**Protected operations**: norm checking, hypertree verification, implicit
+rejection (ML-KEM decapsulation), and ML-KEM compression and `ByteDecode12`,
+which use a multiply-shift and a masked subtraction instead of division by q
+(hardware division has operand-dependent latency at opt-level 0 and `z`).
 
-**Verification**: Dudect-based timing tests in `timing/` directory with CI regression detection.
+This is a best-effort property of the source code. It is not formally
+verified, and a compiler or target can still introduce variable-time
+instructions. ML-DSA signing uses rejection sampling, so its running time
+varies with the number of attempts by design. SLH-DSA control flow depends
+only on public values (the message digest selects tree and leaf indices), and
+SLH-DSA has no timing tests.
+
+**Timing checks**: `timing/` holds dudect-bencher harnesses. The CI gate
+covers ML-KEM-768 decapsulation only, with two benches (valid vs invalid
+ciphertext, fixed vs random ciphertext) of 1M measurements each. A bench
+whose |max t| exceeds 10 is rerun, and the job fails only if a majority of up
+to three runs exceed 10; 4.5 < |max t| <= 10 is a warning. The gate catches
+gross leaks, such as a branch on the implicit-rejection comparison (|t| near
+1000 in a deliberate test), but a shared, noisy runner cannot reliably detect
+small leaks. It says nothing about ML-DSA, SLH-DSA, other ML-KEM operations,
+or builds other than the x86_64 release build it runs. The `ml_dsa` harness
+is for manual runs only.
 
 ### Zeroization
 
-All secret material implements `Zeroize + ZeroizeOnDrop`:
-- Signing keys, decapsulation keys, shared secrets
-- Intermediate buffers (polynomial vectors, nonces, masking values)
+Secret key types (signing keys, decapsulation keys) and shared secrets
+implement `Zeroize + ZeroizeOnDrop`. Signing, key generation and
+decapsulation hold secret intermediates such as polynomial vectors, seeds and
+nonces in `Zeroizing` wrappers where the code controls the storage.
 
-Workspace dev profile sets `opt-level = 2` for crypto crates to ensure zeroization works correctly even in debug builds.
+Coverage of intermediates is best-effort, not complete. Values returned by
+value before they are wrapped, copies left behind by moves, register and
+stack spills, and hash-function internal state can leave unwiped copies. The
+design for secret-absorbing hash state and the known residuals are recorded
+in `docs/adr/0001-wipe-secret-absorbing-hash-state.md` and in `PLANS.md`.
 
 ### Input Validation
 
@@ -183,10 +214,11 @@ All types provide:
 | Flag | Default | Effect |
 |------|---------|--------|
 | `std` | Yes | Standard library support |
+| `simd` | Yes | ML-KEM and ML-DSA SIMD backends (forwards to the members' `simd`) |
 | `ml-kem` | Yes | All ML-KEM variants |
 | `ml-dsa` | Yes | All ML-DSA variants |
 | `slh-dsa` | Yes | SLH-DSA SHAKE variants |
-| `slh-dsa-sha2` | No | SLH-DSA SHA2 variants |
+| `slh-dsa-sha2` | No | SLH-DSA SHA2 variants; works on its own or together with `slh-dsa` |
 
 ### Per-Crate Flags
 
@@ -212,22 +244,44 @@ kylix-ml-kem = { git = "https://github.com/crane-valley/kylix.git", default-feat
 
 | Layer | Framework | Coverage |
 |-------|-----------|----------|
-| ACVP compliance | Custom (serde_json) | NIST official test vectors for all algorithms |
+| ACVP compliance | Custom (serde_json) | NIST vectors for every parameter set; see below |
+| Interoperability | OpenSSL 3.6.0 outputs pinned in tests | SLH-DSA signing for all 12 sets; ML-DSA KeyGen boundary seeds |
 | Property-based | proptest | Roundtrip, determinism, size validation |
-| Constant-time | dudect-bencher | ML-KEM decaps, ML-DSA sign timing |
-| Fuzz testing | cargo-fuzz (libFuzzer) | Keygen, sign, verify, roundtrip per algorithm |
+| Constant-time | dudect-bencher | ML-KEM-768 decaps (CI gate); ML-DSA sign harness for manual runs |
+| Fuzz testing | cargo-fuzz (libFuzzer) | Keygen, sign, verify, roundtrip, and untrusted keys, ciphertexts and signatures |
 | Unit tests | Built-in | Reduction, NTT, encoding, parameter validation |
 | Dependency audit | cargo-audit | CI integration |
 
+ACVP coverage:
+
+- ML-KEM: keyGen, encapsulation and decapsulation, and the
+  encapsulation-key and decapsulation-key check groups.
+- ML-DSA: keyGen and every sigGen and sigVer group (internal, external pure,
+  external pre-hash, external mu).
+- SLH-DSA: keyGen and every sigVer group (internal, external pure, external
+  pre-hash) for all 12 parameter sets. The repository has no SLH-DSA sigGen
+  vectors, so signing is checked against OpenSSL instead.
+
 ACVP test vectors (1.4-30 MB) are kept in the Git repository and omitted from
-ad-hoc Cargo package archives.
+ad-hoc Cargo package archives. Tests skip when the vectors are missing unless
+`KYLIX_REQUIRE_ACVP=1` is set, as it is in CI.
 
 ## Build Profiles
 
+The dev profile optimizes the crypto crates and their hash dependencies
+because tests are otherwise slow (SLH-DSA is 10-15x slower at opt-level 0).
+It is not needed for zeroization, which `zeroize` performs with volatile
+writes at every opt-level. Cargo package overrides take exact package names
+(`"*"` matches only non-workspace dependencies), so each package is listed
+by name:
+
 ```toml
-# Dev: crypto crates optimized even in debug builds
-[profile.dev.package.kylix-*]
+# Dev/test: per-package overrides, one entry per package
+[profile.dev.package.kylix-core]
 opt-level = 2
+[profile.dev.package.kylix-ml-kem]
+opt-level = 2
+# ... likewise kylix-ml-dsa, kylix-slh-dsa, sha3, keccak, digest, sha2, hmac, subtle
 
 # Release: maximum optimization
 [profile.release]
@@ -235,6 +289,30 @@ lto = true
 codegen-units = 1
 panic = "abort"
 ```
+
+## Algorithm Notes
+
+### ML-KEM (FIPS 203)
+
+- Parameter sets: 512 (Category 1), 768 (Category 3), 1024 (Category 5)
+- FIPS 203 section 7.2 modulus check on the encapsulation key in encaps and
+  decaps; section 7.3 hash check of the decapsulation key before decaps
+- Implicit rejection: an invalid ciphertext yields a pseudorandom shared secret
+
+### ML-DSA (FIPS 204)
+
+- Parameter sets: 44 (Category 2), 65 (Category 3), 87 (Category 5)
+- Pure signing with an empty context; hedged signing, non-empty contexts and
+  HashML-DSA are not exposed
+- WASM-SIMD128 is implemented for pointwise multiplication only
+
+### SLH-DSA (FIPS 205)
+
+- Stateless hash-based signatures, no lattice arithmetic
+- Two hash families: SHAKE (default) and SHA2 (facade feature `slh-dsa-sha2`;
+  per-crate features `slh-dsa-sha2-*`)
+- Two speed tiers: f (fast signing, larger signatures) and s (small signatures)
+- The `parallel` feature (Rayon) parallelizes FORS signing only
 
 ## Performance Summary
 

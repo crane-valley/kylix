@@ -13,9 +13,11 @@ Part of the [Kylix](https://github.com/crane-valley/kylix) post-quantum cryptogr
 - SIMD acceleration: AVX2 (x86-64), NEON (AArch64), WASM-SIMD128
 - Expanded verification key for 2-3x faster repeated verification
 - `no_std` compatible (requires `alloc`)
-- Constant-time operations via `subtle`
-- Automatic secret zeroization via `zeroize`
-- NIST ACVP test vector compliance
+- Constant-time coding for secret data via `subtle` (best-effort, not
+  formally verified); signing time varies by design because of rejection
+  sampling
+- Signing keys zeroized on drop via `zeroize`
+- Tested against NIST ACVP vectors: keyGen and every sigGen and sigVer group
 
 ## Usage
 

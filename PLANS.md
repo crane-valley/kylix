@@ -101,3 +101,50 @@ Primary optimization opportunity: SHA3/SHAKE SIMD (HIGH priority, biggest single
 - [x] Property-based tests (proptest: roundtrip, key/sig sizes, tampering detection)
 - [x] CLAUDE.md expansion (SIMD, dudect, CI, crate graph) + docs/ARCHITECTURE.md
 - [x] Fuzz targets for error/validation paths (untrusted keys, ciphertexts and signatures of any length)
+
+---
+
+## Deferred Review Findings (2026-09-27)
+
+Found in the 2026-09-27 whole-repository review and left out of the
+remediation PRs (#193-#198). Zeroization residuals and fuzzing gaps are
+tracked in the sections above, not here.
+
+### API
+
+- Hedged signing and context-string APIs, HashML-DSA and HashSLH-DSA: needs a `Signer` trait change and an ADR
+- Hazmat or test-only gating for the doc-hidden internal modules (ml-kem `kem`, ml-dsa `sign`, slh-dsa `sign`)
+- `ConstantTimeEq` for `SharedSecret`
+- `rand_core` 0.9 `TryCryptoRng` / `OsRng` support
+- Unused `Error` variants
+- `Poly::conditional_select` uses an inverted argument convention compared with `subtle`
+- SLH-DSA: tie `H::N` to the parameter-set `N` at compile time
+
+### Performance
+
+- SLH-DSA hypertree parallelism: the `parallel` feature only parallelizes FORS (1.06-1.39x)
+- SHA2 midstate caching for SLH-DSA
+- ML-KEM SIMD lane utilization in basemul
+- Key types validated at import, so encaps/verify need not re-check
+
+### CI
+
+- Miri and sanitizers for the SIMD code
+- Disassembly check for division instructions on secret paths
+- Root cargo commands run without `--locked`
+- `timing/Cargo.lock` is lockfile v4, which cargo 1.75 cannot read, and the MSRV job does not cover `timing/`
+- The dudect gate cannot reliably catch very small leaks
+- `timing/dudect-gate.sh` shell hardening (P3): `mktemp` / `trap` ordering
+
+### Tests
+
+- Test for the ek modulus check on the decaps path
+- ML-DSA ACVP sigVer module duplication
+- `deterministic_fixtures` runs 0 tests with only f-variant features enabled
+- Redundant per-item aarch64 cfgs inside the NEON modules
+- AVX2 parity tests return early on hosts without AVX2
+
+### Cleanup
+
+- Remaining `#[allow(dead_code)]` in kylix-ml-kem (`hash.rs` squeeze, `params` constants, `poly_add_assign`)
+- Pre-existing non-ASCII characters in ml-kem `encode.rs` / `polyvec.rs` comments

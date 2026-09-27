@@ -12,10 +12,12 @@ Part of the [Kylix](https://github.com/crane-valley/kylix) post-quantum cryptogr
 - All three parameter sets: ML-KEM-512, ML-KEM-768, ML-KEM-1024
 - SIMD acceleration: AVX2 (x86-64), NEON (AArch64) with runtime detection
 - `no_std` compatible (requires `alloc`)
-- Constant-time operations via `subtle`
-- Automatic secret zeroization via `zeroize`
+- Constant-time coding for secret data via `subtle` and mask arithmetic
+  (best-effort, not formally verified)
+- Decapsulation keys and shared secrets zeroized on drop via `zeroize`
 - IND-CCA2 security with implicit rejection
-- NIST ACVP test vector compliance
+- Tested against NIST ACVP vectors: keyGen, encapsulation, decapsulation, and
+  the encapsulation-key and decapsulation-key checks
 
 ## Usage
 
