@@ -17,6 +17,9 @@ on that toolchain:
   already pins them to `<1.11` and `<1.13` for its `parallel` feature.
 - dudect-bencher 0.7 (used only by the `timing/` workspace) declares
   rust-version 1.85 and depends on rand 0.10.
+- keccak 0.2 declares rust-version 1.85 and removes `keccak::f1600`, the
+  permutation the wipeable sponge in `kylix-core/src/hash.rs` calls
+  (ADR 0001), so it does not compile against the current sponge.
 
 These updates used to be dismissed with `@dependabot ignore` PR comments
 (#73, #130, #135, #137). Those decisions were lost when the Dependabot
@@ -51,10 +54,14 @@ update PRs recurring?
 Chosen option: 3.
 
 - rand, rand_core and rand_chacha stay on 0.9; rayon stays below 1.11 and
-  rayon-core below 1.13; `timing/` stays on dudect-bencher 0.6.
+  rayon-core below 1.13; keccak stays on 0.1; `timing/` stays on
+  dudect-bencher 0.6.
 - `.github/dependabot.yml` ignores rand, rand_chacha and rand_core `>=0.10.0`,
-  rayon `>=1.11.0`, rayon-core `>=1.13.0` and dudect-bencher `>=0.7.0` for
-  every configured cargo directory.
+  keccak `>=0.2.0`, rayon `>=1.11.0`, rayon-core `>=1.13.0` and
+  dudect-bencher `>=0.7.0` for every configured cargo directory.
+- keccak 0.2 is not a plain version bump: when the MSRV is raised, the
+  kylix-core sponge has to be ported to the 0.2 permutation API in the same
+  change.
 - The move to rand_core 0.10 is a single coordinated breaking change done
   together with raising the MSRV to at least 1.85: all three algorithm
   crates, kylix-core, the facade, the fuzz crate and `timing/` in one
