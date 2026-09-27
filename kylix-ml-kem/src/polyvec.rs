@@ -152,7 +152,11 @@ impl<const K: usize> PolyVec<K> {
     pub fn compress(&self, du: usize, bytes: &mut [u8]) {
         let bytes_per_poly = 32 * du;
         for i in 0..K {
-            poly_compress(&self.polys[i], du as u32, &mut bytes[i * bytes_per_poly..]);
+            poly_compress(
+                &self.polys[i],
+                du as u32,
+                &mut bytes[i * bytes_per_poly..(i + 1) * bytes_per_poly],
+            );
         }
     }
 
