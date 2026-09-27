@@ -90,7 +90,7 @@ macro_rules! define_ml_kem_variant {
         ct_size: $ct_size:expr,
         ss_size: $ss_size:expr
     ) => {
-        use crate::kem::{ml_kem_decaps, ml_kem_encaps, ml_kem_keygen};
+        use crate::kem::{ml_kem_decaps_into, ml_kem_encaps_into, ml_kem_keygen};
         use kylix_core::{Kem, Result};
         use rand_core::CryptoRng;
         use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
@@ -144,22 +144,28 @@ macro_rules! define_ml_kem_variant {
                 let mut m = Zeroizing::new([0u8; 32]);
                 rng.fill_bytes(m.as_mut());
 
-                let (ct_bytes, ss_bytes) =
-                    ml_kem_encaps::<K, ETA1, ETA2, DU, DV>(ek.as_bytes(), &m)?;
+                let mut ss = SharedSecret {
+                    bytes: [0u8; SHARED_SECRET_SIZE],
+                };
+                let ct_bytes =
+                    ml_kem_encaps_into::<K, ETA1, ETA2, DU, DV>(ek.as_bytes(), &m, &mut ss.bytes)?;
 
-                Ok((
-                    Ciphertext::from_bytes(&ct_bytes)?,
-                    SharedSecret { bytes: ss_bytes },
-                ))
+                Ok((Ciphertext::from_bytes(&ct_bytes)?, ss))
             }
 
             fn decaps(
                 dk: &Self::DecapsulationKey,
                 ct: &Self::Ciphertext,
             ) -> Result<Self::SharedSecret> {
-                let ss_bytes =
-                    ml_kem_decaps::<K, ETA1, ETA2, DU, DV>(dk.as_bytes(), ct.as_bytes())?;
-                Ok(SharedSecret { bytes: ss_bytes })
+                let mut ss = SharedSecret {
+                    bytes: [0u8; SHARED_SECRET_SIZE],
+                };
+                ml_kem_decaps_into::<K, ETA1, ETA2, DU, DV>(
+                    dk.as_bytes(),
+                    ct.as_bytes(),
+                    &mut ss.bytes,
+                )?;
+                Ok(ss)
             }
         }
 

@@ -54,16 +54,30 @@ dependency of kylix-core).
 The sponge state is a single `[u64; 25]` plus a byte position. There is no
 input or output buffer: absorbing XORs input bytes straight into the lanes and
 squeezing reads output bytes straight from them, so the only copy of the data
-is the Keccak state, and that is zeroized on drop. The public API covers what
-the crates need for secret inputs and nothing more:
+is the Keccak state. Once data has been absorbed the state is never moved:
+finalizing pads and squeezes it where it lives and then wipes it, and it is
+also zeroized on drop. The public API covers what the crates need for secret
+inputs and nothing more:
 
-- `Sha3_256`, `Sha3_512`: `new`, `update`, `finalize_into(self, &mut [u8; N])`
-  and a one-shot `hash_into`.
-- `Shake128`, `Shake256`: `new`, `update`, `finalize_xof(self)` returning a
-  reader whose `read` squeezes into caller buffers across any number of calls.
+- `Sha3_256`, `Sha3_512`: `new`, `update`, `finalize_into(&mut self,
+  &mut [u8; N])`, which writes the digest and then wipes the state in place,
+  leaving a fresh hasher, and a one-shot `hash_into`.
+- `Shake128`, `Shake256`: `new`, `update`, `finalize_xof(&mut self)` returning
+  a reader that mutably borrows the hasher's state. Its `read` squeezes into
+  caller buffers across any number of calls, and dropping the reader wipes the
+  state in place, again leaving a fresh hasher.
 
-Finalizing consumes the hasher, so absorbing after padding or reading before
-padding cannot be expressed. Padding follows FIPS 202: domain byte 0x06 for
+Misuse is ruled out at compile time by the borrow instead of a runtime phase
+flag: while the reader exists the hasher cannot be updated, and output can only
+be read through a reader, which only `finalize_xof` creates. A runtime phase
+would need a panic (or a silently wrong result) on misuse in library code that
+otherwise avoids panics, and a check that only fires in tests. Finalizing by
+value (`finalize_xof(self)`, used in the first version of this change) was
+rejected because moving the hasher copies the absorbed state and the
+moved-from location is never dropped or wiped; swapping the state out with
+`mem::replace` does not help, since the by-value `self` is already such a copy.
+
+Padding follows FIPS 202: domain byte 0x06 for
 SHA3 and 0x1F for SHAKE at the current position, 0x80 in the last byte of the
 rate block (rates 136, 72, 168 and 136 bytes for SHA3-256, SHA3-512, SHAKE128
 and SHAKE256).
@@ -95,13 +109,16 @@ ML-DSA (`kylix-ml-dsa/src/hash.rs`):
 - H(K||rnd||mu) in Sign moves: K is secret and the output rho'' seeds
   ExpandMask.
 - ExpandS (SHAKE256 over rho'||nonce) and ExpandMask (SHAKE256 over
-  rho''||nonce) move through `Shake256Xof`: seeds and output streams (s1, s2,
-  y encodings) are secret. The seed||nonce input is absorbed in two parts
-  instead of being copied into a local array.
+  rho''||nonce) move: seeds and output streams (s1, s2, y encodings) are
+  secret. The seed||nonce input is absorbed in two parts instead of being
+  copied into a local array, and the samplers read from a reader borrowed from
+  a hasher local to the sampler.
 - c_tilde = H(mu||w1Encode(w1)) in Sign and SampleInBall over c_tilde move:
   w1 and c_tilde of rejected iterations are never published and derive from
   y. Verify recomputes c_tilde through the same helper; its inputs are public,
-  and a separate public helper would buy nothing.
+  and a separate public helper would buy nothing. SampleInBall writes c
+  straight into a caller-owned (in Sign, zeroizing) polynomial and wipes its
+  sign and index buffers, because it runs before the rejection checks.
 - tr = H(pk) and mu = H(tr||M') stay on sha3: pk, tr, the prefix and the
   message are public.
 - ExpandA (SHAKE128 over rho||j||i) stays on sha3: rho is part of pk.
@@ -152,20 +169,32 @@ digest 0.11.2 and 0.11.3, sha2 0.11.0, hmac 0.13.0, block-buffer 0.11.0 and
   3 * rate + 1, with the input split across one, two (every split point) and
   three absorb calls, SHAKE output split across reads of many sizes spanning
   several rate blocks, and FIPS 202 known answers (empty string for all four,
-  "abc" for SHA3-256 and SHA3-512). ML-KEM and ML-DSA ACVP vectors keep
+  "abc" for SHA3-256 and SHA3-512). A further test checks that the state is
+  all zero after `finalize_into` and after a reader is dropped, and that the
+  hasher then computes a fresh hash. ML-KEM and ML-DSA ACVP vectors keep
   covering the integrated behavior.
 - The sha3 crate stays for public-input hashing and as a dev-dependency of
   kylix-core for the differential tests.
-- Residual exposure the sponge does not address: Rust moves of a hasher value
-  are plain copies and the source location is not wiped; transient locals in
+- Residual exposure the sponge does not address: the API cannot stop a caller
+  from moving a hasher after absorbing (a Rust move is a plain copy and the
+  source is not wiped), so every call site in the workspace creates its hasher
+  as a local and never moves it after the first `update`. Transient locals in
   registers or spilled to the stack (the per-lane word in absorb and squeeze,
   the permutation's own scratch lanes inside `keccak::f1600`) are not wiped.
-  Callers should keep hashers in place and let them drop where they were
-  created. For the same reason the ML-KEM and ML-DSA encoders and samplers
-  now write into caller-owned (zeroizing) destinations instead of returning
-  arrays or `Vec`s by value; functions that still return a secret by value
-  (the `[u8; 32]` shared secret from Encaps and Decaps, m' from
-  K-PKE.Decrypt) leave a moved-from copy.
+- For the same reason, the secret-producing ML-KEM helpers write into
+  caller-owned zeroizing destinations instead of returning by value: CBD noise
+  polynomials, the message encoding and decoding, m' from K-PKE.Decrypt, and
+  the shared secret, which the `Kem` implementations write straight into
+  `SharedSecret`. By-value residue that remains:
+  - the public API boundary: `kem::ml_kem_encaps` and `kem::ml_kem_decaps`
+    return the shared secret as a plain `[u8; 32]` (documented as the caller's
+    to wipe), and the `Kem` trait methods return `SharedSecret` by value, so
+    the move out of the method can leave an unwiped copy;
+  - polynomial arithmetic that returns a fresh value which callers then wrap
+    in `Zeroizing`: in ML-KEM `PolyVec::from_bytes` of dk_pke,
+    `inner_product` and `matrix_vec_mul`, in ML-DSA `mul_vec`, `pointwise_mul`
+    and `Poly::add`. The compiler usually builds such results in the
+    destination, but that is not guaranteed.
 - SHA-2 and HMAC secret inputs in SLH-DSA are not covered by this sponge; they
   are handled in a follow-up change (wipeable SHA-256/SHA-512 and HMAC over the
   sha2 block functions), recorded as an extension of this ADR or a new one.

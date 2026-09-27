@@ -2,7 +2,8 @@
 //!
 //! The Keccak state is the only storage: input is XORed straight into the
 //! lanes and output is read straight from them, so no block buffer can retain
-//! secret bytes, and the state is wiped on drop.
+//! secret bytes. Finalizing works on the state in place and wipes it once the
+//! output has been produced, and the state is also wiped on drop.
 
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -65,12 +66,16 @@ impl<const RATE: usize> Sponge<RATE> {
             done += take;
         }
     }
+
+    fn wipe(&mut self) {
+        self.lanes.zeroize();
+        self.pos.zeroize();
+    }
 }
 
 impl<const RATE: usize> Drop for Sponge<RATE> {
     fn drop(&mut self) {
-        self.lanes.zeroize();
-        self.pos.zeroize();
+        self.wipe();
     }
 }
 
@@ -90,10 +95,12 @@ macro_rules! define_sha3 {
                 self.0.absorb(data);
             }
 
-            /// Write the digest into `out`, consuming the hasher.
-            pub fn finalize_into(mut self, out: &mut [u8; $len]) {
+            /// Write the digest into `out`, then wipe the state, leaving
+            /// the hasher ready for a new message.
+            pub fn finalize_into(&mut self, out: &mut [u8; $len]) {
                 self.0.pad(SHA3_DOMAIN);
                 self.0.squeeze(out);
+                self.0.wipe();
             }
 
             /// Hash `data` into `out` in one call.
@@ -134,11 +141,14 @@ macro_rules! define_shake {
                 self.0.absorb(data);
             }
 
-            /// Finish absorbing and return a reader for the output stream.
-            pub fn finalize_xof(mut self) -> $reader {
+            /// Finish absorbing and return a reader that squeezes this
+            /// hasher's state in place.
+            ///
+            /// Dropping the reader wipes the state, leaving the hasher ready
+            /// for a new message.
+            pub fn finalize_xof(&mut self) -> $reader<'_> {
                 self.0.pad(SHAKE_DOMAIN);
-                // Swapping in an all-zero sponge leaves no copy of the state in `self`.
-                $reader(core::mem::replace(&mut self.0, Sponge::new()))
+                $reader(&mut self.0)
             }
         }
 
@@ -151,16 +161,22 @@ macro_rules! define_shake {
         impl ZeroizeOnDrop for $name {}
 
         $(#[$reader_meta])*
-        pub struct $reader(Sponge<$rate>);
+        pub struct $reader<'a>(&'a mut Sponge<$rate>);
 
-        impl $reader {
+        impl $reader<'_> {
             /// Fill `out` with the next bytes of the output stream.
             pub fn read(&mut self, out: &mut [u8]) {
                 self.0.squeeze(out);
             }
         }
 
-        impl ZeroizeOnDrop for $reader {}
+        impl Drop for $reader<'_> {
+            fn drop(&mut self) {
+                self.0.wipe();
+            }
+        }
+
+        impl ZeroizeOnDrop for $reader<'_> {}
     };
 }
 
@@ -181,7 +197,7 @@ define_sha3!(
 define_shake!(
     /// SHAKE128 absorbing phase; its state is wiped on drop.
     Shake128,
-    /// SHAKE128 squeezing phase; its state is wiped on drop.
+    /// SHAKE128 squeezing phase; the borrowed state is wiped on drop.
     Shake128Reader,
     rate: 168
 );
@@ -189,7 +205,7 @@ define_shake!(
 define_shake!(
     /// SHAKE256 absorbing phase; its state is wiped on drop.
     Shake256,
-    /// SHAKE256 squeezing phase; its state is wiped on drop.
+    /// SHAKE256 squeezing phase; the borrowed state is wiped on drop.
     Shake256Reader,
     rate: 136
 );
@@ -388,6 +404,36 @@ mod tests {
     fn shake256_matches_sha3_crate() {
         check_absorb::<Shake256Case>();
         check_squeeze::<Shake256Case>();
+    }
+
+    fn assert_wiped<const RATE: usize>(sponge: &super::Sponge<RATE>) {
+        assert_eq!(sponge.lanes, [0u64; 25]);
+        assert_eq!(sponge.pos, 0);
+    }
+
+    #[test]
+    fn finalizing_wipes_state_in_place_and_resets() {
+        let data = input();
+        let mut expected = [0u8; 64];
+        let mut actual = [0u8; 64];
+
+        let mut sha3 = Sha3_512::new();
+        sha3.update(&data[..100]);
+        sha3.finalize_into(&mut actual);
+        assert_wiped(&sha3.0);
+        sha3.update(&data[..7]);
+        sha3.finalize_into(&mut actual);
+        Sha3_512::hash_into(&data[..7], &mut expected);
+        assert_eq!(actual, expected);
+
+        let mut shake = Shake256::new();
+        shake.update(&data[..100]);
+        shake.finalize_xof().read(&mut actual);
+        assert_wiped(&shake.0);
+        shake.update(&data[..7]);
+        shake.finalize_xof().read(&mut actual);
+        Shake256Case::reference(&data[..7], &mut expected);
+        assert_eq!(actual, expected);
     }
 
     #[test]

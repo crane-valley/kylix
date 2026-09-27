@@ -10,33 +10,6 @@ use sha3::{
 /// SHAKE128 rate in bytes: the natural squeeze granularity of the sponge.
 const XOF_BLOCK_BYTES: usize = 168;
 
-/// SHAKE256 XOF wrapper for sampling and hashing.
-pub struct Shake256Xof {
-    reader: kylix_core::hash::Shake256Reader,
-}
-
-impl Shake256Xof {
-    /// Create SHAKE256 from initial data.
-    pub fn from_data(data: &[u8]) -> Self {
-        Self::from_parts(data, &[])
-    }
-
-    /// Create SHAKE256 over `a || b`.
-    pub fn from_parts(a: &[u8], b: &[u8]) -> Self {
-        let mut hasher = kylix_core::hash::Shake256::new();
-        hasher.update(a);
-        hasher.update(b);
-        Self {
-            reader: hasher.finalize_xof(),
-        }
-    }
-
-    /// Squeeze bytes from the XOF.
-    pub fn squeeze(&mut self, out: &mut [u8]) {
-        self.reader.read(out);
-    }
-}
-
 /// SHAKE128 XOF wrapper for matrix expansion.
 pub struct Shake128Xof {
     reader: sha3::Shake128Reader,

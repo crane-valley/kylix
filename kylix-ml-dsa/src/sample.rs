@@ -2,10 +2,11 @@
 //!
 //! Implements ExpandA, ExpandS, ExpandMask, SampleInBall.
 
-use crate::hash::{Shake128Xof, Shake256Xof};
+use crate::hash::Shake128Xof;
 use crate::poly::{Poly, N};
 use crate::reduce::Q;
-use zeroize::Zeroizing;
+use kylix_core::hash::Shake256;
+use zeroize::{Zeroize, Zeroizing};
 
 /// Rejection bound for sampling (23-bit)
 const REJECTION_BOUND: i32 = Q;
@@ -59,7 +60,10 @@ impl<const ETA: usize> EtaCheck<ETA> {
 pub fn sample_eta<const ETA: usize>(seed: &[u8], nonce: u16, poly: &mut Poly) {
     let () = EtaCheck::<ETA>::SUPPORTED;
 
-    let mut xof = Shake256Xof::from_parts(seed, &nonce.to_le_bytes());
+    let mut hasher = Shake256::new();
+    hasher.update(seed);
+    hasher.update(&nonce.to_le_bytes());
+    let mut xof = hasher.finalize_xof();
     let mut buf = Zeroizing::new([0u8; 136]);
 
     if ETA == 2 {
@@ -70,7 +74,7 @@ pub fn sample_eta<const ETA: usize>(seed: &[u8], nonce: u16, poly: &mut Poly) {
         // but we must keep squeezing until all N coefficients are filled.
         let mut ctr = 0;
         while ctr < N {
-            xof.squeeze(&mut buf[..]);
+            xof.read(&mut buf[..]);
 
             let mut pos = 0;
             while ctr < N && pos < buf.len() {
@@ -103,7 +107,7 @@ pub fn sample_eta<const ETA: usize>(seed: &[u8], nonce: u16, poly: &mut Poly) {
         // Must keep squeezing until all N=256 coefficients are filled.
         let mut ctr = 0;
         while ctr < N {
-            xof.squeeze(&mut buf[..]);
+            xof.read(&mut buf[..]);
 
             let mut pos = 0;
             while ctr < N && pos < buf.len() {
@@ -134,12 +138,15 @@ pub fn sample_eta<const ETA: usize>(seed: &[u8], nonce: u16, poly: &mut Poly) {
 ///
 /// Used in signing for masking.
 pub fn sample_mask(seed: &[u8; 64], nonce: u16, gamma1_bits: u32, poly: &mut Poly) {
-    let mut xof = Shake256Xof::from_parts(seed, &nonce.to_le_bytes());
+    let mut hasher = Shake256::new();
+    hasher.update(seed);
+    hasher.update(&nonce.to_le_bytes());
+    let mut xof = hasher.finalize_xof();
 
     if gamma1_bits == 17 {
         // gamma1 = 2^17: use 18 bits per coefficient
         let mut buf = Zeroizing::new([0u8; 576]); // 256 * 18 / 8 = 576
-        xof.squeeze(&mut buf[..]);
+        xof.read(&mut buf[..]);
 
         for i in 0..N {
             let idx = i * 18 / 8;
@@ -155,7 +162,7 @@ pub fn sample_mask(seed: &[u8; 64], nonce: u16, gamma1_bits: u32, poly: &mut Pol
     } else {
         // gamma1 = 2^19: use 20 bits per coefficient
         let mut buf = Zeroizing::new([0u8; 640]); // 256 * 20 / 8 = 640
-        xof.squeeze(&mut buf[..]);
+        xof.read(&mut buf[..]);
 
         for i in 0..N {
             let idx = i * 20 / 8;
@@ -178,20 +185,22 @@ pub fn sample_mask(seed: &[u8; 64], nonce: u16, gamma1_bits: u32, poly: &mut Pol
 ///
 /// The remaining coefficients are 0.
 /// The seed length varies by security level (32, 48, or 64 bytes).
-pub fn sample_in_ball(seed: &[u8], tau: usize) -> Poly {
-    let mut poly = Poly::zero();
-    let mut xof = Shake256Xof::from_data(seed);
+pub fn sample_in_ball(seed: &[u8], tau: usize, poly: &mut Poly) {
+    poly.coeffs.fill(0);
+    let mut hasher = Shake256::new();
+    hasher.update(seed);
+    let mut xof = hasher.finalize_xof();
 
     // First 8 bytes give the signs
-    let mut signs = [0u8; 8];
-    xof.squeeze(&mut signs);
-    let mut sign_bits = u64::from_le_bytes(signs);
+    let mut signs = Zeroizing::new([0u8; 8]);
+    xof.read(&mut signs[..]);
+    let mut sign_bits = u64::from_le_bytes(*signs);
 
-    let mut buf = [0u8; 1];
+    let mut buf = Zeroizing::new([0u8; 1]);
     for i in (N - tau)..N {
         // Sample j uniformly from [0, i]
         loop {
-            xof.squeeze(&mut buf);
+            xof.read(&mut buf[..]);
             let j = buf[0] as usize;
             if j <= i {
                 // Swap and set coefficient
@@ -202,8 +211,7 @@ pub fn sample_in_ball(seed: &[u8], tau: usize) -> Poly {
             }
         }
     }
-
-    poly
+    sign_bits.zeroize();
 }
 
 #[cfg(test)]
@@ -238,7 +246,8 @@ mod tests {
     fn test_sample_in_ball() {
         let seed = [0u8; 32];
         let tau = 39;
-        let poly = sample_in_ball(&seed, tau);
+        let mut poly = Poly::zero();
+        sample_in_ball(&seed, tau, &mut poly);
 
         // Count non-zero coefficients
         let mut count = 0;

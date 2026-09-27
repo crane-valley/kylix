@@ -484,10 +484,10 @@ fn verify_core<
     let () = Gamma2Check::<GAMMA2>::SUPPORTED;
 
     // c = SampleInBall(c_tilde)
-    let c = sample_in_ball(parsed.c_tilde, TAU);
+    let mut c_hat = Poly::zero();
+    sample_in_ball(parsed.c_tilde, TAU, &mut c_hat);
 
     // NTT of c, z
-    let mut c_hat = c.clone();
     c_hat.ntt();
 
     let mut z_hat = parsed.z.clone();
@@ -908,10 +908,10 @@ fn sign_internal<
         let c_tilde = &c_tilde_full[..C_TILDE_BYTES];
 
         // c = SampleInBall(c_tilde)
-        let c = sample_in_ball(c_tilde, TAU);
+        let mut c_hat = Zeroizing::new(Poly::zero());
+        sample_in_ball(c_tilde, TAU, &mut c_hat);
 
         // z = y + c * s1
-        let mut c_hat = Zeroizing::new(c.clone());
         c_hat.ntt();
 
         let mut z = Zeroizing::new(PolyVecL::<L>::zero());

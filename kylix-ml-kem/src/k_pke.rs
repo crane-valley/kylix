@@ -99,14 +99,14 @@ pub fn k_pke_keygen<const K: usize, const ETA1: usize>(
     let mut prf_output = Zeroizing::new(vec![0u8; prf_output_len]);
     for i in 0..K {
         prf(&sigma, i as u8, &mut prf_output);
-        s.polys[i] = poly_cbd(ETA1, &prf_output);
+        poly_cbd(ETA1, &prf_output, &mut s.polys[i]);
     }
 
     // 4. Sample e from sigma using CBD with eta1
     let mut e = Zeroizing::new(PolyVec::<K>::new());
     for i in 0..K {
         prf(&sigma, (K + i) as u8, &mut prf_output);
-        e.polys[i] = poly_cbd(ETA1, &prf_output);
+        poly_cbd(ETA1, &prf_output, &mut e.polys[i]);
     }
 
     // 5. Convert s and e to NTT domain
@@ -189,7 +189,7 @@ pub fn k_pke_encrypt<
     let mut prf_output1 = Zeroizing::new(vec![0u8; prf_output_len1]);
     for i in 0..K {
         prf(r, i as u8, &mut prf_output1);
-        r_vec.polys[i] = poly_cbd(ETA1, &prf_output1);
+        poly_cbd(ETA1, &prf_output1, &mut r_vec.polys[i]);
     }
 
     // 4. Sample e1 from r using CBD with eta2
@@ -198,12 +198,13 @@ pub fn k_pke_encrypt<
     let mut prf_output2 = Zeroizing::new(vec![0u8; prf_output_len2]);
     for i in 0..K {
         prf(r, (K + i) as u8, &mut prf_output2);
-        e1.polys[i] = poly_cbd(ETA2, &prf_output2);
+        poly_cbd(ETA2, &prf_output2, &mut e1.polys[i]);
     }
 
     // 5. Sample e2 from r using CBD with eta2
     prf(r, (2 * K) as u8, &mut prf_output2);
-    let e2 = Zeroizing::new(poly_cbd(ETA2, &prf_output2));
+    let mut e2 = Zeroizing::new(Poly::new());
+    poly_cbd(ETA2, &prf_output2, &mut e2);
 
     // 6. Convert r_vec to NTT domain
     r_vec.ntt();
@@ -234,7 +235,8 @@ pub fn k_pke_encrypt<
     }
 
     // Add message encoding
-    let mu = Zeroizing::new(msg_to_poly(m));
+    let mut mu = Zeroizing::new(Poly::new());
+    msg_to_poly(m, &mut mu);
     for i in 0..N {
         v.coeffs[i] = v.coeffs[i].wrapping_add(mu.coeffs[i]);
     }
@@ -258,9 +260,7 @@ pub fn k_pke_encrypt<
 /// # Arguments
 /// * `dk_pke` - Decryption key
 /// * `c` - Ciphertext bytes
-///
-/// # Returns
-/// 32-byte decrypted message
+/// * `m` - Destination for the 32-byte decrypted message
 ///
 /// # Algorithm
 /// 1. Parse c as (c1, c2)
@@ -272,7 +272,8 @@ pub fn k_pke_encrypt<
 pub fn k_pke_decrypt<const K: usize, const DU: usize, const DV: usize>(
     dk_pke: &[u8],
     c: &[u8],
-) -> [u8; 32] {
+    m: &mut [u8; 32],
+) {
     let () = CompressCheck::<DU>::SUPPORTED;
     let () = CompressCheck::<DV>::SUPPORTED;
 
@@ -308,7 +309,7 @@ pub fn k_pke_decrypt<const K: usize, const DU: usize, const DV: usize>(
     poly_reduce(&mut w);
 
     // 6. Compress w to 1-bit coefficients to get message
-    poly_to_msg(&w)
+    poly_to_msg(&w, m);
 }
 
 #[cfg(test)]
@@ -317,6 +318,15 @@ mod tests {
     use super::*;
     #[cfg(not(feature = "std"))]
     use alloc::vec::Vec;
+
+    fn k_pke_decrypt<const K: usize, const DU: usize, const DV: usize>(
+        dk_pke: &[u8],
+        c: &[u8],
+    ) -> [u8; 32] {
+        let mut m = [0u8; 32];
+        super::k_pke_decrypt::<K, DU, DV>(dk_pke, c, &mut m);
+        m
+    }
 
     fn keygen_vecs<const K: usize, const ETA1: usize>(d: &[u8; 32]) -> (Vec<u8>, Vec<u8>) {
         let mut ek = vec![0u8; K * 384 + 32];
