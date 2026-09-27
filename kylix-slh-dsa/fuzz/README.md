@@ -10,8 +10,9 @@ This directory contains fuzz targets for testing SLH-DSA operations using `cargo
   verifies and that a modified message or a different key is rejected
 - **fuzz_verify_bytes**: Attacker-controlled public keys and signatures of any length and
   content, against arbitrary keys or a fixed reference key; checks `from_bytes`, typed and
-  low-level `verify` agreement, and that only the unmodified reference (key, message,
-  signature) verifies
+  low-level `verify` agreement, that the reference (key, message, signature) verifies, and
+  that the reference signature is rejected after patching up to 64 of its bytes or any bytes
+  of the key
 - **fuzz_roundtrip**: keygen -> sign -> verify with a seeded RNG; checks acceptance and
   rejection of a modified message
 

@@ -12,8 +12,9 @@ This directory contains fuzz targets for testing ML-DSA operations using `cargo-
   full-size signature (must not panic)
 - **fuzz_verify_bytes**: Attacker-controlled public keys and signatures of any length and
   content, against arbitrary keys or a fixed reference key; checks that `from_bytes`,
-  `verify`, `expand` and `verify_expanded` agree with the low-level functions and that
-  only the unmodified reference (key, message, signature) verifies
+  `verify`, `expand` and `verify_expanded` agree with the low-level functions, that the
+  reference (key, message, signature) verifies, and that the reference signature is rejected
+  after patching up to 64 of its bytes or any bytes of the key
 - **fuzz_roundtrip**: keygen -> sign -> verify with arbitrary inputs; checks acceptance and
   determinism
 

@@ -6,14 +6,17 @@
 //!   any lengths and contents.
 //! - 1, fixed key: `sig_len (u16 LE) || sig || msg (rest)` against the
 //!   reference key.
-//! - 2, patched signature: `offset (u16 LE) || patch` XORed into the reference
-//!   signature, verified over the reference message.
-//! - 3, patched key: the same patch applied to the reference key.
+//! - 2, patched signature: `offset (u16 LE) || patch` (at most `PATCH_MAX`
+//!   bytes used) XORed into the reference signature, verified over the
+//!   reference message.
+//! - 3, patched key: `offset (u16 LE) || patch` XORed into the reference key,
+//!   verified with the reference signature and message.
 //!
 //! Every mode cross-checks `from_bytes`, `verify`, `expand` and
-//! `verify_expanded` against the low-level functions. In modes 1-3 only the
-//! unmodified reference triple may verify: accepting anything else would be a
-//! forgery or a non-canonical signature encoding.
+//! `verify_expanded` against the low-level functions, and the unmodified
+//! reference triple must verify. Mode 1 has no accept/reject expectation:
+//! the reference seed is public, so anyone can sign other messages. Modes 2
+//! and 3 must reject every change to the signature or key.
 
 #![no_main]
 
@@ -26,6 +29,12 @@ use kylix_ml_dsa::Signer;
 use libfuzzer_sys::fuzz_target;
 
 const REF_MSG: &[u8] = b"kylix ml-dsa fuzz reference message";
+
+// Another valid signature on REF_MSG, even one made with the public seed, has
+// a fresh c_tilde and z, so it differs from the reference in far more than
+// PATCH_MAX bytes. Accepting a bounded patch is thus a forgery or a
+// non-canonical encoding; an unbounded patch could reach a re-signature.
+const PATCH_MAX: usize = 64;
 
 struct Fixed {
     pk: Vec<u8>,
@@ -82,7 +91,10 @@ macro_rules! run {
                 let (sig, msg) = take_prefixed(body);
                 (fixed.pk.clone(), sig.to_vec(), msg)
             }
-            2 => (fixed.pk.clone(), patch(&fixed.sig, body), REF_MSG),
+            2 => {
+                let body = &body[..body.len().min(2 + PATCH_MAX)];
+                (fixed.pk.clone(), patch(&fixed.sig, body), REF_MSG)
+            }
             _ => (patch(&fixed.pk, body), fixed.sig.clone(), REF_MSG),
         };
 
@@ -125,9 +137,13 @@ macro_rules! run {
             _ => assert!(!raw, "accepted a wrongly sized key or signature"),
         }
 
-        if $mode != 0 {
-            let reference = pk == fixed.pk && sig == fixed.sig && msg == REF_MSG;
-            assert_eq!(raw, reference, "accept/reject mismatch for fixed key");
+        let reference = pk == fixed.pk && sig == fixed.sig && msg == REF_MSG;
+        if reference {
+            assert!(raw, "reference signature rejected");
+        } else if $mode >= 2 {
+            // Mode 3: tr = H(pk) enters mu, so the fixed c_tilde matching under
+            // another key would need a hash preimage.
+            assert!(!raw, "accepted a patched signature or key");
         }
     }};
 }

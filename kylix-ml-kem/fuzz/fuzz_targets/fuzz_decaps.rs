@@ -7,8 +7,9 @@
 //!   H(ek) so the dk passes the hash check and arbitrary dk_pke contents reach
 //!   decryption. Bit 4 reduces the ek coefficients modulo q.
 //! - 2/3, fixed key: `ct (rest)`, or with bit 4 `offset (u16 LE) || patch`
-//!   XORed into the reference ciphertext. The result must be the reference
-//!   shared secret for the reference ciphertext and J(z || ct) otherwise.
+//!   (at most `PATCH_MAX` bytes used) XORed into the reference ciphertext.
+//!   The reference ciphertext must yield the reference shared secret and no
+//!   other ciphertext may; a patched ciphertext must yield J(z || ct).
 
 #![no_main]
 
@@ -21,6 +22,12 @@ use sha3::digest::{ExtendableOutput, Update, XofReader};
 use sha3::{Digest, Sha3_256, Shake256};
 
 const Q: u16 = 3329;
+
+// A valid ciphertext other than the reference re-encrypts a different m, so
+// it agrees with the reference in only about 1/256 of its bytes; one that
+// differs in at most PATCH_MAX bytes is therefore invalid and must take
+// implicit rejection. An unbounded patch could reach any valid ciphertext.
+const PATCH_MAX: usize = 64;
 
 struct Fixed {
     dk: Vec<u8>,
@@ -123,7 +130,7 @@ macro_rules! run {
             }
             _ => {
                 let ct = if $flag {
-                    patch(&fixed.ct, body)
+                    patch(&fixed.ct, &body[..body.len().min(2 + PATCH_MAX)])
                 } else {
                     body.to_vec()
                 };
@@ -158,12 +165,17 @@ macro_rules! run {
             assert_eq!(ss, again, "Decaps should be deterministic");
 
             if $mode >= 2 {
-                let expected = if ct == fixed.ct {
-                    fixed.ss
+                if ct == fixed.ct {
+                    assert_eq!(ss, fixed.ss, "reference ciphertext not accepted");
                 } else {
-                    hash_j(&dk[dk_size - 32..], &ct)
-                };
-                assert_eq!(ss, expected, "wrong implicit-rejection result");
+                    // Matching the reference secret would need a G collision
+                    // (valid ct) or a J preimage (implicit rejection).
+                    assert_ne!(ss, fixed.ss, "other ciphertext gave reference secret");
+                    if $flag {
+                        let expected = hash_j(&dk[dk_size - 32..], &ct);
+                        assert_eq!(ss, expected, "wrong implicit-rejection result");
+                    }
+                }
             }
         }
     }};

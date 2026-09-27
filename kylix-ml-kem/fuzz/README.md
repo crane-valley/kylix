@@ -6,12 +6,15 @@ This directory contains fuzz targets for testing ML-KEM operations using `cargo-
 
 - **fuzz_keygen**: Key generation from arbitrary `d`/`z` seeds; checks determinism and key sizes
 - **fuzz_encaps**: Encapsulation with an attacker-controlled encapsulation key of any length and
-  content; checks that `EncapsulationKey::from_bytes` and `ml_kem_encaps` accept exactly the
-  well-formed keys (length and modulus check) and that encapsulation is deterministic
+  content; checks that `EncapsulationKey::from_bytes` accepts exactly the keys of the right
+  length, that `ml_kem_encaps` accepts exactly the keys that also pass the FIPS 203 section 7.2
+  modulus check, and that encapsulation is deterministic
 - **fuzz_decaps**: Decapsulation with attacker-controlled decapsulation keys and ciphertexts of any
-  length and content, including structured keys whose embedded hash matches and patched
-  reference ciphertexts; checks accept/reject against the length, hash and modulus rules,
-  typed/low-level agreement, and the implicit-rejection value `J(z || c)`
+  length and content, including structured keys whose embedded hash matches; checks
+  accept/reject against the length, hash and modulus rules and typed/low-level agreement.
+  Under a fixed key, the reference ciphertext must yield the reference shared secret and no
+  other ciphertext may, and the reference ciphertext with 1 to 64 bytes changed must yield the
+  implicit-rejection value `J(z || c)`
 - **fuzz_roundtrip**: keygen -> encaps -> decaps with arbitrary seeds; checks shared-secret
   agreement and determinism
 
