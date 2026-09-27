@@ -69,8 +69,18 @@ parse_result() {
   fi
 }
 
+# Sets ABOVE. An awk error (exit > 1) must fail the gate, not read as "within".
 abs_above() {
-  awk -v t="$1" -v l="$2" 'BEGIN { a = (t < 0) ? -t : t; exit !(a > l) }'
+  local rc=0
+  awk -v t="$1" -v l="$2" 'BEGIN { a = (t < 0) ? -t : t; exit !(a > l) }' || rc=$?
+  case $rc in
+    0) ABOVE=1 ;;
+    1) ABOVE=0 ;;
+    *)
+      echo "::error::dudect: comparing |${1}| with ${2} failed (awk exit ${rc})"
+      return 1
+      ;;
+  esac
 }
 
 status=0
@@ -85,7 +95,13 @@ for bench in "$@"; do
     continue
   fi
   if ! abs_above "$T" "$FAIL_T"; then
-    if abs_above "$T" "$WARN_T"; then
+    status=1
+    continue
+  fi
+  if [ "$ABOVE" -eq 0 ]; then
+    if ! abs_above "$T" "$WARN_T"; then
+      status=1
+    elif [ "$ABOVE" -eq 1 ]; then
       echo "::warning::${bench}: max t = ${T} (n = ${N}M), above ${WARN_T} but within ${FAIL_T}"
     else
       echo "::notice::${bench}: max t = ${T} (n = ${N}M), |t| <= ${WARN_T}"
@@ -100,14 +116,13 @@ for bench in "$@"; do
   broken=0
   while [ "$above" -lt "$need" ] && [ $((runs - above)) -lt "$need" ]; do
     runs=$((runs + 1))
-    if ! run_bin "$rerun" --filter "$bench" || ! parse_result "$rerun" "$bench"; then
+    if ! run_bin "$rerun" --filter "$bench" || ! parse_result "$rerun" "$bench" \
+      || ! abs_above "$T" "$FAIL_T"; then
       broken=1
       break
     fi
     ts="$ts, $T"
-    if abs_above "$T" "$FAIL_T"; then
-      above=$((above + 1))
-    fi
+    above=$((above + ABOVE))
   done
 
   if [ "$broken" -eq 1 ]; then
