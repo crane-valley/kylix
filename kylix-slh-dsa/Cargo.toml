@@ -61,7 +61,7 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dev-dependencies]
-rand = "0.9"
+rand = "0.10"
 rand_chacha = "0.9"
 hex = "0.4"
 # Same version as the crate dependency above; the deterministic fixture tests

@@ -48,4 +48,4 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dev-dependencies]
-rand = "0.9"
+rand = "0.10"
