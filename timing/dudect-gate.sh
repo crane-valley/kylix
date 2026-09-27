@@ -7,6 +7,9 @@
 # because max t is the maximum over 101 cropped t-tests on a shared, noisy
 # runner, which occasionally exceeds 4.5 for constant-time code.
 set -euo pipefail
+# awk's decimal parsing follows LC_NUMERIC; LC_ALL is set because an inherited
+# LC_ALL would override LC_NUMERIC=C.
+export LC_ALL=C
 
 WARN_T=4.5
 FAIL_T=10
