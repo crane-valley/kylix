@@ -5,7 +5,7 @@
 //! from the underlying IND-CPA secure K-PKE scheme.
 
 #[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 
 use crate::encode::check_ek_modulus;
 use crate::hash::{hash_g, hash_h, hash_j};
@@ -37,23 +37,20 @@ pub fn ml_kem_keygen<const K: usize, const ETA1: usize>(
     d: &[u8; 32],
     z: &[u8; 32],
 ) -> (Vec<u8>, Vec<u8>) {
-    // 1. Generate K-PKE key pair
-    let (ek, dk_pke) = k_pke_keygen::<K, ETA1>(d);
-
-    // 2. H(ek)
-    let h_ek = hash_h(&ek);
-
-    // 3. dk = dk_pke || ek || H(ek) || z
     let dk_pke_size = K * 384;
     let ek_size = K * 384 + 32;
     let dk_size = dk_pke_size + ek_size + 32 + 32;
 
-    let mut dk = Vec::with_capacity(dk_size);
-    dk.extend_from_slice(&dk_pke);
-    dk.extend_from_slice(&ek);
-    dk.extend_from_slice(&h_ek);
-    dk.extend_from_slice(z);
+    // dk = dk_pke || ek || H(ek) || z
+    let mut dk = vec![0u8; dk_size];
+    let (dk_pke, rest) = dk.split_at_mut(dk_pke_size);
+    let (ek, rest) = rest.split_at_mut(ek_size);
+    let (h_ek, z_out) = rest.split_at_mut(32);
+    k_pke_keygen::<K, ETA1>(d, ek, dk_pke);
+    h_ek.copy_from_slice(&hash_h(ek));
+    z_out.copy_from_slice(z);
 
+    let ek = dk[dk_pke_size..dk_pke_size + ek_size].to_vec();
     (dk, ek)
 }
 
@@ -75,7 +72,8 @@ pub fn ml_kem_keygen<const K: usize, const ETA1: usize>(
 /// # Returns
 /// On success, returns `Ok((c, shared_secret))` where:
 /// * `c` - Ciphertext
-/// * `shared_secret` - 32-byte shared secret
+/// * `shared_secret` - 32-byte shared secret, returned as a plain array that
+///   the caller is responsible for wiping
 ///
 /// # Errors
 /// - [`Error::InvalidKeyLength`] if `ek` length is not `K * 384 + 32`.
@@ -96,6 +94,22 @@ pub fn ml_kem_encaps<
     ek: &[u8],
     m: &[u8; 32],
 ) -> Result<(Vec<u8>, [u8; 32])> {
+    let mut shared_secret = Zeroizing::new([0u8; 32]);
+    let c = ml_kem_encaps_into::<K, ETA1, ETA2, DU, DV>(ek, m, &mut shared_secret)?;
+    Ok((c, *shared_secret))
+}
+
+pub(crate) fn ml_kem_encaps_into<
+    const K: usize,
+    const ETA1: usize,
+    const ETA2: usize,
+    const DU: usize,
+    const DV: usize,
+>(
+    ek: &[u8],
+    m: &[u8; 32],
+    shared_secret: &mut [u8; 32],
+) -> Result<Vec<u8>> {
     let expected_ek_size = K * 384 + 32;
     if ek.len() != expected_ek_size {
         return Err(Error::InvalidKeyLength {
@@ -113,20 +127,18 @@ pub fn ml_kem_encaps<
     let h = hash_h(ek);
 
     // 2. (K, r) = G(m || h)
-    let mut g_input = Zeroizing::new([0u8; 64]);
-    g_input[..32].copy_from_slice(m);
-    g_input[32..].copy_from_slice(&h);
-    let g_output = Zeroizing::new(hash_g(&g_input[..]));
+    let mut g_output = Zeroizing::new([0u8; 64]);
+    hash_g(m, &h, &mut g_output);
 
-    let mut shared_secret = [0u8; 32];
     let mut r = Zeroizing::new([0u8; 32]);
     shared_secret.copy_from_slice(&g_output[..32]);
     r.copy_from_slice(&g_output[32..]);
 
     // 3. c = K-PKE.Encrypt(ek, m, r)
-    let c = k_pke_encrypt::<K, ETA1, ETA2, DU, DV>(ek, m, &r);
+    let mut c = vec![0u8; 32 * (K * DU + DV)];
+    k_pke_encrypt::<K, ETA1, ETA2, DU, DV>(ek, m, &r, &mut c);
 
-    Ok((c, shared_secret))
+    Ok(c)
 }
 
 /// ML-KEM Decapsulation (FIPS 203 Algorithm 18).
@@ -147,6 +159,7 @@ pub fn ml_kem_encaps<
 ///
 /// # Returns
 /// On success, returns `Ok(shared_secret)` — the 32-byte shared secret.
+/// It is returned as a plain array that the caller is responsible for wiping.
 ///
 /// # Errors
 /// - [`Error::InvalidKeyLength`] if `dk` length is not `K * 768 + 96`
@@ -161,7 +174,6 @@ pub fn ml_kem_encaps<
 /// 4. c' = K-PKE.Encrypt(ek, m', r')
 /// 5. K_bar = J(z || c)  -- implicit rejection key
 /// 6. if c == c': return K' else: return K_bar (constant-time)
-#[allow(clippy::expect_used)] // infallible: slice sizes guaranteed by dk length check
 pub fn ml_kem_decaps<
     const K: usize,
     const ETA1: usize,
@@ -172,6 +184,23 @@ pub fn ml_kem_decaps<
     dk: &[u8],
     c: &[u8],
 ) -> Result<[u8; 32]> {
+    let mut shared_secret = Zeroizing::new([0u8; 32]);
+    ml_kem_decaps_into::<K, ETA1, ETA2, DU, DV>(dk, c, &mut shared_secret)?;
+    Ok(*shared_secret)
+}
+
+#[allow(clippy::expect_used)] // infallible: slice sizes guaranteed by dk length check
+pub(crate) fn ml_kem_decaps_into<
+    const K: usize,
+    const ETA1: usize,
+    const ETA2: usize,
+    const DU: usize,
+    const DV: usize,
+>(
+    dk: &[u8],
+    c: &[u8],
+    shared_secret: &mut [u8; 32],
+) -> Result<()> {
     // Parse dk = dk_pke || ek || h || z
     let dk_pke_size = K * 384;
     let ek_size = K * 384 + 32;
@@ -218,13 +247,12 @@ pub fn ml_kem_decaps<
     }
 
     // 1. m' = K-PKE.Decrypt(dk_pke, c)
-    let m_prime = Zeroizing::new(k_pke_decrypt::<K, DU, DV>(dk_pke, c));
+    let mut m_prime = Zeroizing::new([0u8; 32]);
+    k_pke_decrypt::<K, DU, DV>(dk_pke, c, &mut m_prime);
 
     // 2. (K', r') = G(m' || h)
-    let mut g_input = Zeroizing::new([0u8; 64]);
-    g_input[..32].copy_from_slice(&m_prime[..]);
-    g_input[32..].copy_from_slice(h);
-    let g_output = Zeroizing::new(hash_g(&g_input[..]));
+    let mut g_output = Zeroizing::new([0u8; 64]);
+    hash_g(&m_prime[..], h, &mut g_output);
 
     let mut k_prime = Zeroizing::new([0u8; 32]);
     let mut r_prime = Zeroizing::new([0u8; 32]);
@@ -232,7 +260,8 @@ pub fn ml_kem_decaps<
     r_prime.copy_from_slice(&g_output[32..]);
 
     // 3. c' = K-PKE.Encrypt(ek, m', r')
-    let c_prime = k_pke_encrypt::<K, ETA1, ETA2, DU, DV>(ek, &m_prime, &r_prime);
+    let mut c_prime = Zeroizing::new(vec![0u8; expected_c_size]);
+    k_pke_encrypt::<K, ETA1, ETA2, DU, DV>(ek, &m_prime, &r_prime, &mut c_prime);
 
     // 4. K_bar = J(z || c)
     let mut k_bar = Zeroizing::new([0u8; 32]);
@@ -240,14 +269,13 @@ pub fn ml_kem_decaps<
 
     // 5. Constant-time comparison and selection
     // If c == c': return K', else return K_bar
-    let ciphertexts_equal = c.ct_eq(&c_prime);
+    let ciphertexts_equal = c.ct_eq(&c_prime[..]);
 
-    let mut result = [0u8; 32];
     for i in 0..32 {
-        result[i] = u8::conditional_select(&k_bar[i], &k_prime[i], ciphertexts_equal);
+        shared_secret[i] = u8::conditional_select(&k_bar[i], &k_prime[i], ciphertexts_equal);
     }
 
-    Ok(result)
+    Ok(())
 }
 
 #[cfg(test)]

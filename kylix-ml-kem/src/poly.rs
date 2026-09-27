@@ -470,14 +470,12 @@ fn poly_decompress_11(bytes: &[u8]) -> Poly {
 ///
 /// # Returns
 /// Sampled polynomial
-pub fn poly_cbd(eta: usize, bytes: &[u8]) -> Poly {
-    let mut poly = Poly::default();
+pub fn poly_cbd(eta: usize, bytes: &[u8], poly: &mut Poly) {
     match eta {
-        2 => poly_cbd2(&mut poly, bytes),
-        3 => poly_cbd3(&mut poly, bytes),
+        2 => poly_cbd2(poly, bytes),
+        3 => poly_cbd3(poly, bytes),
         _ => panic!("Unsupported eta value: {} (supported: 2, 3)", eta),
     }
-    poly
 }
 
 /// CBD with eta=2: each coefficient uses 4 bits (2+2).
@@ -526,6 +524,12 @@ fn poly_cbd3(poly: &mut Poly, bytes: &[u8]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn poly_cbd(eta: usize, bytes: &[u8]) -> Poly {
+        let mut poly = Poly::default();
+        super::poly_cbd(eta, bytes, &mut poly);
+        poly
+    }
 
     #[test]
     fn test_poly_add() {

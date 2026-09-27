@@ -34,12 +34,8 @@ fn unpack_12bit_coeffs(chunk: &[u8]) -> (u16, u16) {
 ///
 /// # Arguments
 /// * `poly` - Polynomial with coefficients in [0, q-1]
-///
-/// # Returns
-/// 384-byte encoded polynomial
-pub fn poly_to_bytes(poly: &Poly) -> [u8; 384] {
-    let mut bytes = [0u8; 384];
-
+/// * `bytes` - 384-byte destination for the encoding
+pub fn poly_to_bytes(poly: &Poly, bytes: &mut [u8]) {
     for i in 0..128 {
         // Two coefficients -> three bytes
         let c0 = poly.coeffs[2 * i] as u16;
@@ -52,8 +48,6 @@ pub fn poly_to_bytes(poly: &Poly) -> [u8; 384] {
         bytes[3 * i + 1] = ((c0 >> 8) | (c1 << 4)) as u8;
         bytes[3 * i + 2] = (c1 >> 4) as u8;
     }
-
-    bytes
 }
 
 /// Decode bytes to a polynomial using 12-bit coefficients.
@@ -99,9 +93,8 @@ pub fn poly_from_bytes(bytes: &[u8]) -> Poly {
 ///
 /// # Returns
 /// Polynomial with coefficients in {0, 1665}
-pub fn msg_to_poly(m: &[u8; 32]) -> Poly {
+pub fn msg_to_poly(m: &[u8; 32], poly: &mut Poly) {
     const HALF_Q: i16 = (Q as i16 + 1) / 2; // 1665
-    let mut poly = Poly::new();
 
     for i in 0..32 {
         for j in 0..8 {
@@ -109,8 +102,6 @@ pub fn msg_to_poly(m: &[u8; 32]) -> Poly {
             poly.coeffs[8 * i + j] = i16::conditional_select(&0, &HALF_Q, bit);
         }
     }
-
-    poly
 }
 
 /// Decode a polynomial to a message (32 bytes).
@@ -126,16 +117,14 @@ pub fn msg_to_poly(m: &[u8; 32]) -> Poly {
 ///
 /// # Returns
 /// 32-byte message
-pub fn poly_to_msg(poly: &Poly) -> [u8; 32] {
-    let mut m = [0u8; 32];
+pub fn poly_to_msg(poly: &Poly, m: &mut [u8; 32]) {
+    m.fill(0);
 
     for i in 0..32 {
         for j in 0..8 {
             m[i] |= (compress(poly.coeffs[8 * i + j], 1) as u8) << j;
         }
     }
-
-    m
 }
 
 // --- Validation ---
@@ -188,6 +177,18 @@ pub(crate) fn check_ek_modulus(ek: &[u8]) -> bool {
 mod tests {
     use super::*;
     use crate::params::common::N;
+
+    fn msg_to_poly(m: &[u8; 32]) -> Poly {
+        let mut poly = Poly::new();
+        super::msg_to_poly(m, &mut poly);
+        poly
+    }
+
+    fn poly_to_msg(poly: &Poly) -> [u8; 32] {
+        let mut m = [0u8; 32];
+        super::poly_to_msg(poly, &mut m);
+        m
+    }
     #[cfg(not(feature = "std"))]
     use alloc::vec;
 
@@ -198,7 +199,8 @@ mod tests {
             poly.coeffs[i] = (i as i16 * 13) % (Q as i16);
         }
 
-        let bytes = poly_to_bytes(&poly);
+        let mut bytes = [0u8; 384];
+        poly_to_bytes(&poly, &mut bytes);
         let recovered = poly_from_bytes(&bytes);
 
         for i in 0..N {
@@ -213,7 +215,8 @@ mod tests {
     #[test]
     fn test_poly_to_bytes_from_bytes_zero() {
         let poly = Poly::new();
-        let bytes = poly_to_bytes(&poly);
+        let mut bytes = [0u8; 384];
+        poly_to_bytes(&poly, &mut bytes);
         let recovered = poly_from_bytes(&bytes);
 
         for i in 0..N {
@@ -229,7 +232,8 @@ mod tests {
             poly.coeffs[i] = (Q - 1) as i16;
         }
 
-        let bytes = poly_to_bytes(&poly);
+        let mut bytes = [0u8; 384];
+        poly_to_bytes(&poly, &mut bytes);
         let recovered = poly_from_bytes(&bytes);
 
         for i in 0..N {

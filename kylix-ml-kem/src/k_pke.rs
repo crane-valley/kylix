@@ -6,8 +6,6 @@
 
 #[cfg(not(feature = "std"))]
 use alloc::vec;
-#[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
 
 use crate::encode::{msg_to_poly, poly_to_msg};
 use crate::hash::{hash_g, prf};
@@ -61,10 +59,8 @@ impl<const D: usize> CompressCheck<D> {
 ///
 /// # Arguments
 /// * `d` - 32-byte random seed
-///
-/// # Returns
-/// * `ek_pke` - Encryption key (K*384 + 32 bytes)
-/// * `dk_pke` - Decryption key (K*384 bytes)
+/// * `ek_pke` - Destination for the encryption key (K*384 + 32 bytes)
+/// * `dk_pke` - Destination for the decryption key (K*384 bytes)
 ///
 /// # Algorithm
 /// 1. (rho, sigma) = G(d || k) - domain separation with k = K
@@ -73,7 +69,11 @@ impl<const D: usize> CompressCheck<D> {
 /// 4. Compute t = As + e in NTT domain
 /// 5. ek_pke = encode(t) || rho
 /// 6. dk_pke = encode(s)
-pub fn k_pke_keygen<const K: usize, const ETA1: usize>(d: &[u8; 32]) -> (Vec<u8>, Vec<u8>) {
+pub fn k_pke_keygen<const K: usize, const ETA1: usize>(
+    d: &[u8; 32],
+    ek_pke: &mut [u8],
+    dk_pke: &mut [u8],
+) {
     let () = EtaCheck::<ETA1>::SUPPORTED;
 
     // 1. (rho, sigma) = G(d || k) with domain separation
@@ -83,10 +83,8 @@ pub fn k_pke_keygen<const K: usize, const ETA1: usize>(d: &[u8; 32]) -> (Vec<u8>
     // This 33-byte input provides domain separation between parameter sets,
     // ensuring different key pairs are generated for ML-KEM-512/768/1024
     // even with the same seed d.
-    let mut g_input = Zeroizing::new([0u8; 33]);
-    g_input[..32].copy_from_slice(d);
-    g_input[32] = K as u8;
-    let g_output = Zeroizing::new(hash_g(&g_input[..]));
+    let mut g_output = Zeroizing::new([0u8; 64]);
+    hash_g(d, &[K as u8], &mut g_output);
     let mut rho = [0u8; 32];
     let mut sigma = Zeroizing::new([0u8; 32]);
     rho.copy_from_slice(&g_output[..32]);
@@ -101,14 +99,14 @@ pub fn k_pke_keygen<const K: usize, const ETA1: usize>(d: &[u8; 32]) -> (Vec<u8>
     let mut prf_output = Zeroizing::new(vec![0u8; prf_output_len]);
     for i in 0..K {
         prf(&sigma, i as u8, &mut prf_output);
-        s.polys[i] = poly_cbd(ETA1, &prf_output);
+        poly_cbd(ETA1, &prf_output, &mut s.polys[i]);
     }
 
     // 4. Sample e from sigma using CBD with eta1
     let mut e = Zeroizing::new(PolyVec::<K>::new());
     for i in 0..K {
         prf(&sigma, (K + i) as u8, &mut prf_output);
-        e.polys[i] = poly_cbd(ETA1, &prf_output);
+        poly_cbd(ETA1, &prf_output, &mut e.polys[i]);
     }
 
     // 5. Convert s and e to NTT domain
@@ -123,16 +121,12 @@ pub fn k_pke_keygen<const K: usize, const ETA1: usize>(d: &[u8; 32]) -> (Vec<u8>
 
     // 7. Encode outputs
     // ek_pke = encode(t) || rho
-    let t_bytes = t.to_bytes();
-    let mut ek_pke = Vec::with_capacity(K * 384 + 32);
-    ek_pke.extend_from_slice(&t_bytes);
-    ek_pke.extend_from_slice(&rho);
+    t.to_bytes(&mut ek_pke[..K * 384]);
+    ek_pke[K * 384..].copy_from_slice(&rho);
 
     // dk_pke = encode(s)
     s.reduce_full(); // Reduce to canonical form [0, q-1] for encoding (s is already in normal form after NTT)
-    let dk_pke = s.to_bytes();
-
-    (ek_pke, dk_pke)
+    s.to_bytes(dk_pke);
 }
 
 /// K-PKE Encryption (FIPS 203 Algorithm 14).
@@ -150,9 +144,7 @@ pub fn k_pke_keygen<const K: usize, const ETA1: usize>(d: &[u8; 32]) -> (Vec<u8>
 /// * `ek_pke` - Encryption key
 /// * `m` - 32-byte message to encrypt
 /// * `r` - 32-byte randomness (deterministic encryption with given r)
-///
-/// # Returns
-/// Ciphertext bytes (c1 || c2)
+/// * `ciphertext` - Destination for c1 || c2 (32 * (K * DU + DV) bytes)
 ///
 /// # Algorithm
 /// 1. Parse ek_pke as (t, rho)
@@ -173,7 +165,8 @@ pub fn k_pke_encrypt<
     ek_pke: &[u8],
     m: &[u8; 32],
     r: &[u8; 32],
-) -> Vec<u8> {
+    ciphertext: &mut [u8],
+) {
     let () = EtaCheck::<ETA1>::SUPPORTED;
     let () = EtaCheck::<ETA2>::SUPPORTED;
     let () = CompressCheck::<DU>::SUPPORTED;
@@ -196,7 +189,7 @@ pub fn k_pke_encrypt<
     let mut prf_output1 = Zeroizing::new(vec![0u8; prf_output_len1]);
     for i in 0..K {
         prf(r, i as u8, &mut prf_output1);
-        r_vec.polys[i] = poly_cbd(ETA1, &prf_output1);
+        poly_cbd(ETA1, &prf_output1, &mut r_vec.polys[i]);
     }
 
     // 4. Sample e1 from r using CBD with eta2
@@ -205,12 +198,13 @@ pub fn k_pke_encrypt<
     let mut prf_output2 = Zeroizing::new(vec![0u8; prf_output_len2]);
     for i in 0..K {
         prf(r, (K + i) as u8, &mut prf_output2);
-        e1.polys[i] = poly_cbd(ETA2, &prf_output2);
+        poly_cbd(ETA2, &prf_output2, &mut e1.polys[i]);
     }
 
     // 5. Sample e2 from r using CBD with eta2
     prf(r, (2 * K) as u8, &mut prf_output2);
-    let e2 = Zeroizing::new(poly_cbd(ETA2, &prf_output2));
+    let mut e2 = Zeroizing::new(Poly::new());
+    poly_cbd(ETA2, &prf_output2, &mut e2);
 
     // 6. Convert r_vec to NTT domain
     r_vec.ntt();
@@ -241,23 +235,17 @@ pub fn k_pke_encrypt<
     }
 
     // Add message encoding
-    let mu = Zeroizing::new(msg_to_poly(m));
+    let mut mu = Zeroizing::new(Poly::new());
+    msg_to_poly(m, &mut mu);
     for i in 0..N {
         v.coeffs[i] = v.coeffs[i].wrapping_add(mu.coeffs[i]);
     }
     poly_reduce(&mut v);
 
-    // 9. Compress u and v
-    let c1 = u.compress(DU);
-    let mut c2 = vec![0u8; 32 * DV];
-    poly_compress(&v, DV as u32, &mut c2);
-
-    // 10. Return c1 || c2
-    let mut ciphertext = Vec::with_capacity(c1.len() + c2.len());
-    ciphertext.extend_from_slice(&c1);
-    ciphertext.extend_from_slice(&c2);
-
-    ciphertext
+    // 9. c1 || c2 = Compress_du(u) || Compress_dv(v)
+    let (c1, c2) = ciphertext.split_at_mut(K * 32 * DU);
+    u.compress(DU, c1);
+    poly_compress(&v, DV as u32, c2);
 }
 
 /// K-PKE Decryption (FIPS 203 Algorithm 15).
@@ -272,9 +260,7 @@ pub fn k_pke_encrypt<
 /// # Arguments
 /// * `dk_pke` - Decryption key
 /// * `c` - Ciphertext bytes
-///
-/// # Returns
-/// 32-byte decrypted message
+/// * `m` - Destination for the 32-byte decrypted message
 ///
 /// # Algorithm
 /// 1. Parse c as (c1, c2)
@@ -286,7 +272,8 @@ pub fn k_pke_encrypt<
 pub fn k_pke_decrypt<const K: usize, const DU: usize, const DV: usize>(
     dk_pke: &[u8],
     c: &[u8],
-) -> [u8; 32] {
+    m: &mut [u8; 32],
+) {
     let () = CompressCheck::<DU>::SUPPORTED;
     let () = CompressCheck::<DV>::SUPPORTED;
 
@@ -322,13 +309,47 @@ pub fn k_pke_decrypt<const K: usize, const DU: usize, const DV: usize>(
     poly_reduce(&mut w);
 
     // 6. Compress w to 1-bit coefficients to get message
-    poly_to_msg(&w)
+    poly_to_msg(&w, m);
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+    #[cfg(not(feature = "std"))]
+    use alloc::vec::Vec;
+
+    fn k_pke_decrypt<const K: usize, const DU: usize, const DV: usize>(
+        dk_pke: &[u8],
+        c: &[u8],
+    ) -> [u8; 32] {
+        let mut m = [0u8; 32];
+        super::k_pke_decrypt::<K, DU, DV>(dk_pke, c, &mut m);
+        m
+    }
+
+    fn keygen_vecs<const K: usize, const ETA1: usize>(d: &[u8; 32]) -> (Vec<u8>, Vec<u8>) {
+        let mut ek = vec![0u8; K * 384 + 32];
+        let mut dk = vec![0u8; K * 384];
+        k_pke_keygen::<K, ETA1>(d, &mut ek, &mut dk);
+        (ek, dk)
+    }
+
+    fn encrypt_vec<
+        const K: usize,
+        const ETA1: usize,
+        const ETA2: usize,
+        const DU: usize,
+        const DV: usize,
+    >(
+        ek: &[u8],
+        m: &[u8; 32],
+        r: &[u8; 32],
+    ) -> Vec<u8> {
+        let mut ct = vec![0u8; 32 * (K * DU + DV)];
+        k_pke_encrypt::<K, ETA1, ETA2, DU, DV>(ek, m, r, &mut ct);
+        ct
+    }
 
     // Test with ML-KEM-512 parameters
     const K512: usize = 2;
@@ -347,8 +368,8 @@ mod tests {
     #[test]
     fn test_k_pke_keygen_deterministic() {
         let d = [0x42u8; 32];
-        let (ek1, dk1) = k_pke_keygen::<K768, ETA1_768>(&d);
-        let (ek2, dk2) = k_pke_keygen::<K768, ETA1_768>(&d);
+        let (ek1, dk1) = keygen_vecs::<K768, ETA1_768>(&d);
+        let (ek2, dk2) = keygen_vecs::<K768, ETA1_768>(&d);
         assert_eq!(ek1, ek2);
         assert_eq!(dk1, dk2);
     }
@@ -356,7 +377,7 @@ mod tests {
     #[test]
     fn test_k_pke_keygen_key_sizes_768() {
         let d = [0x42u8; 32];
-        let (ek, dk) = k_pke_keygen::<K768, ETA1_768>(&d);
+        let (ek, dk) = keygen_vecs::<K768, ETA1_768>(&d);
         assert_eq!(ek.len(), K768 * 384 + 32); // 1184 bytes
         assert_eq!(dk.len(), K768 * 384); // 1152 bytes
     }
@@ -364,7 +385,7 @@ mod tests {
     #[test]
     fn test_k_pke_keygen_key_sizes_512() {
         let d = [0x42u8; 32];
-        let (ek, dk) = k_pke_keygen::<K512, ETA1_512>(&d);
+        let (ek, dk) = keygen_vecs::<K512, ETA1_512>(&d);
         assert_eq!(ek.len(), K512 * 384 + 32); // 800 bytes
         assert_eq!(dk.len(), K512 * 384); // 768 bytes
     }
@@ -372,12 +393,12 @@ mod tests {
     #[test]
     fn test_k_pke_encrypt_decrypt_roundtrip_768() {
         let d = [0x42u8; 32];
-        let (ek, dk) = k_pke_keygen::<K768, ETA1_768>(&d);
+        let (ek, dk) = keygen_vecs::<K768, ETA1_768>(&d);
 
         let msg = [0x55u8; 32];
         let r = [0xAAu8; 32];
 
-        let ciphertext = k_pke_encrypt::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &msg, &r);
+        let ciphertext = encrypt_vec::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &msg, &r);
         let decrypted = k_pke_decrypt::<K768, DU_768, DV_768>(&dk, &ciphertext);
 
         assert_eq!(msg, decrypted);
@@ -386,12 +407,12 @@ mod tests {
     #[test]
     fn test_k_pke_encrypt_decrypt_roundtrip_512() {
         let d = [0x42u8; 32];
-        let (ek, dk) = k_pke_keygen::<K512, ETA1_512>(&d);
+        let (ek, dk) = keygen_vecs::<K512, ETA1_512>(&d);
 
         let msg = [0x55u8; 32];
         let r = [0xAAu8; 32];
 
-        let ciphertext = k_pke_encrypt::<K512, ETA1_512, ETA2_512, DU_512, DV_512>(&ek, &msg, &r);
+        let ciphertext = encrypt_vec::<K512, ETA1_512, ETA2_512, DU_512, DV_512>(&ek, &msg, &r);
         let decrypted = k_pke_decrypt::<K512, DU_512, DV_512>(&dk, &ciphertext);
 
         assert_eq!(msg, decrypted);
@@ -400,13 +421,13 @@ mod tests {
     #[test]
     fn test_k_pke_encrypt_deterministic() {
         let d = [0x42u8; 32];
-        let (ek, _) = k_pke_keygen::<K768, ETA1_768>(&d);
+        let (ek, _) = keygen_vecs::<K768, ETA1_768>(&d);
 
         let msg = [0x55u8; 32];
         let r = [0xAAu8; 32];
 
-        let ct1 = k_pke_encrypt::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &msg, &r);
-        let ct2 = k_pke_encrypt::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &msg, &r);
+        let ct1 = encrypt_vec::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &msg, &r);
+        let ct2 = encrypt_vec::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &msg, &r);
 
         assert_eq!(ct1, ct2);
     }
@@ -414,12 +435,12 @@ mod tests {
     #[test]
     fn test_k_pke_ciphertext_size_768() {
         let d = [0x42u8; 32];
-        let (ek, _) = k_pke_keygen::<K768, ETA1_768>(&d);
+        let (ek, _) = keygen_vecs::<K768, ETA1_768>(&d);
 
         let msg = [0x55u8; 32];
         let r = [0xAAu8; 32];
 
-        let ciphertext = k_pke_encrypt::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &msg, &r);
+        let ciphertext = encrypt_vec::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &msg, &r);
 
         // c1 = K * 32 * DU = 3 * 32 * 10 = 960 bytes
         // c2 = 32 * DV = 32 * 4 = 128 bytes
@@ -430,19 +451,19 @@ mod tests {
     #[test]
     fn test_k_pke_different_messages() {
         let d = [0x42u8; 32];
-        let (ek, dk) = k_pke_keygen::<K768, ETA1_768>(&d);
+        let (ek, dk) = keygen_vecs::<K768, ETA1_768>(&d);
 
         let r = [0xAAu8; 32];
 
         // Test with all zeros
         let msg1 = [0x00u8; 32];
-        let ct1 = k_pke_encrypt::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &msg1, &r);
+        let ct1 = encrypt_vec::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &msg1, &r);
         let dec1 = k_pke_decrypt::<K768, DU_768, DV_768>(&dk, &ct1);
         assert_eq!(msg1, dec1);
 
         // Test with all ones
         let msg2 = [0xFFu8; 32];
-        let ct2 = k_pke_encrypt::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &msg2, &r);
+        let ct2 = encrypt_vec::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &msg2, &r);
         let dec2 = k_pke_decrypt::<K768, DU_768, DV_768>(&dk, &ct2);
         assert_eq!(msg2, dec2);
 
@@ -453,14 +474,14 @@ mod tests {
     #[test]
     fn test_k_pke_different_randomness() {
         let d = [0x42u8; 32];
-        let (ek, _) = k_pke_keygen::<K768, ETA1_768>(&d);
+        let (ek, _) = keygen_vecs::<K768, ETA1_768>(&d);
 
         let msg = [0x55u8; 32];
         let r1 = [0xAAu8; 32];
         let r2 = [0xBBu8; 32];
 
-        let ct1 = k_pke_encrypt::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &msg, &r1);
-        let ct2 = k_pke_encrypt::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &msg, &r2);
+        let ct1 = encrypt_vec::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &msg, &r1);
+        let ct2 = encrypt_vec::<K768, ETA1_768, ETA2_768, DU_768, DV_768>(&ek, &msg, &r2);
 
         // Different randomness should produce different ciphertexts
         assert_ne!(ct1, ct2);

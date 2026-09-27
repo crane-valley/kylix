@@ -10,15 +10,12 @@
 
 use crate::address::Address;
 use crate::hash::HashSuite;
-use hmac::{Hmac, Mac};
+use crate::wipe_sha2;
 use sha2::{Digest, Sha256, Sha512};
 use zeroize::Zeroize;
 
 #[cfg(all(test, not(feature = "std")))]
 use alloc::{vec, vec::Vec};
-
-type HmacSha256 = Hmac<Sha256>;
-type HmacSha512 = Hmac<Sha512>;
 
 /// SHA2-based hash suite for 128-bit security (n=16).
 pub struct Sha2_128Hash;
@@ -100,6 +97,28 @@ const PADDING_SHA256_N32: [u8; 32] = [0u8; 32]; // 64 - 32, for n=32 (256-bit)
 const PADDING_SHA512_N24: [u8; 104] = [0u8; 104]; // 128 - 24, for n=24 (192-bit)
 const PADDING_SHA512_N32: [u8; 96] = [0u8; 96]; // 128 - 32, for n=32 (256-bit)
 
+fn prf_sha256_trunc_to(out: &mut [u8], pk_seed: &[u8], padding: &[u8], adrs: &Address, m: &[u8]) {
+    let adrs_c = adrs_compress(adrs);
+    let mut hasher = wipe_sha2::Sha256::new();
+    hasher.update(pk_seed);
+    hasher.update(padding);
+    hasher.update(&adrs_c);
+    hasher.update(m);
+    hasher.finalize_into(out);
+}
+
+// F keeps the sha2 block function (SHA-NI where available): the in-crate one
+// made signing about 3.4 times slower (ADR 0002).
+fn f_sha256_trunc_to(out: &mut [u8], pk_seed: &[u8], padding: &[u8], adrs: &Address, m: &[u8]) {
+    let adrs_c = adrs_compress(adrs);
+    let mut hasher = wipe_sha2::Sha256Accel::new();
+    hasher.update(pk_seed);
+    hasher.update(padding);
+    hasher.update(&adrs_c);
+    hasher.update(m);
+    hasher.finalize_into(out);
+}
+
 // =============================================================================
 // 128-bit security: All functions use SHA-256
 // =============================================================================
@@ -124,18 +143,11 @@ impl Sha2_128Hash {
 impl HashSuite for Sha2_128Hash {
     const N: usize = 16;
 
-    #[allow(clippy::expect_used)] // HMAC accepts any key length
     fn prf_msg_to(out: &mut [u8], sk_prf: &[u8], opt_rand: &[u8], message: &[u8]) {
-        debug_assert_eq!(out.len(), 16);
-        let mut mac = HmacSha256::new_from_slice(sk_prf).expect("HMAC accepts any key length");
-        mac.update(opt_rand);
-        mac.update(message);
-        let mut result = mac.finalize().into_bytes();
-        out.copy_from_slice(&result[..16]);
-        result.zeroize();
+        assert_eq!(out.len(), 16);
+        wipe_sha2::hmac_sha256_into(out, sk_prf, &[opt_rand, message]);
     }
 
-    #[allow(clippy::expect_used)] // HMAC accepts any key length
     fn prf_msg_parts_to(
         out: &mut [u8],
         sk_prf: &[u8],
@@ -143,14 +155,8 @@ impl HashSuite for Sha2_128Hash {
         message_prefix: &[u8],
         message: &[u8],
     ) {
-        debug_assert_eq!(out.len(), 16);
-        let mut mac = HmacSha256::new_from_slice(sk_prf).expect("HMAC accepts any key length");
-        mac.update(opt_rand);
-        mac.update(message_prefix);
-        mac.update(message);
-        let mut result = mac.finalize().into_bytes();
-        out.copy_from_slice(&result[..16]);
-        result.zeroize();
+        assert_eq!(out.len(), 16);
+        wipe_sha2::hmac_sha256_into(out, sk_prf, &[opt_rand, message_prefix, message]);
     }
 
     fn h_msg_to(out: &mut [u8], r: &[u8], pk_seed: &[u8], pk_root: &[u8], message: &[u8]) {
@@ -186,7 +192,8 @@ impl HashSuite for Sha2_128Hash {
     }
 
     fn f_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m1: &[u8]) {
-        Self::sha256_hash_trunc_n_to(out, pk_seed, adrs, &[m1]);
+        assert_eq!(out.len(), 16);
+        f_sha256_trunc_to(out, pk_seed, &PADDING_SHA256_N16, adrs, m1);
     }
 
     fn h_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m1: &[u8], m2: &[u8]) {
@@ -198,7 +205,8 @@ impl HashSuite for Sha2_128Hash {
     }
 
     fn prf_to(out: &mut [u8], pk_seed: &[u8], sk_seed: &[u8], adrs: &Address) {
-        Self::sha256_hash_trunc_n_to(out, pk_seed, adrs, &[sk_seed]);
+        assert_eq!(out.len(), 16);
+        prf_sha256_trunc_to(out, pk_seed, &PADDING_SHA256_N16, adrs, sk_seed);
     }
 }
 
@@ -217,27 +225,6 @@ impl HashSuite for Sha2_128Hash {
 macro_rules! impl_sha2_cat35_hash_suite {
     ($name:ident, $n:expr, $padding_256:ident, $padding_512:ident) => {
         impl $name {
-            /// Buffer-write variant of sha256_hash_trunc_n (for F and PRF).
-            fn sha256_hash_trunc_n_to(
-                out: &mut [u8],
-                pk_seed: &[u8],
-                adrs: &Address,
-                ms: &[&[u8]],
-            ) {
-                debug_assert_eq!(out.len(), $n);
-                let adrs_c = adrs_compress(adrs);
-                let mut hasher = Sha256::new();
-                hasher.update(pk_seed);
-                hasher.update(&$padding_256);
-                hasher.update(&adrs_c);
-                for m in ms {
-                    hasher.update(m);
-                }
-                let mut hash = hasher.finalize();
-                out.copy_from_slice(&hash[..$n]);
-                hash.zeroize();
-            }
-
             /// Buffer-write variant of sha512_hash_trunc_n (for H and T_l).
             fn sha512_hash_trunc_n_to(
                 out: &mut [u8],
@@ -263,19 +250,11 @@ macro_rules! impl_sha2_cat35_hash_suite {
         impl HashSuite for $name {
             const N: usize = $n;
 
-            #[allow(clippy::expect_used)] // HMAC accepts any key length
             fn prf_msg_to(out: &mut [u8], sk_prf: &[u8], opt_rand: &[u8], message: &[u8]) {
-                debug_assert_eq!(out.len(), $n);
-                let mut mac =
-                    HmacSha512::new_from_slice(sk_prf).expect("HMAC accepts any key length");
-                mac.update(opt_rand);
-                mac.update(message);
-                let mut result = mac.finalize().into_bytes();
-                out.copy_from_slice(&result[..$n]);
-                result.zeroize();
+                assert_eq!(out.len(), $n);
+                wipe_sha2::hmac_sha512_into(out, sk_prf, &[opt_rand, message]);
             }
 
-            #[allow(clippy::expect_used)] // HMAC accepts any key length
             fn prf_msg_parts_to(
                 out: &mut [u8],
                 sk_prf: &[u8],
@@ -283,15 +262,8 @@ macro_rules! impl_sha2_cat35_hash_suite {
                 message_prefix: &[u8],
                 message: &[u8],
             ) {
-                debug_assert_eq!(out.len(), $n);
-                let mut mac =
-                    HmacSha512::new_from_slice(sk_prf).expect("HMAC accepts any key length");
-                mac.update(opt_rand);
-                mac.update(message_prefix);
-                mac.update(message);
-                let mut result = mac.finalize().into_bytes();
-                out.copy_from_slice(&result[..$n]);
-                result.zeroize();
+                assert_eq!(out.len(), $n);
+                wipe_sha2::hmac_sha512_into(out, sk_prf, &[opt_rand, message_prefix, message]);
             }
 
             fn h_msg_to(out: &mut [u8], r: &[u8], pk_seed: &[u8], pk_root: &[u8], message: &[u8]) {
@@ -328,7 +300,8 @@ macro_rules! impl_sha2_cat35_hash_suite {
 
             fn f_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m1: &[u8]) {
                 // F uses SHA-256
-                Self::sha256_hash_trunc_n_to(out, pk_seed, adrs, &[m1]);
+                assert_eq!(out.len(), $n);
+                f_sha256_trunc_to(out, pk_seed, &$padding_256, adrs, m1);
             }
 
             fn h_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m1: &[u8], m2: &[u8]) {
@@ -343,7 +316,8 @@ macro_rules! impl_sha2_cat35_hash_suite {
 
             fn prf_to(out: &mut [u8], pk_seed: &[u8], sk_seed: &[u8], adrs: &Address) {
                 // PRF uses SHA-256
-                Self::sha256_hash_trunc_n_to(out, pk_seed, adrs, &[sk_seed]);
+                assert_eq!(out.len(), $n);
+                prf_sha256_trunc_to(out, pk_seed, &$padding_256, adrs, sk_seed);
             }
         }
     };
@@ -357,6 +331,10 @@ impl_sha2_cat35_hash_suite!(Sha2_256Hash, 32, PADDING_SHA256_N32, PADDING_SHA512
 mod tests {
     use super::*;
     use alloc::vec;
+    use hmac::{Hmac, Mac};
+
+    type HmacSha256 = Hmac<Sha256>;
+    type HmacSha512 = Hmac<Sha512>;
 
     #[test]
     fn test_adrs_compress_wots_hash_layout() {

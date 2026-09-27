@@ -9,6 +9,7 @@
 //! - NTT (Number Theoretic Transform) macros for polynomial multiplication
 //! - SIMD dispatch macros for platform-specific optimizations
 //! - Secure memory handling with zeroize integration
+//! - SHA3 and SHAKE whose Keccak state is wiped on drop ([`hash`])
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
@@ -19,6 +20,7 @@
 
 mod bytes;
 mod error;
+pub mod hash;
 mod ntt;
 mod reduce;
 mod simd;

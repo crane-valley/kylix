@@ -97,6 +97,8 @@ pub mod params;
 #[cfg(feature = "any-variant")]
 mod types;
 mod utils;
+#[cfg(feature = "any-sha2-variant")]
+mod wipe_sha2;
 
 // Building blocks
 mod fors;

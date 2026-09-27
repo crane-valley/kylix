@@ -4,32 +4,11 @@
 
 use sha3::{
     digest::{ExtendableOutput, Update, XofReader},
-    Shake128, Shake256,
+    Shake128,
 };
 
 /// SHAKE128 rate in bytes: the natural squeeze granularity of the sponge.
 const XOF_BLOCK_BYTES: usize = 168;
-
-/// SHAKE256 XOF wrapper for sampling and hashing.
-pub struct Shake256Xof {
-    reader: sha3::Shake256Reader,
-}
-
-impl Shake256Xof {
-    /// Create SHAKE256 from initial data.
-    pub fn from_data(data: &[u8]) -> Self {
-        let mut hasher = Shake256::default();
-        hasher.update(data);
-        Self {
-            reader: hasher.finalize_xof(),
-        }
-    }
-
-    /// Squeeze bytes from the XOF.
-    pub fn squeeze(&mut self, out: &mut [u8]) {
-        self.reader.read(out);
-    }
-}
 
 /// SHAKE128 XOF wrapper for matrix expansion.
 pub struct Shake128Xof {
@@ -111,44 +90,39 @@ impl Shake128Xof {
     }
 }
 
-/// H function: SHAKE256 with specified output length.
-pub fn h(input: &[u8], output: &mut [u8]) {
-    let mut hasher = Shake256::default();
-    hasher.update(input);
-    let mut reader = hasher.finalize_xof();
-    reader.read(output);
-}
-
 /// H function with two inputs concatenated.
 pub fn h2(a: &[u8], b: &[u8], output: &mut [u8]) {
-    let mut hasher = Shake256::default();
-    hasher.update(a);
-    hasher.update(b);
-    let mut reader = hasher.finalize_xof();
-    reader.read(output);
+    h3(a, b, &[], output);
 }
 
 /// H function with three inputs concatenated.
 pub fn h3(a: &[u8], b: &[u8], c: &[u8], output: &mut [u8]) {
-    let mut hasher = Shake256::default();
+    let mut hasher = kylix_core::hash::Shake256::new();
     hasher.update(a);
     hasher.update(b);
     hasher.update(c);
-    let mut reader = hasher.finalize_xof();
-    reader.read(output);
+    hasher.finalize_xof().read(output);
+}
+
+fn h_public(parts: &[&[u8]], output: &mut [u8]) {
+    let mut hasher = sha3::Shake256::default();
+    for part in parts {
+        hasher.update(part);
+    }
+    hasher.finalize_xof().read(output);
 }
 
 /// Compute tr = H(pk, 64) - hash of public key.
 pub fn hash_pk(pk: &[u8]) -> [u8; 64] {
     let mut tr = [0u8; 64];
-    h(pk, &mut tr);
+    h_public(&[pk], &mut tr);
     tr
 }
 
 /// Compute mu = H(tr || prefix || M, 64) without concatenating the inputs.
 pub fn hash_message_parts(tr: &[u8; 64], prefix: &[u8], message: &[u8]) -> [u8; 64] {
     let mut mu = [0u8; 64];
-    h3(tr, prefix, message, &mut mu);
+    h_public(&[tr, prefix, message], &mut mu);
     mu
 }
 
@@ -162,8 +136,8 @@ mod tests {
         let mut out1 = [0u8; 32];
         let mut out2 = [0u8; 32];
 
-        h(input, &mut out1);
-        h(input, &mut out2);
+        h2(input, &[], &mut out1);
+        h2(input, &[], &mut out2);
 
         assert_eq!(out1, out2);
     }

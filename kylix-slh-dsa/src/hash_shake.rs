@@ -7,6 +7,7 @@
 
 use crate::address::Address;
 use crate::hash::HashSuite;
+use kylix_core::hash::Shake256 as SecretShake256;
 use sha3::{
     digest::{ExtendableOutput, Update, XofReader},
     Shake256,
@@ -45,12 +46,11 @@ macro_rules! impl_shake_hash_suite {
             fn prf_msg_to(out: &mut [u8], sk_prf: &[u8], opt_rand: &[u8], message: &[u8]) {
                 // PRFmsg(SK.prf, OptRand, M) = SHAKE256(SK.prf || OptRand || M, 8n)
                 debug_assert_eq!(out.len(), $n);
-                let mut hasher = Shake256::default();
+                let mut hasher = SecretShake256::new();
                 hasher.update(sk_prf);
                 hasher.update(opt_rand);
                 hasher.update(message);
-                let mut reader = hasher.finalize_xof();
-                reader.read(out);
+                hasher.finalize_xof().read(out);
             }
 
             fn prf_msg_parts_to(
@@ -61,13 +61,12 @@ macro_rules! impl_shake_hash_suite {
                 message: &[u8],
             ) {
                 debug_assert_eq!(out.len(), $n);
-                let mut hasher = Shake256::default();
+                let mut hasher = SecretShake256::new();
                 hasher.update(sk_prf);
                 hasher.update(opt_rand);
                 hasher.update(message_prefix);
                 hasher.update(message);
-                let mut reader = hasher.finalize_xof();
-                reader.read(out);
+                hasher.finalize_xof().read(out);
             }
 
             fn h_msg_to(out: &mut [u8], r: &[u8], pk_seed: &[u8], pk_root: &[u8], message: &[u8]) {
@@ -102,12 +101,11 @@ macro_rules! impl_shake_hash_suite {
             fn f_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m1: &[u8]) {
                 // F(PK.seed, ADRS, M1) = SHAKE256(PK.seed || ADRS || M1, 8n)
                 debug_assert_eq!(out.len(), $n);
-                let mut hasher = Shake256::default();
+                let mut hasher = SecretShake256::new();
                 hasher.update(pk_seed);
                 hasher.update(adrs.as_bytes());
                 hasher.update(m1);
-                let mut reader = hasher.finalize_xof();
-                reader.read(out);
+                hasher.finalize_xof().read(out);
             }
 
             fn h_to(out: &mut [u8], pk_seed: &[u8], adrs: &Address, m1: &[u8], m2: &[u8]) {
@@ -136,12 +134,11 @@ macro_rules! impl_shake_hash_suite {
             fn prf_to(out: &mut [u8], pk_seed: &[u8], sk_seed: &[u8], adrs: &Address) {
                 // PRF(PK.seed, SK.seed, ADRS) = SHAKE256(PK.seed || ADRS || SK.seed, 8n)
                 debug_assert_eq!(out.len(), $n);
-                let mut hasher = Shake256::default();
+                let mut hasher = SecretShake256::new();
                 hasher.update(pk_seed);
                 hasher.update(adrs.as_bytes());
                 hasher.update(sk_seed);
-                let mut reader = hasher.finalize_xof();
-                reader.read(out);
+                hasher.finalize_xof().read(out);
             }
         }
     };
