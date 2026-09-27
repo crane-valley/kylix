@@ -49,8 +49,9 @@ pub mod slh_dsa_shake_128s {
     pub const SK_BYTES: usize = 4 * N;
     /// Signature size: n + k*(a+1)*n + (h + d*len)*n = 16 + 14*13*16 + (63 + 7*35)*16 = 7856
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
-    /// Message digest bytes.
-    pub const MD_BYTES: usize = (K * A + H).div_ceil(8);
+    /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
+    pub const MD_BYTES: usize =
+        (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
 }
 
 // =============================================================================
@@ -86,8 +87,9 @@ pub mod slh_dsa_shake_128f {
     pub const SK_BYTES: usize = 4 * N;
     /// Signature size: n + k*(a+1)*n + (h + d*len)*n = 16 + 33*7*16 + (66 + 22*35)*16 = 17088
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
-    /// Message digest bytes.
-    pub const MD_BYTES: usize = (K * A + H).div_ceil(8);
+    /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
+    pub const MD_BYTES: usize =
+        (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
 }
 
 // =============================================================================
@@ -123,8 +125,9 @@ pub mod slh_dsa_shake_192s {
     pub const SK_BYTES: usize = 4 * N;
     /// Signature size.
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
-    /// Message digest bytes.
-    pub const MD_BYTES: usize = (K * A + H).div_ceil(8);
+    /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
+    pub const MD_BYTES: usize =
+        (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
 }
 
 // =============================================================================
@@ -160,8 +163,9 @@ pub mod slh_dsa_shake_192f {
     pub const SK_BYTES: usize = 4 * N;
     /// Signature size.
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
-    /// Message digest bytes.
-    pub const MD_BYTES: usize = (K * A + H).div_ceil(8);
+    /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
+    pub const MD_BYTES: usize =
+        (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
 }
 
 // =============================================================================
@@ -197,8 +201,9 @@ pub mod slh_dsa_shake_256s {
     pub const SK_BYTES: usize = 4 * N;
     /// Signature size.
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
-    /// Message digest bytes.
-    pub const MD_BYTES: usize = (K * A + H).div_ceil(8);
+    /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
+    pub const MD_BYTES: usize =
+        (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
 }
 
 // =============================================================================
@@ -234,8 +239,9 @@ pub mod slh_dsa_shake_256f {
     pub const SK_BYTES: usize = 4 * N;
     /// Signature size.
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
-    /// Message digest bytes.
-    pub const MD_BYTES: usize = (K * A + H).div_ceil(8);
+    /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
+    pub const MD_BYTES: usize =
+        (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
 }
 
 // =============================================================================
@@ -272,7 +278,6 @@ pub mod slh_dsa_sha2_128s {
     /// Signature size.
     pub const SIG_BYTES: usize = N + K * (A + 1) * N + (H + D * WOTS_LEN) * N;
     /// Message digest bytes: ceil(k*a/8) + ceil((h-h')/8) + ceil(h'/8)
-    /// FIPS 205 Section 11.1: m = ceil(k*a/8) + ceil(tree_bits/8) + ceil(leaf_bits/8)
     pub const MD_BYTES: usize =
         (K * A).div_ceil(8) + (H - H_PRIME).div_ceil(8) + H_PRIME.div_ceil(8);
 }
@@ -478,6 +483,7 @@ mod tests {
         assert_eq!(PK_BYTES, 32);
         assert_eq!(SK_BYTES, 64);
         assert_eq!(SIG_BYTES, 7856);
+        assert_eq!(MD_BYTES, 30);
     }
 
     #[cfg(feature = "slh-dsa-shake-128f")]
@@ -487,6 +493,7 @@ mod tests {
         assert_eq!(PK_BYTES, 32);
         assert_eq!(SK_BYTES, 64);
         assert_eq!(SIG_BYTES, 17088);
+        assert_eq!(MD_BYTES, 34);
     }
 
     #[cfg(feature = "slh-dsa-shake-192s")]
@@ -496,6 +503,7 @@ mod tests {
         assert_eq!(PK_BYTES, 48);
         assert_eq!(SK_BYTES, 96);
         assert_eq!(SIG_BYTES, 16224);
+        assert_eq!(MD_BYTES, 39);
     }
 
     #[cfg(feature = "slh-dsa-shake-192f")]
@@ -505,6 +513,7 @@ mod tests {
         assert_eq!(PK_BYTES, 48);
         assert_eq!(SK_BYTES, 96);
         assert_eq!(SIG_BYTES, 35664);
+        assert_eq!(MD_BYTES, 42);
     }
 
     #[cfg(feature = "slh-dsa-shake-256s")]
@@ -514,6 +523,7 @@ mod tests {
         assert_eq!(PK_BYTES, 64);
         assert_eq!(SK_BYTES, 128);
         assert_eq!(SIG_BYTES, 29792);
+        assert_eq!(MD_BYTES, 47);
     }
 
     #[cfg(feature = "slh-dsa-shake-256f")]
@@ -523,6 +533,7 @@ mod tests {
         assert_eq!(PK_BYTES, 64);
         assert_eq!(SK_BYTES, 128);
         assert_eq!(SIG_BYTES, 49856);
+        assert_eq!(MD_BYTES, 49);
     }
 
     // SHA2 variant tests (same sizes as SHAKE variants)
@@ -534,6 +545,7 @@ mod tests {
         assert_eq!(PK_BYTES, 32);
         assert_eq!(SK_BYTES, 64);
         assert_eq!(SIG_BYTES, 7856);
+        assert_eq!(MD_BYTES, 30);
     }
 
     #[cfg(feature = "slh-dsa-sha2-128f")]
@@ -543,6 +555,7 @@ mod tests {
         assert_eq!(PK_BYTES, 32);
         assert_eq!(SK_BYTES, 64);
         assert_eq!(SIG_BYTES, 17088);
+        assert_eq!(MD_BYTES, 34);
     }
 
     #[cfg(feature = "slh-dsa-sha2-192s")]
@@ -552,6 +565,7 @@ mod tests {
         assert_eq!(PK_BYTES, 48);
         assert_eq!(SK_BYTES, 96);
         assert_eq!(SIG_BYTES, 16224);
+        assert_eq!(MD_BYTES, 39);
     }
 
     #[cfg(feature = "slh-dsa-sha2-192f")]
@@ -561,6 +575,7 @@ mod tests {
         assert_eq!(PK_BYTES, 48);
         assert_eq!(SK_BYTES, 96);
         assert_eq!(SIG_BYTES, 35664);
+        assert_eq!(MD_BYTES, 42);
     }
 
     #[cfg(feature = "slh-dsa-sha2-256s")]
@@ -570,6 +585,7 @@ mod tests {
         assert_eq!(PK_BYTES, 64);
         assert_eq!(SK_BYTES, 128);
         assert_eq!(SIG_BYTES, 29792);
+        assert_eq!(MD_BYTES, 47);
     }
 
     #[cfg(feature = "slh-dsa-sha2-256f")]
@@ -579,5 +595,6 @@ mod tests {
         assert_eq!(PK_BYTES, 64);
         assert_eq!(SK_BYTES, 128);
         assert_eq!(SIG_BYTES, 49856);
+        assert_eq!(MD_BYTES, 49);
     }
 }

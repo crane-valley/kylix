@@ -41,6 +41,8 @@
 //! # Example
 //!
 //! ```rust
+//! # #[cfg(feature = "slh-dsa-shake-128f")]
+//! # {
 //! use kylix_slh_dsa::SlhDsaShake128f;
 //! use kylix_core::Signer;
 //!
@@ -51,6 +53,7 @@
 //! let signature = SlhDsaShake128f::sign(&sk, message).unwrap();
 //!
 //! assert!(SlhDsaShake128f::verify(&pk, message, &signature).is_ok());
+//! # }
 //! ```
 
 #![cfg_attr(not(feature = "std"), no_std)]
