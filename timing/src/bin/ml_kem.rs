@@ -67,7 +67,7 @@ fn random_class(rng: &mut BenchRng) -> Class {
 /// RNG or class-dependent copy runs between measurements. Batching rather
 /// than one pool of `MEASUREMENTS` inputs keeps memory at about 9 MB.
 const BATCH: usize = 8_000;
-const _: () = assert!(MEASUREMENTS.is_multiple_of(BATCH));
+const _: () = assert!(MEASUREMENTS % BATCH == 0);
 
 fn measure_batches(
     runner: &mut CtRunner,
