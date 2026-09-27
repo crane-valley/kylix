@@ -47,7 +47,7 @@ Compile-time code generation for lattice-based cryptography:
 ### no_std
 
 ```toml
-kylix-core = { git = "https://github.com/crane-valley/kylix.git", default-features = false }
+kylix-core = { git = "https://github.com/crane-valley/kylix.git", rev = "<commit>", default-features = false }
 ```
 
 ## License

@@ -23,9 +23,10 @@ cargo test --workspace --all-features
 If your change touches `no_std` behavior or feature gating, also verify the
 affected crate builds without default features.
 
-NIST ACVP vector tests skip themselves when the vector files are missing. Set
-`KYLIX_REQUIRE_ACVP=1` (as CI does) to turn a missing vector file into a test
-failure:
+NIST ACVP vector tests skip themselves when a crate's `tests/acvp/` directory
+is absent (as in a partial source archive). Set `KYLIX_REQUIRE_ACVP=1` (as CI
+does) to make an absent directory fail the tests instead. A vector file missing
+from an existing `tests/acvp/` directory always fails the test that loads it.
 
 ```sh
 KYLIX_REQUIRE_ACVP=1 cargo test --workspace --all-features

@@ -15,7 +15,8 @@
 //! ## Quick Start
 //!
 //! Kylix is distributed from its Git repository rather than crates.io. Add the
-//! facade crate as a Git dependency and pin a `rev` for reproducible builds:
+//! facade crate as a Git dependency and pin a `rev` for reproducible builds
+//! (replace `<commit>` with the full hash of the commit you want):
 //!
 //! ```toml
 //! [dependencies]
@@ -36,8 +37,10 @@
 //!
 //! - `std` (default): enable standard library support
 //! - `simd` (default): enable the ML-KEM and ML-DSA SIMD backends (AVX2 on
-//!   x86_64, NEON on aarch64, SIMD128 on wasm32 for ML-DSA); without it both
-//!   crates use their portable scalar code. SLH-DSA has no SIMD backend.
+//!   x86_64, detected at runtime with `std` or enabled at compile time; NEON on
+//!   aarch64 targets with the `neon` target feature; SIMD128 on wasm32 for
+//!   ML-DSA). Without it, or where none of these is available, both crates use
+//!   their portable scalar code. SLH-DSA has no SIMD backend.
 //! - `ml-kem` (default): enable all ML-KEM variants
 //! - `ml-dsa` (default): enable all ML-DSA variants
 //! - `slh-dsa` (default): enable SHAKE-based SLH-DSA variants

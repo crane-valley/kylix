@@ -20,11 +20,12 @@ Part of the [Kylix](https://github.com/crane-valley/kylix) post-quantum cryptogr
 ## Usage
 
 This crate is distributed from the Kylix repository rather than crates.io.
-Add the Git dependency (and pin a `rev` for reproducible builds):
+Add the Git dependency and pin a `rev` for reproducible builds (replace
+`<commit>` with the full hash of the commit you want):
 
 ```toml
 [dependencies]
-kylix-slh-dsa = { git = "https://github.com/crane-valley/kylix.git" }
+kylix-slh-dsa = { git = "https://github.com/crane-valley/kylix.git", rev = "<commit>" }
 rand = "0.9"
 ```
 
@@ -51,7 +52,7 @@ assert!(SlhDsaShake128f::verify(&pk, message, &signature).is_ok());
 Enable the `parallel` feature for faster signing via multi-threaded FORS computation:
 
 ```toml
-kylix-slh-dsa = { git = "https://github.com/crane-valley/kylix.git", features = ["parallel"] }
+kylix-slh-dsa = { git = "https://github.com/crane-valley/kylix.git", rev = "<commit>", features = ["parallel"] }
 ```
 
 ### Serialization
@@ -100,7 +101,7 @@ such as `slh-dsa-sha2-128f` or `slh-dsa-sha2-256s`.
 ### no_std
 
 ```toml
-kylix-slh-dsa = { git = "https://github.com/crane-valley/kylix.git", default-features = false, features = ["slh-dsa-shake-128f"] }
+kylix-slh-dsa = { git = "https://github.com/crane-valley/kylix.git", rev = "<commit>", default-features = false, features = ["slh-dsa-shake-128f"] }
 ```
 
 ## License

@@ -115,7 +115,7 @@ The generated function returns `bool` indicating whether SIMD was used. Scalar f
 | Platform | Detection | Method |
 |----------|-----------|--------|
 | x86-64 AVX2 | Runtime | `is_x86_feature_detected!("avx2")` (std) or compile-time flag |
-| AArch64 NEON | Compile-time | Always available on AArch64 |
+| AArch64 NEON | Compile-time | `cfg!(target_feature = "neon")`; AArch64 targets without NEON (such as `aarch64-unknown-none-softfloat`) use scalar code |
 | WASM-SIMD128 | Compile-time | `cfg!(target_feature = "simd128")` |
 
 ### Parallelism by Coefficient Width
@@ -164,8 +164,10 @@ SLH-DSA has no timing tests.
 **Timing checks**: `timing/` holds dudect-bencher harnesses. The CI gate
 covers ML-KEM-768 decapsulation only, with two benches (valid vs invalid
 ciphertext, fixed vs random ciphertext) of 1M measurements each. A bench
-whose |max t| exceeds 10 is rerun, and the job fails only if a majority of up
-to three runs exceed 10; 4.5 < |max t| <= 10 is a warning. The gate catches
+whose |max t| exceeds 10 is rerun, and it counts as a leak only if a majority
+of up to three runs exceed 10; 4.5 < |max t| <= 10 is a warning. The job also
+fails when a run exits abnormally or does not complete, when a bench result is
+missing or unparsable, or when a threshold comparison fails. The gate catches
 gross leaks, such as a branch on the implicit-rejection comparison (|t| near
 1000 in a deliberate test), but a shared, noisy runner cannot reliably detect
 small leaks. It says nothing about ML-DSA, SLH-DSA, other ML-KEM operations,
@@ -179,11 +181,44 @@ implement `Zeroize + ZeroizeOnDrop`. Signing, key generation and
 decapsulation hold secret intermediates such as polynomial vectors, seeds and
 nonces in `Zeroizing` wrappers where the code controls the storage.
 
-Coverage of intermediates is best-effort, not complete. Values returned by
-value before they are wrapped, copies left behind by moves, register and
-stack spills, and hash-function internal state can leave unwiped copies. The
-design for secret-absorbing hash state and the known residuals are recorded
-in `docs/adr/0001-wipe-secret-absorbing-hash-state.md` and in `PLANS.md`.
+Hashes that absorb secret material run on wipeable state:
+
+- The secret-absorbing SHA3/SHAKE calls in ML-KEM, ML-DSA and the SLH-DSA
+  SHAKE sets (in SLH-DSA: PRF, PRF_msg and F) use the sponge in
+  `kylix_core::hash`. Its Keccak state is its only storage and is wiped after
+  finalization and on drop
+  (`docs/adr/0001-wipe-secret-absorbing-hash-state.md`). Hashes over public
+  inputs (for example matrix expansion, and SLH-DSA H, T_l and H_msg) stay on
+  the `sha3` and `sha2` crates.
+- In the SLH-DSA SHA2 sets, PRF (SK.seed) and the HMAC PRF_msg (SK.prf) run on
+  in-crate SHA-256/SHA-512 hashers whose state and buffer are wiped after
+  finalization and on drop, and whose compression wipes its message schedule
+  and working variables after every block. F uses `sha2::compress256` inside
+  a wiped wrapper (`docs/adr/0002-wipe-secret-sha2-state-in-slh-dsa.md`).
+- The ML-KEM helpers that produce secrets (CBD noise, message encoding and
+  decoding, m' from K-PKE.Decrypt, the shared secret) write into caller-owned
+  zeroizing destinations.
+
+Coverage of intermediates is still best-effort. Known residuals, recorded in
+the two ADRs and in `PLANS.md`:
+
+- `kem::ml_kem_encaps` and `kem::ml_kem_decaps` return the shared secret as a
+  plain `[u8; 32]`, and the `Kem` trait methods return `SharedSecret` by
+  value, so the move out of the method can leave an unwiped copy.
+- Polynomial arithmetic returns fresh values that callers then wrap in
+  `Zeroizing`: ML-KEM `PolyVec::from_bytes` of dk_pke, `inner_product` and
+  `matrix_vec_mul`; ML-DSA `mul_vec`, `pointwise_mul` and `Poly::add`.
+- Registers and stack spills are not wiped: the per-lane word in absorb and
+  squeeze, the scratch lanes inside `keccak::f1600`, and the round
+  temporaries and byte-wise digest output of the in-crate SHA-2 compression.
+- SLH-DSA SHA2 F: where `sha2` runs its portable backend (CPUs without
+  SHA-NI, and targets without an accelerated backend such as thumbv7em),
+  `sha2::compress256` copies the input block and chaining state into unwiped
+  locals. These hold PK.seed, ADRSc and one-time WOTS+ or FORS values, not
+  SK.seed or SK.prf.
+- Moving a hasher after absorbing leaves an unwiped copy; every call site
+  creates its hasher as a local and does not move it after the first update.
+- Output buffers of the hash functions are the caller's to wipe.
 
 ### Input Validation
 
@@ -237,7 +272,7 @@ algorithm crate exposes per-variant SHA2 features such as
 All crates support `no_std` with `alloc`. Disable default features and select variants:
 
 ```toml
-kylix-ml-kem = { git = "https://github.com/crane-valley/kylix.git", default-features = false, features = ["ml-kem-768"] }
+kylix-ml-kem = { git = "https://github.com/crane-valley/kylix.git", rev = "<commit>", default-features = false, features = ["ml-kem-768"] }
 ```
 
 ## Testing Strategy
@@ -263,8 +298,10 @@ ACVP coverage:
   vectors, so signing is checked against OpenSSL instead.
 
 ACVP test vectors (1.4-30 MB) are kept in the Git repository and omitted from
-ad-hoc Cargo package archives. Tests skip when the vectors are missing unless
-`KYLIX_REQUIRE_ACVP=1` is set, as it is in CI.
+ad-hoc Cargo package archives. ACVP tests skip when the crate's `tests/acvp/`
+directory is absent, unless `KYLIX_REQUIRE_ACVP=1` is set (as it is in CI), in
+which case they fail. The check covers only the directory: if it exists but a
+vector file inside it is missing, the test that loads that file fails.
 
 ## Build Profiles
 
