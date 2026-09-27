@@ -570,7 +570,19 @@ pub fn expand_a<const K: usize, const L: usize>(rho: &[u8; 32]) -> Matrix<K, L> 
 }
 
 /// Expand secret vectors s1, s2 from seed rho'.
+///
+/// The returned vectors are secret and are not wiped on drop; the caller is
+/// responsible for wiping them.
 pub fn expand_s<const K: usize, const L: usize, const ETA: usize>(
+    rho_prime: &[u8],
+) -> (PolyVecL<L>, PolyVecK<K>) {
+    let mut s1 = PolyVecL::<L>::zero();
+    let mut s2 = PolyVecK::<K>::zero();
+    expand_s_into::<K, L, ETA>(rho_prime, &mut s1, &mut s2);
+    (s1, s2)
+}
+
+pub(crate) fn expand_s_into<const K: usize, const L: usize, const ETA: usize>(
     rho_prime: &[u8],
     s1: &mut PolyVecL<L>,
     s2: &mut PolyVecK<K>,
@@ -615,7 +627,7 @@ pub fn ml_dsa_keygen<const K: usize, const L: usize, const ETA: usize>(
     // 3. Sample secret vectors s1, s2
     let mut s1 = Zeroizing::new(PolyVecL::<L>::zero());
     let mut s2 = Zeroizing::new(PolyVecK::<K>::zero());
-    expand_s::<K, L, ETA>(&*rho_prime, &mut s1, &mut s2);
+    expand_s_into::<K, L, ETA>(&*rho_prime, &mut s1, &mut s2);
 
     // 4. Compute t = A * s1 + s2
     let mut s1_ntt: Zeroizing<PolyVecL<L>> = s1.clone();
@@ -1254,9 +1266,7 @@ mod tests {
 
         // 2. Sample A, s1, s2
         let a = expand_a::<K, L>(&rho);
-        let mut s1 = PolyVecL::<L>::zero();
-        let mut s2 = PolyVecK::<K>::zero();
-        expand_s::<K, L, ETA>(&rho_prime, &mut s1, &mut s2);
+        let (s1, s2) = expand_s::<K, L, ETA>(&rho_prime);
 
         // 3. Compute A*s1 + s2 = t
         let mut s1_ntt = s1.clone();
