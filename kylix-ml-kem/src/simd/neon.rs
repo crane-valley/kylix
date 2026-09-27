@@ -586,6 +586,40 @@ mod tests {
     }
 
     #[test]
+    fn test_poly_basemul_acc_simd_equivalence() {
+        let mut a = [0i16; N];
+        let mut b = [0i16; N];
+        let mut r_init = [0i16; N];
+        for i in 0..N {
+            a[i] = ((i * 17 + 31) % 3329) as i16;
+            b[i] = ((i * 23 + 47) % 3329) as i16;
+            r_init[i] = ((i * 7 + 3) % 3329) as i16;
+        }
+
+        let mut r_simd = r_init;
+        unsafe {
+            poly_basemul_acc_neon(&mut r_simd, &a, &b);
+        }
+
+        let a_poly = crate::poly::Poly::from_coeffs(a);
+        let b_poly = crate::poly::Poly::from_coeffs(b);
+        let mut r_poly = crate::poly::Poly::from_coeffs(r_init);
+        crate::poly::poly_basemul_acc_scalar(&mut r_poly, &a_poly, &b_poly);
+
+        // Compare mod q: lanes may hold different representatives
+        for (i, (&simd, &scalar)) in r_simd.iter().zip(r_poly.coeffs.iter()).enumerate() {
+            assert_eq!(
+                crate::reduce::barrett_reduce_full(simd),
+                crate::reduce::barrett_reduce_full(scalar),
+                "poly_basemul_acc NEON vs scalar mismatch at index {}: {} vs {}",
+                i,
+                simd,
+                scalar
+            );
+        }
+    }
+
+    #[test]
     fn test_ntt_roundtrip() {
         // Create test polynomial
         let mut poly = [0i16; N];

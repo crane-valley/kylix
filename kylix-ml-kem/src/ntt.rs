@@ -33,7 +33,9 @@ pub const ZETAS: [i16; 128] = [
 /// to NTT domain (evaluations at 256th roots of unity).
 ///
 /// Uses Cooley-Tukey butterfly with decimation-in-time.
-/// After NTT, coefficients are in Montgomery form.
+/// The zetas are in Montgomery form, so each Montgomery multiplication keeps
+/// the input's scale: the output is in the same (normal or Montgomery) form as
+/// the input.
 ///
 /// # Arguments
 /// * `poly` - Polynomial to transform (modified in-place)
@@ -66,7 +68,8 @@ define_ntt_forward! {
 /// Inverse NTT: Transform from NTT domain back to coefficient representation.
 ///
 /// Uses Gentleman-Sande butterfly with decimation-in-frequency.
-/// Output is multiplied by n^(-1) which is folded into the computation.
+/// The final scaling by `INV_N_MONT` multiplies by 128^(-1) and by R, so the
+/// output is in Montgomery form (callers apply `from_mont`).
 ///
 /// # Arguments
 /// * `poly` - Polynomial in NTT domain to transform (modified in-place)

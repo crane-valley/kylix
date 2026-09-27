@@ -95,6 +95,26 @@ fn load_expected_file(path: &str) -> AcvpExpectedFile {
     load_json(path)
 }
 
+/// Pair prompt and expected test cases, failing if the counts differ so a
+/// truncated or mismatched file cannot silently skip cases.
+fn paired_tests<'a>(
+    prompt_group: &'a PromptTestGroup,
+    expected_group: &'a ExpectedGroup<serde_json::Value>,
+) -> impl Iterator<Item = (&'a serde_json::Value, &'a serde_json::Value)> {
+    assert!(
+        !prompt_group.tests.is_empty(),
+        "tgId={}: empty test group",
+        prompt_group.tg_id
+    );
+    assert_eq!(
+        prompt_group.tests.len(),
+        expected_group.tests.len(),
+        "tgId={}: prompt/expected test count mismatch",
+        prompt_group.tg_id
+    );
+    prompt_group.tests.iter().zip(expected_group.tests.iter())
+}
+
 // ============================================================================
 // KeyGen Tests
 // ============================================================================
@@ -125,8 +145,7 @@ mod keygen_512 {
             .expect("Expected test group not found");
 
         let mut passed = 0;
-        for (prompt_val, expected_val) in prompt_group.tests.iter().zip(expected_group.tests.iter())
-        {
+        for (prompt_val, expected_val) in paired_tests(prompt_group, expected_group) {
             let prompt: KeyGenPrompt =
                 serde_json::from_value(prompt_val.clone()).expect("Failed to parse prompt");
             let expected: KeyGenExpected =
@@ -182,8 +201,7 @@ mod keygen_768 {
             .expect("Expected test group not found");
 
         let mut passed = 0;
-        for (prompt_val, expected_val) in prompt_group.tests.iter().zip(expected_group.tests.iter())
-        {
+        for (prompt_val, expected_val) in paired_tests(prompt_group, expected_group) {
             let prompt: KeyGenPrompt =
                 serde_json::from_value(prompt_val.clone()).expect("Failed to parse prompt");
             let expected: KeyGenExpected =
@@ -239,8 +257,7 @@ mod keygen_1024 {
             .expect("Expected test group not found");
 
         let mut passed = 0;
-        for (prompt_val, expected_val) in prompt_group.tests.iter().zip(expected_group.tests.iter())
-        {
+        for (prompt_val, expected_val) in paired_tests(prompt_group, expected_group) {
             let prompt: KeyGenPrompt =
                 serde_json::from_value(prompt_val.clone()).expect("Failed to parse prompt");
             let expected: KeyGenExpected =
@@ -302,8 +319,7 @@ mod encaps_512 {
             .expect("Expected test group not found");
 
         let mut passed = 0;
-        for (prompt_val, expected_val) in prompt_group.tests.iter().zip(expected_group.tests.iter())
-        {
+        for (prompt_val, expected_val) in paired_tests(prompt_group, expected_group) {
             let prompt: EncapsPrompt =
                 serde_json::from_value(prompt_val.clone()).expect("Failed to parse prompt");
             let expected: EncapsExpected =
@@ -362,8 +378,7 @@ mod encaps_768 {
             .expect("Expected test group not found");
 
         let mut passed = 0;
-        for (prompt_val, expected_val) in prompt_group.tests.iter().zip(expected_group.tests.iter())
-        {
+        for (prompt_val, expected_val) in paired_tests(prompt_group, expected_group) {
             let prompt: EncapsPrompt =
                 serde_json::from_value(prompt_val.clone()).expect("Failed to parse prompt");
             let expected: EncapsExpected =
@@ -422,8 +437,7 @@ mod encaps_1024 {
             .expect("Expected test group not found");
 
         let mut passed = 0;
-        for (prompt_val, expected_val) in prompt_group.tests.iter().zip(expected_group.tests.iter())
-        {
+        for (prompt_val, expected_val) in paired_tests(prompt_group, expected_group) {
             let prompt: EncapsPrompt =
                 serde_json::from_value(prompt_val.clone()).expect("Failed to parse prompt");
             let expected: EncapsExpected =
@@ -486,8 +500,7 @@ mod decaps_512 {
             .expect("Expected test group not found");
 
         let mut passed = 0;
-        for (prompt_val, expected_val) in prompt_group.tests.iter().zip(expected_group.tests.iter())
-        {
+        for (prompt_val, expected_val) in paired_tests(prompt_group, expected_group) {
             let prompt: DecapsPrompt =
                 serde_json::from_value(prompt_val.clone()).expect("Failed to parse prompt");
             let expected: DecapsExpected =
@@ -540,8 +553,7 @@ mod decaps_768 {
             .expect("Expected test group not found");
 
         let mut passed = 0;
-        for (prompt_val, expected_val) in prompt_group.tests.iter().zip(expected_group.tests.iter())
-        {
+        for (prompt_val, expected_val) in paired_tests(prompt_group, expected_group) {
             let prompt: DecapsPrompt =
                 serde_json::from_value(prompt_val.clone()).expect("Failed to parse prompt");
             let expected: DecapsExpected =
@@ -594,8 +606,7 @@ mod decaps_1024 {
             .expect("Expected test group not found");
 
         let mut passed = 0;
-        for (prompt_val, expected_val) in prompt_group.tests.iter().zip(expected_group.tests.iter())
-        {
+        for (prompt_val, expected_val) in paired_tests(prompt_group, expected_group) {
             let prompt: DecapsPrompt =
                 serde_json::from_value(prompt_val.clone()).expect("Failed to parse prompt");
             let expected: DecapsExpected =
@@ -619,5 +630,150 @@ mod decaps_1024 {
             passed += 1;
         }
         println!("ML-KEM-1024 Decaps: {} ACVP tests passed", passed);
+    }
+}
+
+// ============================================================================
+// Key Check Tests (FIPS 203 Sections 7.2 and 7.3)
+// ============================================================================
+
+/// Key check prompt: `ek` for encapsulationKeyCheck, `dk` for decapsulationKeyCheck
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct KeyCheckPrompt {
+    tc_id: u32,
+    #[serde(alias = "ek", alias = "dk")]
+    key: String,
+}
+
+/// Key check expected result
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct KeyCheckExpected {
+    tc_id: u32,
+    test_passed: bool,
+}
+
+/// There is no standalone key-check API: the FIPS 203 input checks run inside
+/// encapsulation (Section 7.2) and decapsulation (Section 7.3), so `accepts`
+/// drives those and reports whether the key was accepted.
+fn run_key_check(parameter_set: &str, function: &str, accepts: impl Fn(&[u8]) -> bool) {
+    let prompt_file = load_prompt_file("tests/acvp/encapdecap_prompt.json");
+    let expected_file = load_expected_file("tests/acvp/encapdecap_expected.json");
+
+    let prompt_group = prompt_file
+        .test_groups
+        .iter()
+        .find(|g| g.parameter_set == parameter_set && g.function.as_deref() == Some(function))
+        .unwrap_or_else(|| panic!("{} {} test group not found", parameter_set, function));
+
+    let expected_group = expected_file
+        .test_groups
+        .iter()
+        .find(|g| g.tg_id == prompt_group.tg_id)
+        .expect("Expected test group not found");
+
+    let (mut accepted, mut rejected) = (0, 0);
+    for (prompt_val, expected_val) in paired_tests(prompt_group, expected_group) {
+        let prompt: KeyCheckPrompt =
+            serde_json::from_value(prompt_val.clone()).expect("Failed to parse prompt");
+        let expected: KeyCheckExpected =
+            serde_json::from_value(expected_val.clone()).expect("Failed to parse expected");
+
+        assert_eq!(prompt.tc_id, expected.tc_id);
+
+        let key = hex_decode(&prompt.key);
+        assert_eq!(
+            accepts(&key),
+            expected.test_passed,
+            "{} {} tcId={}: key check result mismatch",
+            parameter_set,
+            function,
+            prompt.tc_id
+        );
+        if expected.test_passed {
+            accepted += 1;
+        } else {
+            rejected += 1;
+        }
+    }
+    assert!(
+        accepted > 0 && rejected > 0,
+        "{} {}: expected both valid and invalid keys",
+        parameter_set,
+        function
+    );
+    println!(
+        "{} {}: {} ACVP tests passed ({} rejected)",
+        parameter_set,
+        function,
+        accepted + rejected,
+        rejected
+    );
+}
+
+#[cfg(feature = "ml-kem-512")]
+mod key_check_512 {
+    use super::*;
+    use kylix_ml_kem::kem::{ml_kem_decaps, ml_kem_encaps};
+
+    #[test]
+    fn test_acvp_encaps_key_check_ml_kem_512() {
+        skip_if_no_vectors!();
+        run_key_check("ML-KEM-512", "encapsulationKeyCheck", |ek| {
+            ml_kem_encaps::<2, 3, 2, 10, 4>(ek, &[0u8; 32]).is_ok()
+        });
+    }
+
+    #[test]
+    fn test_acvp_decaps_key_check_ml_kem_512() {
+        skip_if_no_vectors!();
+        run_key_check("ML-KEM-512", "decapsulationKeyCheck", |dk| {
+            ml_kem_decaps::<2, 3, 2, 10, 4>(dk, &[0u8; 768]).is_ok()
+        });
+    }
+}
+
+#[cfg(feature = "ml-kem-768")]
+mod key_check_768 {
+    use super::*;
+    use kylix_ml_kem::kem::{ml_kem_decaps, ml_kem_encaps};
+
+    #[test]
+    fn test_acvp_encaps_key_check_ml_kem_768() {
+        skip_if_no_vectors!();
+        run_key_check("ML-KEM-768", "encapsulationKeyCheck", |ek| {
+            ml_kem_encaps::<3, 2, 2, 10, 4>(ek, &[0u8; 32]).is_ok()
+        });
+    }
+
+    #[test]
+    fn test_acvp_decaps_key_check_ml_kem_768() {
+        skip_if_no_vectors!();
+        run_key_check("ML-KEM-768", "decapsulationKeyCheck", |dk| {
+            ml_kem_decaps::<3, 2, 2, 10, 4>(dk, &[0u8; 1088]).is_ok()
+        });
+    }
+}
+
+#[cfg(feature = "ml-kem-1024")]
+mod key_check_1024 {
+    use super::*;
+    use kylix_ml_kem::kem::{ml_kem_decaps, ml_kem_encaps};
+
+    #[test]
+    fn test_acvp_encaps_key_check_ml_kem_1024() {
+        skip_if_no_vectors!();
+        run_key_check("ML-KEM-1024", "encapsulationKeyCheck", |ek| {
+            ml_kem_encaps::<4, 2, 2, 11, 5>(ek, &[0u8; 32]).is_ok()
+        });
+    }
+
+    #[test]
+    fn test_acvp_decaps_key_check_ml_kem_1024() {
+        skip_if_no_vectors!();
+        run_key_check("ML-KEM-1024", "decapsulationKeyCheck", |dk| {
+            ml_kem_decaps::<4, 2, 2, 11, 5>(dk, &[0u8; 1568]).is_ok()
+        });
     }
 }

@@ -6,7 +6,9 @@
 //! This module uses macros from kylix-core to generate the reduction functions.
 
 use crate::params::common::Q;
-use kylix_core::{define_barrett_reduce_rounded, define_montgomery_mul, define_montgomery_reduce};
+use kylix_core::{
+    define_barrett_reduce_rounded, define_caddq, define_montgomery_mul, define_montgomery_reduce,
+};
 
 /// Q inverse mod 2^16: q^(-1) mod 2^16 = -3327
 pub const QINV: i32 = -3327;
@@ -23,7 +25,11 @@ pub const MONT_R2: i32 = 1353;
 /// Using ceiling to ensure correct reduction
 pub const BARRETT_MUL: i32 = 20159;
 
-/// Inverse of N (256) in Montgomery form: 256^(-1) * 2^16 mod q = 1441
+/// Final inverse-NTT scale: 128^(-1) * R^2 mod q = 1441 (R = 2^16).
+///
+/// The inverse NTT has 7 layers, so it divides by 128 rather than 256. The
+/// Montgomery multiplication by this constant leaves one factor of R in the
+/// output, which is therefore in Montgomery form.
 pub const INV_N_MONT: i16 = 1441;
 
 // Generate Barrett reduction with rounding
@@ -54,12 +60,16 @@ define_montgomery_mul! {
     montgomery_reduce: montgomery_reduce
 }
 
+define_caddq! {
+    name: caddq,
+    coeff: i16,
+    q: Q as i16
+}
+
 /// Conditional reduce: map r from [0, 2q-1] to [0, q-1] (constant-time).
 ///
 /// If r >= q, returns r - q; otherwise returns r unchanged.
 /// Uses bitwise selection to avoid data-dependent branches.
-// Currently unused; kept as part of the complete FIPS 203 primitive set.
-#[allow(dead_code)]
 #[inline]
 pub const fn cond_reduce(r: i16) -> i16 {
     let r_minus_q = r - Q as i16;
@@ -70,18 +80,13 @@ pub const fn cond_reduce(r: i16) -> i16 {
     (r & mask) | (r_minus_q & !mask)
 }
 
-/// Full Barrett reduction to canonical form [0, q-1]
+/// Full Barrett reduction to canonical form [0, q-1] (constant-time).
+///
+/// `barrett_reduce` returns a value in (-q, q) for every `i16` input, so a
+/// single conditional add of q is sufficient.
 #[inline]
 pub const fn barrett_reduce_full(a: i16) -> i16 {
-    let r = barrett_reduce(a);
-    // Handle both positive and negative remainders
-    if r < 0 {
-        r + Q as i16
-    } else if r >= Q as i16 {
-        r - Q as i16
-    } else {
-        r
-    }
+    caddq(barrett_reduce(a))
 }
 
 /// Convert a value to Montgomery form: a -> a * R mod q
@@ -139,6 +144,39 @@ mod tests {
     fn test_barrett_reduce_negative() {
         assert_eq!(barrett_reduce_full(-1), Q as i16 - 1);
         assert_eq!(barrett_reduce_full(-(Q as i16)), 0);
+    }
+
+    #[test]
+    fn test_barrett_reduce_full_exhaustive() {
+        for a in i16::MIN..=i16::MAX {
+            let r = barrett_reduce(a);
+            assert!(
+                r > -(Q as i16) && r < Q as i16,
+                "barrett_reduce({}) = {} outside (-q, q)",
+                a,
+                r
+            );
+            assert_eq!(
+                barrett_reduce_full(a),
+                a.rem_euclid(Q as i16),
+                "barrett_reduce_full({})",
+                a
+            );
+        }
+    }
+
+    #[test]
+    fn test_caddq_exhaustive() {
+        for a in -(Q as i16 - 1)..Q as i16 {
+            assert_eq!(caddq(a), a.rem_euclid(Q as i16), "caddq({})", a);
+        }
+    }
+
+    #[test]
+    fn test_cond_reduce_exhaustive() {
+        for r in 0..2 * Q as i16 {
+            assert_eq!(cond_reduce(r), r % Q as i16, "cond_reduce({})", r);
+        }
     }
 
     #[test]

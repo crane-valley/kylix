@@ -25,8 +25,7 @@ use zeroize::Zeroizing;
 // `panic!`. Forcing the associated constants below at every K-PKE entry point
 // moves that failure to compile time: a parameter set outside the FIPS 203
 // tables cannot be instantiated at all. The runtime panics are kept as
-// defence in depth: `encode::byte_encode` / `byte_decode` take a plain `usize`
-// with no const-generic caller, so a compile-time guard does not apply there.
+// defence in depth.
 //
 // The associated-constant form is deliberate: inline `const { .. }` blocks are
 // not available on the MSRV (1.75), and a `const _: () = ..` item inside a
