@@ -14,8 +14,9 @@ readme = "../README.md"
 publish = false
 
 [features]
-default = ["std", "ml-kem", "ml-dsa", "slh-dsa"]
+default = ["std", "simd", "ml-kem", "ml-dsa", "slh-dsa"]
 std = ["kylix-core/std", "kylix-ml-kem?/std", "kylix-ml-dsa?/std", "kylix-slh-dsa?/std"]
+simd = ["kylix-ml-kem?/simd", "kylix-ml-dsa?/simd"]
 ml-kem = ["dep:kylix-ml-kem", "kylix-ml-kem/ml-kem-512", "kylix-ml-kem/ml-kem-768", "kylix-ml-kem/ml-kem-1024"]
 ml-dsa = ["dep:kylix-ml-dsa", "kylix-ml-dsa/ml-dsa-44", "kylix-ml-dsa/ml-dsa-65", "kylix-ml-dsa/ml-dsa-87"]
 slh-dsa = [

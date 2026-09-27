@@ -23,6 +23,21 @@ cargo test --workspace --all-features
 If your change touches `no_std` behavior or feature gating, also verify the
 affected crate builds without default features.
 
+NIST ACVP vector tests skip themselves when the vector files are missing. Set
+`KYLIX_REQUIRE_ACVP=1` (as CI does) to turn a missing vector file into a test
+failure:
+
+```sh
+KYLIX_REQUIRE_ACVP=1 cargo test --workspace --all-features
+```
+
+If your change touches secret-dependent code paths in ML-KEM, also run the
+dudect timing harness, which lives in its own workspace under `timing/`:
+
+```sh
+cargo run --release --manifest-path timing/Cargo.toml --bin ml_kem
+```
+
 ## Project Context
 
 - [README.md](README.md) for package overview and public usage

@@ -19,9 +19,12 @@ Part of the [Kylix](https://github.com/crane-valley/kylix) post-quantum cryptogr
 
 ## Usage
 
+This crate is distributed from the Kylix repository rather than crates.io.
+Add the Git dependency (and pin a `rev` for reproducible builds):
+
 ```toml
 [dependencies]
-kylix-ml-kem = "0.5"
+kylix-ml-kem = { git = "https://github.com/crane-valley/kylix.git" }
 rand = "0.9"
 ```
 
@@ -78,7 +81,7 @@ let dk = DecapsulationKey::from_bytes(dk_bytes).unwrap();
 ### no_std
 
 ```toml
-kylix-ml-kem = { version = "0.5", default-features = false, features = ["ml-kem-768"] }
+kylix-ml-kem = { git = "https://github.com/crane-valley/kylix.git", default-features = false, features = ["ml-kem-768"] }
 ```
 
 ## License

@@ -59,13 +59,17 @@ kylix-pqc = { git = "https://github.com/crane-valley/kylix.git", features = ["sl
 rand = "0.9"
 ```
 
-If using SHA2-based SLH-DSA with `default-features = false`, enable both
-`slh-dsa` and `slh-dsa-sha2`:
+For a SHA2-only SLH-DSA build, disable default features and enable
+`slh-dsa-sha2` on its own (add `slh-dsa` as well to keep the SHAKE variants):
 
 ```toml
 [dependencies]
-kylix-pqc = { git = "https://github.com/crane-valley/kylix.git", default-features = false, features = ["slh-dsa", "slh-dsa-sha2"] }
+kylix-pqc = { git = "https://github.com/crane-valley/kylix.git", default-features = false, features = ["std", "slh-dsa-sha2"] }
 ```
+
+The facade's default features are `std`, `simd`, `ml-kem`, `ml-dsa` and
+`slh-dsa`. `simd` enables the ML-KEM and ML-DSA SIMD backends; with
+`default-features = false`, add `simd` back to keep them.
 
 ## Usage
 
