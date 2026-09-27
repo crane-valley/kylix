@@ -10,9 +10,10 @@ pub const D: u32 = 13;
 /// Power2Round: decompose r into (r1, r0) where r = r1 * 2^d + r0.
 ///
 /// Input: r in [0, q-1]
-/// Output: (r1, r0) where r0 in [-2^(d-1), 2^(d-1))
+/// Output: (r1, r0) where r0 in (-2^(d-1), 2^(d-1)]
 #[inline]
 pub fn power2round(r: i32) -> (i32, i32) {
+    debug_assert!((0..Q).contains(&r), "power2round input {r} not in [0, q)");
     // r1 = (r + 2^(d-1) - 1) >> d
     let r1 = (r + (1 << (D - 1)) - 1) >> D;
     // r0 = r - r1 * 2^d
@@ -32,18 +33,18 @@ pub fn power2round(r: i32) -> (i32, i32) {
 /// - r0 = LowBits(r): the "low" part, centered in (-alpha/2, alpha/2]
 ///
 /// Constants explanation:
-/// - For gamma2 = (q-1)/32 = 261888: alpha = 523776, m = 16
-///   - 1025 = ceil(2^22 / 4096) for division approximation
+/// - For gamma2 = (q-1)/32 = 261888: alpha = 523776 = 128 * 4092, m = 16
+///   - 1025 = round(2^22 / 4092) for division approximation
 ///   - 22-bit shift and mask by 15 (= m-1) for mod m
-/// - For gamma2 = (q-1)/88 = 95232: alpha = 190464, m = 44
-///   - 11275 = ceil(2^24 / 1488) for division approximation
+/// - For gamma2 = (q-1)/88 = 95232: alpha = 190464 = 128 * 1488, m = 44
+///   - 11275 = round(2^24 / 1488) for division approximation
 ///   - 43 = m-1, XOR trick handles the m=44 boundary case
 #[inline]
 pub fn decompose(r: i32, gamma2: i32) -> (i32, i32) {
     let alpha = 2 * gamma2;
 
-    // r1 = ceil((r + 127) / alpha), computed via multiplication by inverse
-    // 127 = 2^7 - 1 is the rounding term for ceiling division
+    // r1 = ceil(r / 128), then a rounded division by alpha / 128 below; before
+    // the r1 = m wrap, r - r1 * alpha lies in (-alpha/2, alpha/2].
     let mut r1 = (r + 127) >> 7;
     if gamma2 == 261888 {
         // gamma2 = (q-1)/32, m = 16
@@ -145,6 +146,13 @@ mod tests {
             let reconstructed = r1 * (1 << D) + r0;
             assert_eq!(reconstructed, r, "Failed for r={r}");
         }
+    }
+
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "power2round input")]
+    fn test_power2round_rejects_non_canonical_input() {
+        let _ = power2round(Q);
     }
 
     #[test]

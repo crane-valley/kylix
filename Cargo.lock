@@ -191,7 +191,6 @@ dependencies = [
 name = "kylix-ml-dsa"
 version = "0.5.0"
 dependencies = [
- "hex",
  "kylix-core",
  "kylix-test-util",
  "proptest",

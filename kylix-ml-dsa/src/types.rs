@@ -243,6 +243,8 @@ macro_rules! define_ml_dsa_variant {
         mod tests {
             use super::*;
             use crate::sign::ml_dsa_verify;
+            #[cfg(not(feature = "std"))]
+            use alloc::{format, vec::Vec};
 
             #[test]
             fn test_key_sizes() {

@@ -36,7 +36,7 @@ impl Poly {
         Self { coeffs }
     }
 
-    /// Reduce all coefficients to [0, q-1].
+    /// Reduce all coefficients with |c| < 2^30 to [0, q-1].
     pub fn reduce(&mut self) {
         #[cfg(feature = "simd")]
         if crate::simd::reduce(&mut self.coeffs) {
