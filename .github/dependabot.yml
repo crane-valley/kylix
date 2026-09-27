@@ -14,11 +14,28 @@ updates:
       time: "09:00"
       timezone: "Asia/Tokyo"
     open-pull-requests-limit: 5
-    # These major lines require Rust 1.85, while Kylix supports Rust 1.75.
+    # Kylix supports Rust 1.75; these lines need a newer toolchain:
+    # - hmac 0.13, sha2 0.11, sha3 0.11, zeroize 1.9 and rand/rand_chacha/
+    #   rand_core 0.10 need Rust 1.85. rand_core 0.10 also changes the public
+    #   CryptoRng/RngCore trait API (docs/adr/0003).
+    # - rayon 1.11 and rayon-core 1.13 need Rust 1.80.
+    # - dudect-bencher 0.7 needs Rust 1.85 and rand 0.10.
     # Remove the matching constraint when the workspace MSRV is raised.
     ignore:
+      - dependency-name: "dudect-bencher"
+        versions: [">=0.7.0"]
       - dependency-name: "hmac"
         versions: [">=0.13.0"]
+      - dependency-name: "rand"
+        versions: [">=0.10.0"]
+      - dependency-name: "rand_chacha"
+        versions: [">=0.10.0"]
+      - dependency-name: "rand_core"
+        versions: [">=0.10.0"]
+      - dependency-name: "rayon"
+        versions: [">=1.11.0"]
+      - dependency-name: "rayon-core"
+        versions: [">=1.13.0"]
       - dependency-name: "sha2"
         versions: [">=0.11.0"]
       - dependency-name: "sha3"
