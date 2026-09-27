@@ -9,6 +9,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -Dwarnings
+  KYLIX_REQUIRE_ACVP: "1"
 
 permissions:
   contents: read
@@ -18,9 +19,10 @@ jobs:
     name: Format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
         with:
+          toolchain: stable
           components: rustfmt
       - run: cargo fmt --all --check
       - name: Verify workspace packages are not publishable
@@ -32,11 +34,12 @@ jobs:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
         with:
+          toolchain: stable
           components: clippy
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - run: cargo clippy --all-targets --all-features -- -D warnings
       - run: cargo clippy --all-targets --no-default-features -- -D warnings
 
@@ -47,10 +50,32 @@ jobs:
       contents: read
       checks: write
     steps:
-      - uses: actions/checkout@v7
-      - uses: rustsec/audit-check@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+        with:
+          tool: cargo-audit
+      # audit-check only reads the workspace lockfile. timing/ is required;
+      # fuzz lockfiles are audited whenever they exist. `cargo audit --file`
+      # trusts the lockfile as written, so a lockfile that no longer matches its
+      # manifest would let builds resolve dependencies that were never audited.
+      - name: Audit timing and fuzz lockfiles
+        run: |
+          set -euo pipefail
+          if [ ! -f timing/Cargo.lock ]; then
+            echo "::error::timing/Cargo.lock is missing"
+            exit 1
+          fi
+          shopt -s nullglob
+          for lock in timing/Cargo.lock */fuzz/Cargo.lock; do
+            echo "::group::$lock"
+            manifest="$(dirname "$lock")/Cargo.toml"
+            cargo metadata --locked --format-version 1 --manifest-path "$manifest" > /dev/null
+            cargo audit --file "$lock"
+            echo "::endgroup::"
+          done
 
   # Fast test for PRs - ubuntu + stable only
   test-pr:
@@ -58,9 +83,11 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       # Test with fast SLH-DSA variants only (skip slow -s variants)
       - name: Test core crates
         run: cargo test -p kylix-core -p kylix-ml-kem -p kylix-ml-dsa --all-features
@@ -76,9 +103,11 @@ jobs:
     name: Test (scalar fallback)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: Test kylix-core
         run: cargo test -p kylix-core --no-default-features --features std
       - name: Test ML-KEM
@@ -88,26 +117,105 @@ jobs:
       - name: Test SLH-DSA fast variants
         run: cargo test -p kylix-slh-dsa --no-default-features --features "std,slh-dsa-shake-128f,slh-dsa-shake-192f,slh-dsa-shake-256f"
 
+  # The workspace pins the crypto crates to opt-level = 2 in dev builds, but
+  # downstream crates build them at their own levels (0 in a default debug
+  # build, z for size), so run the tests there too.
+  test-opt-levels:
+    name: Test (opt-level ${{ matrix.opt-level }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        opt-level: ["0", "z"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+        with:
+          toolchain: stable
+      # No rust-cache: the opt-level assertion needs every kylix crate to be
+      # compiled in this run, so a cached artifact would fail it.
+      - name: Test ML-KEM, ML-DSA and SLH-DSA-SHAKE-128f
+        env:
+          OPT: ${{ matrix.opt-level }}
+          CARGO_TERM_COLOR: never
+        run: |
+          set -euo pipefail
+          # Cargo accepts numeric levels only unquoted and s/z only quoted.
+          if [[ "$OPT" =~ ^[0-9]$ ]]; then val="$OPT"; else val="\"$OPT\""; fi
+          # The [profile.dev.package.kylix-*] opt-level = 2 entries beat
+          # CARGO_PROFILE_DEV_OPT_LEVEL, so each crate is overridden by name.
+          cfg=(--config "profile.dev.opt-level=$val")
+          for pkg in kylix-core kylix-ml-kem kylix-ml-dsa kylix-slh-dsa; do
+            cfg+=(--config "profile.dev.package.$pkg.opt-level=$val")
+          done
+          cargo test -v "${cfg[@]}" -p kylix-core -p kylix-ml-kem -p kylix-ml-dsa --all-features 2>&1 | tee test.log
+          cargo test -v "${cfg[@]}" -p kylix-slh-dsa --features "std,slh-dsa-shake-128f" 2>&1 | tee -a test.log
+          # cargo omits -C opt-level for level 0 and passes it otherwise;
+          # rustdoc doctest invocations never carry it, so only rustc counts.
+          for crate in kylix_core kylix_ml_kem kylix_ml_dsa kylix_slh_dsa; do
+            lines=$(grep -E -- "rustc(\.exe)? --crate-name $crate " test.log || true)
+            if [ -z "$lines" ]; then
+              echo "::error::no rustc invocation for $crate in the log"; exit 1
+            fi
+            if [ "$OPT" = 0 ]; then
+              wrong=$(grep -F -- "-C opt-level=" <<<"$lines" || true)
+            else
+              wrong=$(grep -vF -- "-C opt-level=$OPT " <<<"$lines" || true)
+            fi
+            if [ -n "$wrong" ]; then
+              echo "::error::$crate was not compiled at opt-level $OPT"; echo "$wrong"; exit 1
+            fi
+            echo "$crate: $(wc -l <<<"$lines") rustc invocation(s) at opt-level $OPT"
+          done
+
   test-no-std:
     name: no_std
     runs-on: ubuntu-latest
+    env:
+      KEM: ml-kem-512,ml-kem-768,ml-kem-1024
+      DSA: ml-dsa-44,ml-dsa-65,ml-dsa-87
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
         with:
-          targets: thumbv7em-none-eabi
-      - uses: Swatinem/rust-cache@v2
+          toolchain: stable
+          targets: thumbv7em-none-eabi,aarch64-unknown-none-softfloat
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - run: cargo build --package kylix-core --no-default-features --target thumbv7em-none-eabi
-      - run: cargo build --package kylix-ml-kem --no-default-features --target thumbv7em-none-eabi
+      - run: cargo build --package kylix-ml-kem --no-default-features --features "$KEM" --target thumbv7em-none-eabi
+      - run: cargo build --package kylix-ml-dsa --no-default-features --features "$DSA" --target thumbv7em-none-eabi
       - run: cargo build --package kylix-slh-dsa --no-default-features --features slh-dsa-shake-128f --target thumbv7em-none-eabi
+      - run: cargo build --package kylix-pqc --no-default-features --features ml-kem,ml-dsa,slh-dsa --target thumbv7em-none-eabi
+      # aarch64 without the neon target feature: `simd` must fall back to scalar.
+      - run: cargo build --package kylix-core --no-default-features --target aarch64-unknown-none-softfloat
+      - run: cargo build --package kylix-ml-kem --no-default-features --features "simd,$KEM" --target aarch64-unknown-none-softfloat
+      - run: cargo build --package kylix-ml-dsa --no-default-features --features "simd,$DSA" --target aarch64-unknown-none-softfloat
+      - run: cargo build --package kylix-pqc --no-default-features --features ml-kem,ml-dsa,slh-dsa --target aarch64-unknown-none-softfloat
+
+  wasm-simd128:
+    name: wasm32 SIMD128
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -Dwarnings -C target-feature=+simd128
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: cargo check --package kylix-ml-dsa --no-default-features --features simd,ml-dsa-44,ml-dsa-65,ml-dsa-87 --target wasm32-unknown-unknown
 
   doc:
     name: Documentation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - run: cargo doc --all-features --no-deps
         env:
           RUSTDOCFLAGS: -Dwarnings
@@ -116,11 +224,11 @@ jobs:
     name: MSRV
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
         with:
           toolchain: "1.75"
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       # kylix-test-util is a dev-only, unpublished crate; it depends on proptest,
       # which needs a newer compiler than the MSRV. Excluding it keeps this job
       # checking only the crates whose MSRV we actually promise.
@@ -130,57 +238,16 @@ jobs:
     name: Constant-Time Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: timing
       - name: Build timing tests
-        run: cargo build --release --manifest-path timing/Cargo.toml --bin ml_kem
-      - name: Run ML-KEM dudect test
+        run: cargo build --release --locked --manifest-path timing/Cargo.toml --bin ml_kem
+      - name: Run ML-KEM dudect gate
         run: |
-          # Run dudect for 30 seconds, capturing output
-          # dudect exits when it has enough measurements
-          timeout 30s ./timing/target/release/ml_kem 2>&1 | tee dudect_output.txt || true
-
-          # Show output for debugging
-          cat dudect_output.txt
-
-          # Extract measurement count (format: "n == +0.006M" or "n == +1.234M")
-          MEASUREMENTS=$(grep -oE 'n == \+[0-9.]+M' dudect_output.txt | tail -1 | grep -oE '[0-9.]+')
-          echo "Measurements: ${MEASUREMENTS}M"
-
-          # Extract the max t value (format: "max t = +1.17697")
-          MAX_T=$(grep -oE 'max t = [+-]?[0-9.]+' dudect_output.txt | tail -1 | grep -oE '[+-]?[0-9.]+$')
-
-          if [ -z "$MAX_T" ]; then
-            echo "ERROR: Could not extract max t value from dudect output"
-            exit 1
-          fi
-
-          echo "Extracted max t value: $MAX_T"
-
-          # Get absolute value and check against threshold (4.5)
-          # Values with |t| < 4.5 indicate constant-time behavior
-          ABS_T=$(echo "$MAX_T" | tr -d '+-')
-          echo "Absolute max t: $ABS_T"
-
-          # Decision matrix:
-          # - |t| <= 4.5: PASS (constant-time confirmed)
-          # - |t| > 4.5 AND measurements >= 0.5M: FAIL (timing leakage detected)
-          # - |t| > 4.5 AND measurements < 0.5M: INCONCLUSIVE (warn, don't fail)
-          if (( $(echo "$ABS_T <= 4.5" | bc -l) )); then
-            echo "::notice::Constant-time check passed (|max t| = $ABS_T <= 4.5, n = ${MEASUREMENTS}M)"
-            exit 0
-          fi
-
-          # |t| > 4.5 - check if we have enough measurements
-          if (( $(echo "$MEASUREMENTS < 0.5" | bc -l) )); then
-            echo "::warning::Inconclusive result: |max t| = $ABS_T > 4.5 but insufficient measurements (${MEASUREMENTS}M < 0.5M)"
-            echo "::warning::Re-run CI for more reliable results. Not failing due to low sample size."
-            exit 0
-          fi
-
-          # Sufficient measurements and |t| > 4.5 - real timing leakage
-          echo "::error::Potential timing leakage detected (|max t| = $ABS_T > 4.5, n = ${MEASUREMENTS}M)"
-          exit 1
+          timeout 20m bash timing/dudect-gate.sh ./timing/target/release/ml_kem \
+            decaps_768_fixed_vs_random decaps_768_valid_vs_invalid

@@ -1,7 +1,8 @@
 //! Shared NIST ACVP vector-loading scaffolding.
 //!
 //! Official vectors live under `<crate>/tests/acvp/`. Every ACVP test degrades
-//! to a skip when a partial source archive omits that directory.
+//! to a skip when a partial source archive omits that directory, unless
+//! `KYLIX_REQUIRE_ACVP=1` is set, in which case the missing directory fails the test.
 
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
@@ -17,11 +18,23 @@ pub fn vectors_available() -> bool {
     Path::new(ACVP_DIR).exists()
 }
 
+/// Whether missing ACVP vectors must fail instead of skip (`KYLIX_REQUIRE_ACVP=1`).
+pub fn vectors_required() -> bool {
+    std::env::var_os("KYLIX_REQUIRE_ACVP").is_some_and(|v| v == "1")
+}
+
 /// Skip the enclosing test (returning early) if ACVP vectors are not available.
+/// Panics instead when [`vectors_required`] is true.
 #[macro_export]
 macro_rules! skip_if_no_vectors {
     () => {
         if !$crate::acvp::vectors_available() {
+            if $crate::acvp::vectors_required() {
+                panic!(
+                    "ACVP test vectors are missing from {} but KYLIX_REQUIRE_ACVP=1",
+                    $crate::acvp::ACVP_DIR
+                );
+            }
             eprintln!("Skipping ACVP test: test vectors are not present in this source tree");
             return;
         }

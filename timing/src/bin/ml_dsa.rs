@@ -2,26 +2,30 @@
 //!
 //! Tests that signing timing does not leak information about the secret key.
 //!
-//! Note: ML-DSA uses rejection sampling, so signing time varies by message.
-//! This test checks that timing doesn't depend on the secret key bits.
+//! Note: ML-DSA uses rejection sampling, so signing time varies with the
+//! number of rejected candidates. This test is informational and not part of
+//! the CI gate.
 //!
-//! Run with: `cargo run --release -p kylix-timing --bin ml_dsa`
+//! Run with:
+//! `cargo run --release --manifest-path timing/Cargo.toml --bin ml_dsa`
 
-use dudect_bencher::rand::Rng;
+use std::hint::black_box;
+
+use dudect_bencher::rand::{Rng, RngCore};
 use dudect_bencher::{ctbench_main, BenchRng, Class, CtRunner};
 use kylix_ml_dsa::ml_dsa_65::{MlDsa65, SigningKey, VerificationKey};
+use kylix_ml_dsa::params::ml_dsa_65::{BETA, C_TILDE_BYTES, ETA, GAMMA1, GAMMA2, K, L, OMEGA, TAU};
+use kylix_ml_dsa::sign::ml_dsa_sign;
 use kylix_ml_dsa::Signer;
 use once_cell::sync::Lazy;
 use rand::{rngs::StdRng, SeedableRng};
 
-/// Pre-generated key pairs for testing.
 struct TestData {
     sk_left: SigningKey,
     sk_right: SigningKey,
 }
 
 static TEST_DATA: Lazy<TestData> = Lazy::new(|| {
-    // Use seeded RNG for reproducible test data
     let mut rng = StdRng::from_seed([42u8; 32]);
     let (sk_left, _): (SigningKey, VerificationKey) =
         MlDsa65::keygen(&mut rng).expect("keygen failed");
@@ -31,39 +35,32 @@ static TEST_DATA: Lazy<TestData> = Lazy::new(|| {
     TestData { sk_left, sk_right }
 });
 
-/// Fixed test message.
 const MESSAGE: &[u8] = b"constant-time test message for dudect verification";
 
-/// Number of iterations per batch.
-const ITERATIONS: usize = 1_000; // Lower than ML-KEM due to slower signing
+const ITERATIONS: usize = 1_000;
 
-/// Test ML-DSA-65 signing constant-time property.
-///
-/// Compares timing between two different secret keys signing the same message.
-/// If constant-time, secret key content should not affect timing.
+// Deterministic signing fixes each key's rejection count for a given message,
+// so the classes would differ by a constant number of loop iterations. A
+// fresh hedged rnd per measurement makes the rejection count a fresh draw for
+// both classes.
 fn bench_sign_65(runner: &mut CtRunner, rng: &mut BenchRng) {
     let data = &*TEST_DATA;
+    let mut rnd = [0u8; 32];
 
-    // Pre-generate class assignments
-    let classes: Vec<_> = (0..ITERATIONS)
-        .map(|_| {
-            if rng.gen::<bool>() {
-                Class::Left
-            } else {
-                Class::Right
-            }
-        })
-        .collect();
-
-    // Run the timing tests
-    for class in classes {
-        let sk = match class {
-            Class::Left => &data.sk_left,
-            Class::Right => &data.sk_right,
+    for _ in 0..ITERATIONS {
+        let (class, sk) = if rng.gen::<bool>() {
+            (Class::Left, &data.sk_left)
+        } else {
+            (Class::Right, &data.sk_right)
         };
+        rng.fill_bytes(&mut rnd);
 
         runner.run_one(class, || {
-            let _ = MlDsa65::sign(sk, MESSAGE);
+            ml_dsa_sign::<K, L, ETA, BETA, GAMMA1, GAMMA2, TAU, OMEGA, C_TILDE_BYTES>(
+                black_box(sk.as_bytes()),
+                black_box(MESSAGE),
+                black_box(&rnd),
+            )
         });
     }
 }

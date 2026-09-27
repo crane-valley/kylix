@@ -7,6 +7,7 @@
 ## CI Notes
 
 - CI uses `-Dwarnings` so all warnings are treated as errors
+- CI sets `KYLIX_REQUIRE_ACVP=1`, so missing ACVP vectors fail tests instead of skipping them
 - Doc comments: `[X]` is interpreted as a link reference by rustdoc; escape as `\[X\]`
 
 ## Code Quality Rules
@@ -73,7 +74,7 @@ When adding a new crate to the workspace:
 
 Runtime detection with compile-time fast paths:
 - AVX2: `#[target_feature(enable = "avx2")]` + `is_x86_feature_detected!`
-- NEON: always available on aarch64 (const true)
+- NEON: aarch64 with the `neon` target feature (compile-time check)
 - WASM-SIMD128: feature-gated (`core::arch::wasm32` intrinsics)
 - Scalar fallback: no_std compatible
 
@@ -93,15 +94,16 @@ Three dispatch flavors (macros in kylix-core):
 ## Constant-Time Testing
 
 - dudect-based timing tests in `timing/` directory (excluded from workspace)
-- Run: `cargo run --release -p kylix-timing --bin ml_kem` (must be release for meaningful timing)
-- CI threshold: A test passes if `dudect` reports `|max t| <= 4.5`. A result of `|max t| > 4.5` is considered inconclusive if fewer than 0.5 million measurements were taken; otherwise, it is a failure.
+- Run: `cargo run --release --manifest-path timing/Cargo.toml --bin ml_kem` (must be release for meaningful timing)
+- CI gate: `timing/dudect-gate.sh` runs the ML-KEM benches (1M measurements each). A bench with `|max t| > 10` (dudect's own failure level) is rerun and fails the job only if a majority of up to three runs exceed 10, since one noisy shared-runner run can; `4.5 < |max t| <= 10` is a warning. A crashed or incomplete run or a missing or unparsable result also fails.
 - All secret-dependent branches must use `subtle::Choice` / `subtle::ct_eq`
 - NEVER use `if` / `match` / `==` on secret data -- use `subtle` crate operations
 
 ## Cross-Platform CI
 
-- ci.yml: fast PR checks (fmt, clippy, audit, test on Ubuntu stable, MSRV 1.75, no_std, dudect)
-- ci-full.yml: on push to main -- full matrix (Ubuntu, macOS, Windows, ARM64 with SIMD-specific tests, codecov)
+- ci.yml: fast PR checks (fmt, clippy, audit, test on Ubuntu stable, tests at opt-level 0 and z, MSRV 1.75, no_std builds for thumbv7em and aarch64 softfloat, wasm32 SIMD128 check, dudect)
+- ci-full.yml: on push to main -- full matrix (Ubuntu, macOS, Windows, ARM64 NEON, codecov)
+- Actions are pinned by commit SHA with a version comment; Dependabot updates them
 
 ## Workspace Crate Graph
 
