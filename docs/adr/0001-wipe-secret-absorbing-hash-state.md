@@ -164,6 +164,8 @@ digest 0.11.2 and 0.11.3, sha2 0.11.0, hmac 0.13.0, block-buffer 0.11.0 and
 
 - kylix-core carries a small permutation wrapper (absorb, pad, squeeze). The
   Keccak-f[1600] permutation remains the RustCrypto `keccak` crate.
+  The wrapper calls `keccak::f1600`, which keccak 0.2 removes, so keccak is
+  held on 0.1 until the MSRV bump (ADR 0003).
 - Differential tests in `kylix-core/src/hash.rs` are the safety net: all four
   functions are compared with the sha3 crate for every input length from 0 to
   3 * rate + 1, with the input split across one, two (every split point) and

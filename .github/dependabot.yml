@@ -18,6 +18,8 @@ updates:
     # - hmac 0.13, sha2 0.11, sha3 0.11, zeroize 1.9 and rand/rand_chacha/
     #   rand_core 0.10 need Rust 1.85. rand_core 0.10 also changes the public
     #   CryptoRng/RngCore trait API (docs/adr/0003).
+    # - keccak 0.2 needs Rust 1.85 and removes `keccak::f1600`, which the
+    #   kylix-core sponge uses (docs/adr/0001).
     # - rayon 1.11 and rayon-core 1.13 need Rust 1.80.
     # - dudect-bencher 0.7 needs Rust 1.85 and rand 0.10.
     # Remove the matching constraint when the workspace MSRV is raised.
@@ -26,6 +28,8 @@ updates:
         versions: [">=0.7.0"]
       - dependency-name: "hmac"
         versions: [">=0.13.0"]
+      - dependency-name: "keccak"
+        versions: [">=0.2.0"]
       - dependency-name: "rand"
         versions: [">=0.10.0"]
       - dependency-name: "rand_chacha"
