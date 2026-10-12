@@ -128,7 +128,7 @@ jobs:
         # Match the issue-creation gate: a bare failure() also fires on infra
         # failures, when there is nothing to upload.
         if: failure() && steps.fuzz.outputs.crash_count > 0
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: crash-ml-kem-${{ matrix.target }}-${{ github.run_id }}
           path: kylix-ml-kem/fuzz/artifacts/${{ matrix.target }}/
@@ -301,7 +301,7 @@ jobs:
         # Match the issue-creation gate: a bare failure() also fires on infra
         # failures, when there is nothing to upload.
         if: failure() && steps.fuzz.outputs.crash_count > 0
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: crash-ml-dsa-${{ matrix.target }}-${{ github.run_id }}
           path: kylix-ml-dsa/fuzz/artifacts/${{ matrix.target }}/
@@ -476,7 +476,7 @@ jobs:
         # Match the issue-creation gate: a bare failure() also fires on infra
         # failures, when there is nothing to upload.
         if: failure() && steps.fuzz.outputs.crash_count > 0
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: crash-slh-dsa-${{ matrix.target }}-${{ github.run_id }}
           path: kylix-slh-dsa/fuzz/artifacts/${{ matrix.target }}/
