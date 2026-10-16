@@ -21,7 +21,7 @@ This directory contains fuzz targets for testing ML-KEM operations using `cargo-
 ## Requirements
 
 - Rust nightly toolchain
-- cargo-fuzz (CI pins 0.13.1: `cargo install cargo-fuzz --version 0.13.1 --locked`)
+- cargo-fuzz (CI pins 0.13.2: `cargo install cargo-fuzz --version 0.13.2 --locked`)
 - Linux or WSL (CI runs on Ubuntu). Native Windows MSVC builds also work when the
   MSVC `bin/Hostx64/x64` directory, which ships the ASan runtime DLL, is on `PATH`.
 
@@ -29,7 +29,7 @@ This directory contains fuzz targets for testing ML-KEM operations using `cargo-
 
 ```bash
 # Install cargo-fuzz (if not already installed)
-cargo install cargo-fuzz --version 0.13.1 --locked
+cargo install cargo-fuzz --version 0.13.2 --locked
 
 # List available targets
 cargo +nightly fuzz list
